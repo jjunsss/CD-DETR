@@ -88,11 +88,11 @@ def train_one_epoch(epo, model: torch.nn.Module,criterion: torch.nn.Module,
             
             #! 여기서 리허설을 위한 데이터를 모집해야 함. construct rehearsal dataset
             with torch.no_grad():
-                if train_check == True:
+                if train_check == True and False:
                     #origin_samples = origin_samples.to(ex_device)
                     targets = [{k: v.to(ex_device) for k, v in t.items()} for t in targets]
                     #origin_targets = [{k: v.to(ex_device) for k, v in t.items()} for t in origin_targets]
-                    rehearsal_classes = contruct_rehearsal(losses_value=losses_value, lower_limit=0.1, upper_limit=0.2,
+                    rehearsal_classes = contruct_rehearsal(losses_value=losses_value, lower_limit=0.1, upper_limit=0.1,
                                         targets=targets, origin_samples=origin_samples, origin_targets=origin_targets, rehearsal_classes=rehearsal_classes, Current_Classes=current_classes, Rehearsal_Memory=memory)
 
             # reduce losses over all GPUs for logging purposes
