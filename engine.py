@@ -133,11 +133,13 @@ def train_one_epoch(args, epo, model: torch.nn.Module,criterion: torch.nn.Module
             # print(f"cache allocated Memory : {torch.cuda.memory_allocated()}")
             # print(f"max allocated Memory : {torch.cuda.max_memory_cached()}")
             del samples, targets, origin_samples, origin_targets
+            torch.cuda.empty_cache()
             
-            if torch.cuda.memory_allocated() > torch.cuda.max_memory_reserved() * 0.99:
-                torch.cuda.empty_cache()
-                
+            
             samples, targets, origin_samples, origin_targets = prefetcher.next()
+            if torch.cuda.memory_allocated() > torch.cuda.max_memory_reserved() * 0.99:
+                samples, targets, origin_samples, origin_targets = prefetcher.next()
+                continue 
         else:
             break
         
