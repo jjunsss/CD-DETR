@@ -45,7 +45,7 @@ def decompose_dataset(no_use_count: int, samples: utils.NestedTensor, targets: D
     batch_size = len(targets)
     return (batch_size, no_use_count, samples, targets, origin_samples, origin_targets, used_number)
 
-def train_one_epoch(epo, model: torch.nn.Module,criterion: torch.nn.Module,
+def train_one_epoch(args, epo, model: torch.nn.Module,criterion: torch.nn.Module,
                     data_loader: Iterable, optimizer: torch.optim.Optimizer,
                     device: torch.device, memory: int = 300, max_norm: float = 0,
                     current_classes: List = [], rehearsal_classes: Dict = {}, limited_counts: int = 0):
@@ -70,14 +70,13 @@ def train_one_epoch(epo, model: torch.nn.Module,criterion: torch.nn.Module,
         samples = samples.to(ex_device)
         origin_samples = origin_samples.to(ex_device)
         targets = [{k: v.to(ex_device) for k, v in t.items()} for t in targets]
-        origin_targets = [{k: v.to(ex_device) for k, v in t.items()} for t in origin_targets]
         
         #TODO : one samples no over / one samples over solve this ! 
         if idx < 100000:
             with torch.no_grad():
                 no_use, yes_use, label_dict = check_class(True, targets, label_dict, CL_Limited=limited_counts)
                 samples, targets, _, _ , train_check = decompose_dataset(no_use_count=len(no_use), samples= samples, targets = targets, origin_samples=origin_samples, origin_targets= origin_targets ,used_number= yes_use)
-            
+
             samples = samples.to(device)
             targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
             outputs = model(samples)
@@ -88,7 +87,7 @@ def train_one_epoch(epo, model: torch.nn.Module,criterion: torch.nn.Module,
             
             #! 여기서 리허설을 위한 데이터를 모집해야 함. construct rehearsal dataset
             with torch.no_grad():
-                if train_check == True and False:
+                if train_check == True and args.Rehearsal == True:
                     #origin_samples = origin_samples.to(ex_device)
                     targets = [{k: v.to(ex_device) for k, v in t.items()} for t in targets]
                     #origin_targets = [{k: v.to(ex_device) for k, v in t.items()} for t in origin_targets]
@@ -103,20 +102,20 @@ def train_one_epoch(epo, model: torch.nn.Module,criterion: torch.nn.Module,
                 continue
             
             count += 1
-            loss_dict_reduced_scaled = {k: v * weight_dict[k]
+            loss_dict_reduced_scaled = {k: v.item() * weight_dict[k]
                                         for k, v in loss_dict_reduced.items() if k in weight_dict}
             losses_reduced_scaled = sum(loss_dict_reduced_scaled.values())
-            loss_value = losses_reduced_scaled.item()
-            sum_loss += loss_value
+            #loss_value = losses_reduced_scaled.item()
+            sum_loss += losses_reduced_scaled
             
             if utils.is_main_process(): #sum_loss가 GPU의 개수에 맞춰서 더해주고 있으니,
-                print(f"epoch : {epo}, losses : {loss_value:05f}, epoch_total_loss : {(sum_loss / count):05f}, count : {count}")
+                print(f"epoch : {epo}, losses : {losses_reduced_scaled:05f}, epoch_total_loss : {(sum_loss / count):05f}, count : {count}")
                 print(f"total examplar counts : {sum([len(contents) for contents in list(rehearsal_classes.values())])}")
                 if idx % 10 == 0:
                     print(f"current classes is {current_classes}")
 
-            if not math.isfinite(loss_value):
-                print("Loss is {}, stopping training".format(loss_value))
+            if not math.isfinite(losses_reduced_scaled):
+                print("Loss is {}, stopping training".format(losses_reduced_scaled))
                 print(loss_dict_reduced)
                 samples, targets, origin_samples, origin_targets = prefetcher.next() 
                 continue
@@ -129,7 +128,16 @@ def train_one_epoch(epo, model: torch.nn.Module,criterion: torch.nn.Module,
             else:
                 grad_total_norm = utils.get_total_grad_norm(model.parameters(), max_norm)
             optimizer.step()
-            samples, targets, origin_samples, origin_targets = prefetcher.next() 
+            # print(f"allocated Memory : {torch.cuda.memory_allocated()}")
+            # print(f"max allocated Memory : {torch.cuda.max_memory_allocated()}")
+            # print(f"cache allocated Memory : {torch.cuda.memory_allocated()}")
+            # print(f"max allocated Memory : {torch.cuda.max_memory_cached()}")
+            del samples, targets, origin_samples, origin_targets
+            
+            if torch.cuda.memory_allocated() > torch.cuda.max_memory_reserved() * 0.99:
+                torch.cuda.empty_cache()
+                
+            samples, targets, origin_samples, origin_targets = prefetcher.next()
         else:
             break
         
