@@ -253,7 +253,7 @@ def main(args):
             #original training
             #TODO: 매 에포크 마다 생성되는 save 파일과 지워지는 rehearsal 없도록 정리.
             rehearsal_classes = train_one_epoch( #save the rehearsal dataset. this method necessary need to clear dataset
-                args, epoch, model, criterion, data_loader_train, optimizer, device, args.Memory, args.clip_max_norm, list_CC, rehearsal_classes, args.CL_Limited)
+                args, epoch, model, criterion, data_loader_train, optimizer, device, list_CC, rehearsal_classes)
             lr_scheduler.step()
         
         save_model_params(model_without_ddp, optimizer, lr_scheduler, args, args.output_dir, task_idx, int(args.Task))

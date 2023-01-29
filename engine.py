@@ -47,8 +47,7 @@ def decompose_dataset(no_use_count: int, samples: utils.NestedTensor, targets: D
 
 def train_one_epoch(args, epo, model: torch.nn.Module,criterion: torch.nn.Module,
                     data_loader: Iterable, optimizer: torch.optim.Optimizer,
-                    device: torch.device, memory: int = 300, max_norm: float = 0,
-                    current_classes: List = [], rehearsal_classes: Dict = {}, limited_counts: int = 0):
+                    device: torch.device, current_classes: List = [], rehearsal_classes: Dict = {}):
     
     label_dict = {}
     model.train()
@@ -75,7 +74,7 @@ def train_one_epoch(args, epo, model: torch.nn.Module,criterion: torch.nn.Module
         #TODO : one samples no over / one samples over solve this ! 
         if idx < 100000:
             with torch.no_grad():
-                no_use, yes_use, label_dict = check_class(True, targets, label_dict, CL_Limited=limited_counts)
+                no_use, yes_use, label_dict = check_class(True, targets, label_dict, CL_Limited=args.CL_Limited)
                 samples, targets, _, _ , train_check = decompose_dataset(no_use_count=len(no_use), samples= samples, targets = targets, origin_samples=origin_samples, origin_targets= origin_targets ,used_number= yes_use)
 
             samples = samples.to(device)
@@ -89,11 +88,9 @@ def train_one_epoch(args, epo, model: torch.nn.Module,criterion: torch.nn.Module
             #! 여기서 리허설을 위한 데이터를 모집해야 함. construct rehearsal dataset
             with torch.no_grad():
                 if train_check == True and args.Rehearsal == True:
-                    #origin_samples = origin_samples.to(ex_device)
                     targets = [{k: v.to(ex_device) for k, v in t.items()} for t in targets]
-                    #origin_targets = [{k: v.to(ex_device) for k, v in t.items()} for t in origin_targets]
                     rehearsal_classes = contruct_rehearsal(losses_value=losses_value, lower_limit=0.1, upper_limit=0.1,
-                                        targets=targets, origin_samples=origin_samples, origin_targets=origin_targets, rehearsal_classes=rehearsal_classes, Current_Classes=current_classes, Rehearsal_Memory=memory)
+                                        targets=targets, origin_samples=origin_samples, origin_targets=origin_targets, rehearsal_classes=rehearsal_classes, Current_Classes=current_classes, Rehearsal_Memory=args.Memory)
 
             # reduce losses over all GPUs for logging purposes
             loss_dict_reduced = utils.reduce_dict(loss_dict, train_check)
@@ -126,10 +123,10 @@ def train_one_epoch(args, epo, model: torch.nn.Module,criterion: torch.nn.Module
             optimizer.zero_grad()
             losses.backward()
             
-            if max_norm > 0:
-                grad_total_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm)
+            if args.clip_max_norm > 0:
+                grad_total_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip_max_norm)
             else:
-                grad_total_norm = utils.get_total_grad_norm(model.parameters(), max_norm)
+                grad_total_norm = utils.get_total_grad_norm(model.parameters(), args.clip_max_norm)
             optimizer.step()
 
             del samples, targets, origin_samples, origin_targets
