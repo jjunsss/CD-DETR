@@ -3,6 +3,7 @@ from pympler import asizeof
 from typing import Tuple, Dict, List, Optional
 import os
 import sys
+import torch
 
 def check_rehearsal_components(rehearsal_classes: Dict, output_dir: str, print_stat: bool=True, save: bool=False):
     '''
@@ -51,3 +52,17 @@ def check_rehearsal_components(rehearsal_classes: Dict, output_dir: str, print_s
         print(summary.print_(summary.summarize(rehearsal_classes)))
 
         sys.stdout.close()
+
+def Memory_checker():
+    '''
+        To check memory capacity
+        To check memory cache capacity
+    '''
+    print(f"*" * 50)
+    print(f"allocated Memory : {torch.cuda.memory_allocated()}")
+    print(f"max allocated Memory : {torch.cuda.max_memory_allocated()}")
+    print(f"*" * 50)
+    print(f"cache allocated Memory : {torch.cuda.memory_allocated()}")
+    print(f"max allocated Memory : {torch.cuda.max_memory_cached()}")
+    print(f"*" * 50)
+    

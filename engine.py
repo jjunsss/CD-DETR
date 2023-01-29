@@ -60,12 +60,13 @@ def train_one_epoch(args, epo, model: torch.nn.Module,criterion: torch.nn.Module
     metric_logger.add_meter('grad_norm', utils.SmoothedValue(window_size=1, fmt='{value:.2f}'))
 
     prefetcher = data_prefetcher(data_loader, device, prefetch=True)
-    samples, targets, origin_samples, origin_targets = prefetcher.next() 
+    
     
     sum_loss = 0.0
     set_tm = time.time()
     count = 0
     for idx in tqdm(range(len(data_loader))): #targets 
+        samples, targets, origin_samples, origin_targets = prefetcher.next() 
         train_check = True
         samples = samples.to(ex_device)
         origin_samples = origin_samples.to(ex_device)
@@ -97,7 +98,8 @@ def train_one_epoch(args, epo, model: torch.nn.Module,criterion: torch.nn.Module
             # reduce losses over all GPUs for logging purposes
             loss_dict_reduced = utils.reduce_dict(loss_dict, train_check)
             if loss_dict_reduced == False:
-                samples, targets, origin_samples, origin_targets = prefetcher.next() 
+                del samples, targets, origin_samples, origin_targets
+                torch.cuda.empty_cache()
                 print(f'Total GPU not working... so passed \n')
                 continue
             
@@ -117,7 +119,8 @@ def train_one_epoch(args, epo, model: torch.nn.Module,criterion: torch.nn.Module
             if not math.isfinite(losses_reduced_scaled):
                 print("Loss is {}, stopping training".format(losses_reduced_scaled))
                 print(loss_dict_reduced)
-                samples, targets, origin_samples, origin_targets = prefetcher.next() 
+                del samples, targets, origin_samples, origin_targets
+                torch.cuda.empty_cache()
                 continue
             
             optimizer.zero_grad()
@@ -128,18 +131,9 @@ def train_one_epoch(args, epo, model: torch.nn.Module,criterion: torch.nn.Module
             else:
                 grad_total_norm = utils.get_total_grad_norm(model.parameters(), max_norm)
             optimizer.step()
-            # print(f"allocated Memory : {torch.cuda.memory_allocated()}")
-            # print(f"max allocated Memory : {torch.cuda.max_memory_allocated()}")
-            # print(f"cache allocated Memory : {torch.cuda.memory_allocated()}")
-            # print(f"max allocated Memory : {torch.cuda.max_memory_cached()}")
+
             del samples, targets, origin_samples, origin_targets
             torch.cuda.empty_cache()
-            
-            
-            samples, targets, origin_samples, origin_targets = prefetcher.next()
-            if torch.cuda.memory_allocated() > torch.cuda.max_memory_reserved() * 0.99:
-                samples, targets, origin_samples, origin_targets = prefetcher.next()
-                continue 
         else:
             break
         

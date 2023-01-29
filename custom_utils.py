@@ -308,3 +308,4 @@ def save_model_params(model_without_ddp:model, optimizer:torch.optim, lr_schedul
         'lr_scheduler': lr_scheduler.state_dict(),
         'args': args,
     }, checkpoint_paths)
+    
