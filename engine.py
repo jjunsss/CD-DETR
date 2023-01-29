@@ -38,6 +38,7 @@ import util.misc as utils
 import numpy as np
 from typing import Tuple, Dict, List, Optional
 from tqdm import tqdm
+from GPUtil import showUtilization as gpu_usage
 
 @decompose
 def decompose_dataset(no_use_count: int, samples: utils.NestedTensor, targets: Dict, origin_samples: utils.NestedTensor, origin_targets: Dict, 
@@ -53,19 +54,16 @@ def train_one_epoch(args, epo, model: torch.nn.Module,criterion: torch.nn.Module
     model.train()
     criterion.train()
     ex_device = torch.device("cpu")
-    metric_logger = utils.MetricLogger(delimiter="  ")
-    metric_logger.add_meter('lr', utils.SmoothedValue(window_size=1, fmt='{value:.6f}'))
-    metric_logger.add_meter('class_error', utils.SmoothedValue(window_size=1, fmt='{value:.2f}'))
-    metric_logger.add_meter('grad_norm', utils.SmoothedValue(window_size=1, fmt='{value:.2f}'))
-
     prefetcher = data_prefetcher(data_loader, device, prefetch=True)
     
-    
+    # torch.backends.cudnn.benchmark = True
+    # torch.backends.cudnn.enable = True
     sum_loss = 0.0
     set_tm = time.time()
     count = 0
     for idx in tqdm(range(len(data_loader))): #targets 
-        samples, targets, origin_samples, origin_targets = prefetcher.next() 
+        torch.cuda.empty_cache()
+        samples, targets, origin_samples, origin_targets = prefetcher.next()
         train_check = True
         samples = samples.to(ex_device)
         origin_samples = origin_samples.to(ex_device)
@@ -94,17 +92,18 @@ def train_one_epoch(args, epo, model: torch.nn.Module,criterion: torch.nn.Module
 
             # reduce losses over all GPUs for logging purposes
             loss_dict_reduced = utils.reduce_dict(loss_dict, train_check)
-            if loss_dict_reduced == False:
-                del samples, targets, origin_samples, origin_targets
-                torch.cuda.empty_cache()
-                print(f'Total GPU not working... so passed \n')
-                continue
+
             
-            count += 1
-            loss_dict_reduced_scaled = {k: v.item() * weight_dict[k]
-                                        for k, v in loss_dict_reduced.items() if k in weight_dict}
-            losses_reduced_scaled = sum(loss_dict_reduced_scaled.values())
-            #loss_value = losses_reduced_scaled.item()
+            if loss_dict_reduced == False:
+                losses_reduced_scaled = 0
+                loss_dict_reduced_scaled = 0
+                losses = torch.tensor(0, device=torch.device("cuda"), requires_grad=True, dtype=torch.float32)
+                
+            if loss_dict_reduced != False:
+                count += 1
+                loss_dict_reduced_scaled = {k: v * weight_dict[k]
+                                            for k, v in loss_dict_reduced.items() if k in weight_dict}
+                losses_reduced_scaled = sum(loss_dict_reduced_scaled.values())
             sum_loss += losses_reduced_scaled
             
             if utils.is_main_process(): #sum_loss가 GPU의 개수에 맞춰서 더해주고 있으니,
@@ -114,12 +113,10 @@ def train_one_epoch(args, epo, model: torch.nn.Module,criterion: torch.nn.Module
                     print(f"current classes is {current_classes}")
 
             if not math.isfinite(losses_reduced_scaled):
-                print("Loss is {}, stopping training".format(losses_reduced_scaled))
-                print(loss_dict_reduced)
-                del samples, targets, origin_samples, origin_targets
-                torch.cuda.empty_cache()
-                continue
-            
+                print("Loss is {}, Dagerous training".format(losses_reduced_scaled))
+                print(f"all reduce GPU Params : {loss_dict_reduced}")
+
+            #if loss_dict_reduced != False:
             optimizer.zero_grad()
             losses.backward()
             
@@ -129,7 +126,7 @@ def train_one_epoch(args, epo, model: torch.nn.Module,criterion: torch.nn.Module
                 grad_total_norm = utils.get_total_grad_norm(model.parameters(), args.clip_max_norm)
             optimizer.step()
 
-            del samples, targets, origin_samples, origin_targets
+            del samples, targets, origin_samples, origin_targets, losses_reduced_scaled, loss_dict_reduced_scaled, loss_dict, outputs, loss_dict_reduced #무조건 마지막까지 함께훈련이 되도록 유도
             torch.cuda.empty_cache()
         else:
             break

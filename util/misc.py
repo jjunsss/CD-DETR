@@ -184,8 +184,8 @@ def reduce_dict(input_dict, train_check, average=True):
         if train_check == False:
             gpu_control_value = torch.tensor(0.0, device=torch.device("cuda"))
             for name in input_dict:
+                del input_dict[name]
                 input_dict[name] = torch.tensor(0.0, device = torch.device("cuda"))
-            #print(f"now working gpu :{dist.get_rank()} dictionary sorting : {input_dict}")
             
         dist.all_gather(temp_list, gpu_control_value)
         gpu_control_value = sum([ten_idx.item() for ten_idx in temp_list])
@@ -204,7 +204,7 @@ def reduce_dict(input_dict, train_check, average=True):
         dist.all_reduce(values)
         if average:
             values /= gpu_control_value #world_size
-        reduced_dict = {k: v for k, v in zip(names, values)}
+        reduced_dict = {k: v.item() for k, v in zip(names, values)}
     return reduced_dict
 
 class MetricLogger(object):

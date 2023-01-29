@@ -138,7 +138,7 @@ def get_args_parser():
     parser.add_argument('--Total_Classes', default=59, type=int, help='classes counts in custom COCODataset')
     parser.add_argument('--Total_Classes_Names', default=True, action='store_true', help="division classes through class names (DID,PZ,VE)")
     parser.add_argument('--Continual_Batch_size', default=3, type=int, help='continual batch training method')
-    parser.add_argument('--CL_Limited', default=10, type=int, help='Use Limited Training in CL')#IF you choose False, you should meet data imbalancing in training.
+    parser.add_argument('--CL_Limited', default=5, type=int, help='Use Limited Training in CL')#IF you choose False, you should meet data imbalancing in training.
 
     #* Rehearsal method
     parser.add_argument('--Rehearsal', default=False, action='store_true', help="use Rehearsal starategy in diverse CL method")
@@ -224,7 +224,7 @@ def main(args):
         rehearsal_classes = {}
         if args.Total_Classes_Names == True :
             args.Task = len(Divided_Classes)
-        
+
     #TODO : TASK 마다 훈련된 모델이 저장되게 설정해두기
     for task_idx in range(args.Task):
         #New task dataset
