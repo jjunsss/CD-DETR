@@ -214,15 +214,7 @@ def main(args):
     if args.frozen_weights is not None:
         checkpoint = torch.load(args.frozen_weights, map_location='cpu')
         model_without_ddp.detr.load_state_dict(checkpoint['model'])
-
     output_dir = Path(args.output_dir)
-
-    # if args.eval:
-    #     test_stats, coco_evaluator = evaluate(model, criterion, postprocessors,
-    #                                           data_loader_val, base_ds, device, args.output_dir)
-    #     if args.output_dir:
-    #         utils.save_on_master(coco_evaluator.coco_eval["bbox"].eval, output_dir / "eval.pth")
-    #     return
 
     print("Start training")
     start_time = time.time()
