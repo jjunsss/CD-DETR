@@ -140,7 +140,7 @@ def get_args_parser():
 
     #* Rehearsal method
     parser.add_argument('--Rehearsal', default=False, action='store_true', help="use Rehearsal starategy in diverse CL method")
-    parser.add_argument('--Mosaic', default=True, action='store_true', help="use Ours Mosaic Rehearsal starategy in diverse CL method")
+    parser.add_argument('--Mosaic', default=False, action='store_true', help="use Ours Mosaic Rehearsal starategy in diverse CL method")
     parser.add_argument('--Memory', default=500, type=int, help='memory capacity for rehearsal training')
     return parser
 
@@ -229,11 +229,17 @@ def main(args):
         #New task dataset
         dataset_train, data_loader_train, sampler_train, list_CC = Incre_Dataset(task_idx, args, Divided_Classes)
         #rehearsal + New task dataset (rehearsal Dataset은 유지하도록 설정)
+        MosaicBatch = False
         if task_idx >= 1 and len(rehearsal_classes) > 0 :
+            if len(rehearsal_classes.values()) < 5:
+                raise Exception("Too small rehearsal Dataset. Can't MosaicBatch")
             dataset_train, data_loader_train = CombineDataset(args, rehearsal_classes, dataset_train, args.num_workers, args.Continual_Batch_size)#Rehearsal을 사용하는 Task 1 부터는 train_data_loader의 이름 자체를 변경
+            if args.Mosaic == True:
+                MosaicBatch = True
         else:
             print(f"no use rehearsal training method")
-            
+        
+        label_dict = {}
         #for epoch in range(args.Task_Epochs): #어차피 Task마다 훈련을 진행해야 하고, 중간점음 없을 것이므로 TASK마다 훈련이 되도록 만들어도 상관이 없음
         for epoch in range(3):
             if args.distributed:
@@ -243,8 +249,8 @@ def main(args):
 
             #original training
             #TODO: 매 에포크 마다 생성되는 save 파일과 지워지는 rehearsal 없도록 정리.
-            rehearsal_classes = train_one_epoch( #save the rehearsal dataset. this method necessary need to clear dataset
-                args, epoch, model, criterion, data_loader_train, optimizer, device, list_CC, rehearsal_classes)
+            rehearsal_classes, label_dict = train_one_epoch( #save the rehearsal dataset. this method necessary need to clear dataset
+                args, epoch, model, criterion, data_loader_train, optimizer, device, MosaicBatch, label_dict, list_CC, rehearsal_classes)
             lr_scheduler.step()
         
         save_model_params(model_without_ddp, optimizer, lr_scheduler, args, args.output_dir, task_idx, int(args.Task))

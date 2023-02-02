@@ -324,11 +324,12 @@ def collate_fn(batch): #img, target, origin_img, origin_target, Cur_img, Cur_lab
     if isinstance(batch[0][0], NestedTensor) == False:
         batch[0] = nested_tensor_from_tensor_list(batch[0]) #for NewClasses(transformed)
     
-    # if isinstance(batch[4][0], NestedTensor) == False:
-    #     batch[2] = nested_tensor_from_tensor_list(batch[2]) #for OldClasses(Original)
-    
-    # if isinstance(batch[6][0], NestedTensor) == False:
-    #     batch[2] = nested_tensor_from_tensor_list(batch[2]) #for OldClasses(Original)
+    if len(batch) > 4: #* For MosaicBatch Batch[sample, target, ori_sample, ori_target, cur_sam, cur_tar, dif_sam, dif_tar][Batch0, Batch1, Batch2]
+        if isinstance(batch[4][0], NestedTensor) == False:
+            batch[4] = nested_tensor_from_tensor_list(batch[4]) #for OldClasses(Original)
+        
+        if isinstance(batch[6][0], NestedTensor) == False:
+            batch[6] = nested_tensor_from_tensor_list(batch[6]) #for OldClasses(Original)
     return tuple(batch)
 
 def _max_by_axis(the_list):

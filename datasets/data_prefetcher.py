@@ -49,13 +49,7 @@ class data_prefetcher():
             self.next_Diff_samples = None
             self.next_Diff_targets = None
             return
-        # if record_stream() doesn't work, another option is to make sure device inputs are created
-        # on the main stream.
-        # self.next_input_gpu = torch.empty_like(self.next_input, device='cuda')
-        # self.next_target_gpu = torch.empty_like(self.next_target, device='cuda')
-        # Need to make sure the memory allocated for next_* is not still in use by the main stream
-        # at the time we start copying to next_*:
-        # self.stream.wait_stream(torch.cuda.current_stream())
+        
         with torch.cuda.stream(self.stream):
             if self.Mosaic == True:
                 self.next_samples, self.next_targets = to_cuda(self.next_samples, self.next_targets, self.device)
@@ -63,38 +57,72 @@ class data_prefetcher():
                 self.next_Diff_samples, self.next_Diff_samples = to_cuda(self.next_Diff_samples, self.next_Diff_samples, self.device)
             else:
                 self.next_samples, self.next_targets = to_cuda(self.next_samples, self.next_targets, self.device)
-            # more code for the alternative if record_stream() doesn't work:
-            # copy_ will record the use of the pinned source tensor in this side stream.
-            # self.next_input_gpu.copy_(self.next_input, non_blocking=True)
-            # self.next_target_gpu.copy_(self.next_target, non_blocking=True)
-            # self.next_input = self.next_input_gpu
-            # self.next_target = self.next_target_gpu
-
-            # With Amp, it isn't necessary to manually convert data to half.
-            # if args.fp16:
-            #     self.next_input = self.next_input.half()
-            # else:
 
     def next(self):
-        if self.prefetch:
-            torch.cuda.current_stream().wait_stream(self.stream)
-            samples = self.next_samples
-            targets = self.next_targets
-            origin_samples = self.next_origin_samples
-            origin_targets = self.next_origin_targets
-            
-            if samples is not None:
-                samples.record_stream(torch.cuda.current_stream())
-            if targets is not None:
-                for t in targets:
-                    for k, v in t.items():
-                        v.record_stream(torch.cuda.current_stream())
-            self.preload()
+        if self.Mosaic:
+            if self.prefetch:
+                torch.cuda.current_stream().wait_stream(self.stream)
+                samples = self.next_samples
+                targets = self.next_targets
+                origin_samples = self.next_origin_samples
+                origin_targets = self.next_origin_targets
+                current_samples = self.next_Current_samples
+                current_targets = self.next_Current_targets
+                Diff_samples = self.next_Diff_samples
+                Diff_targets = self.next_Diff_targets
+                
+                if samples is not None:
+                    samples.record_stream(torch.cuda.current_stream())
+                if targets is not None:
+                    for t in targets:
+                        for k, v in t.items():
+                            v.record_stream(torch.cuda.current_stream())
+                            
+                if current_samples is not None:
+                    current_samples.record_stream(torch.cuda.current_stream())
+                if current_targets is not None:
+                    for t in current_targets:
+                        for k, v in t.items():
+                            v.record_stream(torch.cuda.current_stream())
+                            
+                if Diff_samples is not None:
+                    Diff_samples.record_stream(torch.cuda.current_stream())
+                if Diff_targets is not None:
+                    for t in Diff_targets:
+                        for k, v in t.items():
+                            v.record_stream(torch.cuda.current_stream())
+                self.preload()
+            else:
+                try:
+                    samples, targets, origin_samples, origin_targets, current_samples, current_targets, Diff_samples, Diff_targets = next(self.loader)
+                    samples, targets = to_cuda(samples, targets, self.device)
+                    current_samples, current_targets = to_cuda(samples, targets, self.device)
+                    Diff_samples, Diff_targets = to_cuda(samples, targets, self.device)
+                except StopIteration:
+                    samples = None
+                    targets = None
+            return samples, targets, origin_samples, origin_targets, current_samples, current_targets, Diff_samples, Diff_targets
+
         else:
-            try:
-                samples, targets, origin_samples, origin_targets = next(self.loader)
-                samples, targets = to_cuda(samples, targets, self.device)
-            except StopIteration:
-                samples = None
-                targets = None
-        return samples, targets, origin_samples, origin_targets
+            if self.prefetch:
+                torch.cuda.current_stream().wait_stream(self.stream)
+                samples = self.next_samples
+                targets = self.next_targets
+                origin_samples = self.next_origin_samples
+                origin_targets = self.next_origin_targets
+                
+                if samples is not None:
+                    samples.record_stream(torch.cuda.current_stream())
+                if targets is not None:
+                    for t in targets:
+                        for k, v in t.items():
+                            v.record_stream(torch.cuda.current_stream())
+                self.preload()
+            else:
+                try:
+                    samples, targets, origin_samples, origin_targets = next(self.loader)
+                    samples, targets = to_cuda(samples, targets, self.device)
+                except StopIteration:
+                    samples = None
+                    targets = None
+            return samples, targets, origin_samples, origin_targets
