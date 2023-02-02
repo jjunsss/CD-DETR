@@ -22,7 +22,7 @@ def decompose(func):
         origin_targets = output[5]
         yes_use = output[6]
         
-        if batch_size == 2:
+        if batch_size == 2: #! used to divide rehearsal or main Trainer
             if no_use == 2:
                 return samples, targets, origin_samples, origin_targets, False
             if no_use == 1:
@@ -30,24 +30,21 @@ def decompose(func):
                 origin_new_targets = []
                 useit0 = yes_use[0]
                 ten, mask = samples.decompose()
-                origin_ten, origin_mask = origin_samples.decompose()
-                
-                ten0 = torch.unsqueeze(ten[useit0], 0)
-                mask0 = torch.unsqueeze(mask[useit0], 0)
+                origin_ten = origin_samples
+                if ten.shape[0] > 1 :
+                    ten0 = torch.unsqueeze(ten[useit0], 0)
+                    mask0 = torch.unsqueeze(mask[useit0], 0)
+                    samples = utils.NestedTensor(ten0, mask0)
+                    new_targets.append(targets[useit0])
+                    targets = [{k: v for k, v in t.items()} for t in new_targets]
+                    
                 origin_ten0 = torch.unsqueeze(origin_ten[useit0], 0)
-                origin_mask0 = torch.unsqueeze(origin_mask[useit0], 0)
-                
-                samples = utils.NestedTensor(ten0, mask0)
-                #origin_samples = utils.NestedTensor(origin_ten0, origin_mask0)
                 origin_samples = origin_ten0
-                
-                new_targets.append(targets[useit0])
-                targets = [{k: v for k, v in t.items()} for t in new_targets]
                 origin_new_targets.append(origin_targets[useit0])
                 origin_targets = [{k: v for k, v in t.items()} for t in origin_new_targets]
                 return samples, targets, origin_samples, origin_targets, True
             
-            origin_samples, _ = origin_samples.decompose()
+            #origin_samples, _ = origin_samples.decompose()
             return samples, targets, origin_samples, origin_targets, True
             
         if batch_size == 3 :
@@ -58,57 +55,39 @@ def decompose(func):
                 origin_new_targets = []
                 useit0 = yes_use[0]
                 ten, mask = samples.decompose()
-                origin_ten, origin_mask = origin_samples.decompose()
                 
                 ten0 = torch.unsqueeze(ten[useit0], 0)
                 mask0 = torch.unsqueeze(mask[useit0], 0)
-                origin_ten0 = torch.unsqueeze(origin_ten[useit0], 0)
-                origin_mask0 = torch.unsqueeze(origin_mask[useit0], 0)
                 
                 samples = utils.NestedTensor(ten0, mask0)
-                #origin_samples = utils.NestedTensor(origin_ten0, origin_mask0)
-                origin_samples = origin_ten0
                 new_targets.append(targets[useit0])
                 targets = [{k: v for k, v in t.items()} for t in new_targets]
-                origin_new_targets.append(origin_targets[useit0])
-                origin_targets = [{k: v for k, v in t.items()} for t in origin_new_targets]
                 return samples, targets, origin_samples, origin_targets, True
+            
             if no_use == 1:
                 new_targets = []
                 origin_new_targets = []
                 useit0 = yes_use[0]
                 useit1 = yes_use[1]
                 ten, mask = samples.decompose()
-                origin_ten, origin_mask = origin_samples.decompose()
                 
                 ten0 = torch.unsqueeze(ten[useit0], 0)
                 mask0 = torch.unsqueeze(mask[useit0], 0)
                 ten1 = torch.unsqueeze(ten[useit1], 0)
                 mask1 = torch.unsqueeze(mask[useit1], 0)
-                origin_ten0 = torch.unsqueeze(origin_ten[useit0], 0)
-                origin_mask0 = torch.unsqueeze(origin_mask[useit0], 0)
-                origin_ten1 = torch.unsqueeze(origin_ten[useit1], 0)
-                origin_mask1 = torch.unsqueeze(origin_mask[useit1], 0)
                 
                 ten = torch.cat([ten0,ten1], dim = 0) 
                 mask = torch.cat([mask0,mask1], dim = 0) 
-                origin_ten = torch.cat([origin_ten0,origin_ten1], dim = 0) 
-                origin_mask = torch.cat([origin_mask0,origin_mask1], dim = 0) 
                 
                 samples = utils.NestedTensor(ten, mask)
                 #origin_samples = utils.NestedTensor(origin_ten, origin_mask)
-                origin_samples = origin_ten
                 
                 new_targets.append(targets[useit0])
                 new_targets.append(targets[useit1])
                 targets = [{k: v for k, v in t.items()} for t in new_targets]
                 
-                origin_new_targets.append(origin_targets[useit0])
-                origin_new_targets.append(origin_targets[useit1])
-                origin_targets = [{k: v for k, v in t.items()} for t in origin_new_targets]
                 return samples, targets, origin_samples, origin_targets, True 
             
-            origin_samples, _ = origin_samples.decompose()
             return samples, targets, origin_samples, origin_targets, True #return original
         
         if batch_size == 4 :
@@ -116,23 +95,15 @@ def decompose(func):
                 return samples, targets, origin_samples, origin_targets, False
             if no_use == 3:
                 new_targets = []
-                origin_new_targets = []
                 useit0 = yes_use[0]
                 ten, mask = samples.decompose()
-                origin_ten, origin_mask = origin_samples.decompose()
                 
                 ten0 = torch.unsqueeze(ten[useit0], 0)
                 mask0 = torch.unsqueeze(mask[useit0], 0)
-                origin_ten0 = torch.unsqueeze(origin_ten[useit0], 0)
-                origin_mask0 = torch.unsqueeze(origin_mask[useit0], 0)
                 
                 samples = utils.NestedTensor(ten0, mask0)
-                #origin_samples = utils.NestedTensor(origin_ten0, origin_mask0)
-                origin_samples = origin_ten0
                 new_targets.append(targets[useit0])
                 targets = [{k: v for k, v in t.items()} for t in new_targets]
-                origin_new_targets.append(origin_targets[useit0])
-                origin_targets = [{k: v for k, v in t.items()} for t in origin_new_targets]
                 return samples, targets, origin_samples, origin_targets, True
             if no_use == 2:
                 new_targets = []
@@ -140,43 +111,26 @@ def decompose(func):
                 useit0 = yes_use[0]
                 useit1 = yes_use[1]
                 ten, mask = samples.decompose()
-                origin_ten, origin_mask = origin_samples.decompose()
                 
                 ten0 = torch.unsqueeze(ten[useit0], 0)
                 mask0 = torch.unsqueeze(mask[useit0], 0)
                 ten1 = torch.unsqueeze(ten[useit1], 0)
                 mask1 = torch.unsqueeze(mask[useit1], 0)
-                origin_ten0 = torch.unsqueeze(origin_ten[useit0], 0)
-                origin_mask0 = torch.unsqueeze(origin_mask[useit0], 0)
-                origin_ten1 = torch.unsqueeze(origin_ten[useit1], 0)
-                origin_mask1 = torch.unsqueeze(origin_mask[useit1], 0)
                 
                 ten = torch.cat([ten0,ten1], dim = 0) 
                 mask = torch.cat([mask0,mask1], dim = 0) 
-                origin_ten = torch.cat([origin_ten0,origin_ten1], dim = 0) 
-                origin_mask = torch.cat([origin_mask0,origin_mask1], dim = 0) 
                 
                 samples = utils.NestedTensor(ten, mask)
-                #origin_samples = utils.NestedTensor(origin_ten, origin_mask)
-                origin_samples = origin_ten
                 
                 new_targets.append(targets[useit0])
                 new_targets.append(targets[useit1])
                 targets = [{k: v for k, v in t.items()} for t in new_targets]
                 
-                origin_new_targets.append(origin_targets[useit0])
-                origin_new_targets.append(origin_targets[useit1])
-                origin_targets = [{k: v for k, v in t.items()} for t in origin_new_targets]
-                return samples, targets, origin_samples, origin_targets, True
-            
-            if no_use == 1:
                 new_targets = []
-                origin_new_targets = []
                 useit0 = yes_use[0]
                 useit1 = yes_use[1]
                 useit2 = yes_use[2]
                 ten, mask = samples.decompose()
-                origin_ten, origin_mask = origin_samples.decompose()
                 
                 ten0 = torch.unsqueeze(ten[useit0], 0)
                 mask0 = torch.unsqueeze(mask[useit0], 0)
@@ -184,34 +138,18 @@ def decompose(func):
                 mask1 = torch.unsqueeze(mask[useit1], 0)
                 ten2 = torch.unsqueeze(ten[useit2], 0)
                 mask2 = torch.unsqueeze(mask[useit2], 0)
-                origin_ten0 = torch.unsqueeze(origin_ten[useit0], 0)
-                origin_mask0 = torch.unsqueeze(origin_mask[useit0], 0)
-                origin_ten1 = torch.unsqueeze(origin_ten[useit1], 0)
-                origin_mask1 = torch.unsqueeze(origin_mask[useit1], 0)
-                origin_ten2 = torch.unsqueeze(origin_ten[useit2], 0)
-                origin_mask2 = torch.unsqueeze(origin_mask[useit2], 0)
-                
+
                 ten = torch.cat([ten0,ten1, ten2], dim = 0) 
                 mask = torch.cat([mask0,mask1, mask2], dim = 0) 
-                origin_ten = torch.cat([origin_ten0,origin_ten1, origin_ten2], dim = 0) 
-                origin_mask = torch.cat([origin_mask0,origin_mask1, origin_mask2], dim = 0) 
                 
                 samples = utils.NestedTensor(ten, mask)
-                #origin_samples = utils.NestedTensor(origin_ten, origin_mask)
-                origin_samples = origin_ten
                 
                 new_targets.append(targets[useit0])
                 new_targets.append(targets[useit1])
                 new_targets.append(targets[useit2])
                 targets = [{k: v for k, v in t.items()} for t in new_targets]
-                
-                origin_new_targets.append(origin_targets[useit0])
-                origin_new_targets.append(origin_targets[useit1])
-                origin_new_targets.append(origin_targets[useit2])
-                origin_targets = [{k: v for k, v in t.items()} for t in origin_new_targets]
                 return samples, targets, origin_samples, origin_targets, True 
             
-            origin_samples, _ = origin_samples.decompose()
             return samples, targets, origin_samples, origin_targets, True #return original
         
         raise Exception("set your batch_size : 2 or 3")
@@ -264,8 +202,7 @@ def check_class(verbose: bool, targets: Dict, label_dict: Dict,
                     label_dict[idx] += bin[idx]
                 else :
                     label_dict[idx] = bin[idx]
-                    
-                    
+
     return no_use, yes_use, label_dict
 
 from torch.utils.data import DataLoader
@@ -302,7 +239,7 @@ def _divede_targetset(target: Dict, index: int)-> Dict:
     return {"boxes" : changed_target_boxes, "labels" : changed_target_labels, "image_id" : target["image_id"], "area" : changed_target_area,
             "iscrowd" : changed_target_iscrowd, "orig_size" : target["orig_size"], "size" : target["size"]}
 
-@decompose
+@decompose #For Divide Dataset
 def _rearrange_targets(no_use_count: int, samples: utils.NestedTensor, targets: Dict, origin_samples: utils.NestedTensor, origin_targets: Dict, 
                       used_number: List) -> Tuple[int, List, utils.NestedTensor, Dict, utils.NestedTensor, Dict, List]:
     no_use_count = 1 
@@ -310,16 +247,13 @@ def _rearrange_targets(no_use_count: int, samples: utils.NestedTensor, targets: 
     return (batch_size, no_use_count, samples, targets, origin_samples, origin_targets, used_number)
 
 from pympler import asizeof, summary
-def contruct_rehearsal(losses_value: float, lower_limit: float, upper_limit: float, targets: Dict,
-                       origin_samples: utils.NestedTensor, origin_targets: Dict, rehearsal_classes: Dict, Current_Classes: List[int], Rehearsal_Memory: int = 300) \
+def contruct_rehearsal(losses_value: float, lower_limit: float, upper_limit: float, samples, targets,
+                       origin_samples: torch.Tensor, origin_targets: Dict, rehearsal_classes: Dict, Current_Classes: List[int], Rehearsal_Memory: int = 300) \
                            -> Dict:
     # Check if losses_value is within the specified range
     if losses_value > lower_limit and losses_value < upper_limit : 
         ex_device = torch.device("cpu")
         
-        
-        # targets = [{k: v.to(ex_device) for k, v in t.items()} for t in targets]
-        # origin_targets = [{k: v.to(ex_device) for k, v in t.items()} for t in origin_targets]
         for enum, target in enumerate(targets):
             # Get the unique labels and the count of each label
             label_tensor = target['labels']
@@ -331,7 +265,7 @@ def contruct_rehearsal(losses_value: float, lower_limit: float, upper_limit: flo
             bin = np.bincount(label_tensor_count)
             
             # Get origin sample and target that devided to each instance
-            _, _, new_sample, new_target, _ = _rearrange_targets(no_use_count=None, samples=origin_samples, targets=origin_targets, origin_samples= origin_samples,origin_targets= origin_targets ,
+            _, _, new_sample, new_target, _ = _rearrange_targets(no_use_count=None, samples=samples, targets=targets, origin_samples= origin_samples, origin_targets= origin_targets,
                                used_number=[enum])
 
             #Rehearsal. 오름차순 정렬하고, Loss가 큰 값들부터 제거 -> Loss가 크면 대표성이 떨어짐.

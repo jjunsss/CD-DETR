@@ -6,8 +6,6 @@
 # Modified from DETR (https://github.com/facebookresearch/detr)
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
 # ------------------------------------------------------------------------
-
-
 import argparse
 import datetime
 import json
@@ -142,6 +140,7 @@ def get_args_parser():
 
     #* Rehearsal method
     parser.add_argument('--Rehearsal', default=False, action='store_true', help="use Rehearsal starategy in diverse CL method")
+    parser.add_argument('--Mosaic', default=True, action='store_true', help="use Ours Mosaic Rehearsal starategy in diverse CL method")
     parser.add_argument('--Memory', default=500, type=int, help='memory capacity for rehearsal training')
     return parser
 
@@ -223,7 +222,7 @@ def main(args):
         Divided_Classes = DivideTask_for_incre(args.Task, args.Total_Classes, args.Total_Classes_Names) 
         rehearsal_classes = {}
         if args.Total_Classes_Names == True :
-            args.Task = len(Divided_Classes)
+            args.Task = len(Divided_Classes)    
 
     #TODO : TASK 마다 훈련된 모델이 저장되게 설정해두기
     for task_idx in range(args.Task):
@@ -231,7 +230,7 @@ def main(args):
         dataset_train, data_loader_train, sampler_train, list_CC = Incre_Dataset(task_idx, args, Divided_Classes)
         #rehearsal + New task dataset (rehearsal Dataset은 유지하도록 설정)
         if task_idx >= 1 and len(rehearsal_classes) > 0 :
-            data_loader_train = CombineDataset(args, rehearsal_classes, dataset_train, args.num_workers, args.Continual_Batch_size)#Rehearsal을 사용하는 Task 1 부터는 train_data_loader의 이름 자체를 변경
+            dataset_train, data_loader_train = CombineDataset(args, rehearsal_classes, dataset_train, args.num_workers, args.Continual_Batch_size)#Rehearsal을 사용하는 Task 1 부터는 train_data_loader의 이름 자체를 변경
         else:
             print(f"no use rehearsal training method")
             
@@ -240,7 +239,7 @@ def main(args):
             if args.distributed:
                 sampler_train.set_epoch(epoch)#TODO: 추후에 epoch를 기준으로 batch sampler를 추출하는 행위 자체가 오류를 일으킬 가능성이 있음 Incremental Learning에서                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
             print(f"task id : {task_idx}")
-            print(f"each epoch id : {epoch} , Dataset length : {len(data_loader_train)}, current classes :{list_CC}")
+            print(f"each epoch id : {epoch} , Dataset length : {len(dataset_train)}, current classes :{list_CC}")
 
             #original training
             #TODO: 매 에포크 마다 생성되는 save 파일과 지워지는 rehearsal 없도록 정리.

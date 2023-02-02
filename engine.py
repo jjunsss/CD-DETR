@@ -63,17 +63,18 @@ def train_one_epoch(args, epo, model: torch.nn.Module,criterion: torch.nn.Module
     count = 0
     for idx in tqdm(range(len(data_loader))): #targets 
         torch.cuda.empty_cache()
-        samples, targets, origin_samples, origin_targets = prefetcher.next()
+        if len(rehearsal_classes.keys()) > 0:
+            samples, targets, origin_samples, origin_targets = prefetcher.next()
+        else:
         train_check = True
         samples = samples.to(ex_device)
-        origin_samples = origin_samples.to(ex_device)
         targets = [{k: v.to(ex_device) for k, v in t.items()} for t in targets]
         
         #TODO : one samples no over / one samples over solve this ! 
-        if idx < 5:
+        if idx < 10:
             with torch.no_grad():
                 no_use, yes_use, label_dict = check_class(True, targets, label_dict, CL_Limited=args.CL_Limited)
-                samples, targets, _, _ , train_check = decompose_dataset(no_use_count=len(no_use), samples= samples, targets = targets, origin_samples=origin_samples, origin_targets= origin_targets ,used_number= yes_use)
+                samples, targets, _, _, train_check = decompose_dataset(no_use_count=len(no_use), samples= samples, targets = targets, origin_samples=origin_samples, origin_targets= origin_targets ,used_number= yes_use)
 
             samples = samples.to(device)
             targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
@@ -88,8 +89,8 @@ def train_one_epoch(args, epo, model: torch.nn.Module,criterion: torch.nn.Module
                 #if train_check == True and args.Rehearsal == True:
                 if True:
                     targets = [{k: v.to(ex_device) for k, v in t.items()} for t in targets]
-                    rehearsal_classes = contruct_rehearsal(losses_value=losses_value, lower_limit=0.1, upper_limit=100,
-                                        targets=targets, origin_samples=origin_samples, origin_targets=origin_targets, rehearsal_classes=rehearsal_classes, Current_Classes=current_classes, Rehearsal_Memory=args.Memory)
+                    rehearsal_classes = contruct_rehearsal(losses_value=losses_value, lower_limit=0.1, upper_limit=100, samples=samples, targets=targets, 
+                                         origin_samples=origin_samples, origin_targets=origin_targets, rehearsal_classes=rehearsal_classes, Current_Classes=current_classes, Rehearsal_Memory=args.Memory)
 
             #! reduce losses over all GPUs for only logging purposes (if you wanna delete this method, you can do it)
             loss_dict_reduced = utils.reduce_dict(loss_dict, train_check)

@@ -9,6 +9,25 @@ from typing import Tuple, Collection, Dict, List
 import bisect
 import random
 import matplotlib.pyplot as plt
+import albumentations as A
+import cv2
+import copy
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
+from util.box_ops import box_cxcywh_to_xyxy_resize
+
+def visualize_bboxes(img, bboxes, img_size = 0):
+    min_or = img.min()
+    max_or = img.max()
+    img_uint = ((img - min_or) / (max_or - min_or) * 255.).astype(np.uint8)
+    plt.figure(figsize=(10, 10))
+    plt.axis("off")
+    h, w = img_size
+    for bbox in bboxes:
+        xmin, ymin, xmax, ymax, cls = bbox * (w , h, w, h, 0)
+        cv2.rectangle(img_uint,(int(xmin), int(ymin)),(int(xmax), int(ymax)), (255, 0, 0), 3)
+    cv2.imwrite("./Combined_"+str(bboxes[0][-1])+".png",img_uint)
+    
 
 def Incre_Dataset(Task_Num, args, Incre_Classes):    
     current_classes = Incre_Classes[Task_Num]
@@ -30,6 +49,7 @@ def Incre_Dataset(Task_Num, args, Incre_Classes):
     else:
         sampler_train = torch.utils.data.RandomSampler(dataset_train)
         sampler_val = torch.utils.data.SequentialSampler(dataset_val)
+        
     print(f"dataset config :{dataset_train}")
     batch_sampler_train = torch.utils.data.BatchSampler(
         sampler_train, args.batch_size, drop_last=True)
@@ -98,124 +118,176 @@ class CustomDataset(torch.utils.data.Dataset):
         
         return new_samples, new_targets, new_samples, new_targets
 
+def _Resize_for_batchmosaic(img:torch.Tensor, height_resized, width_resized, bboxes): #* Checking
+    """
+        img : torch.tensor(Dataset[idx])
+        resized : size for resizing
+        BBoxes : resize image to (height, width) in a image
+    """
+
+    #이미지 변환 + Box Label 변환
+    img = copy.deepcopy(img.permute(1, 2, 0).numpy())
+
+    transform = A.Compose([
+        A.Resize(height_resized, width_resized)
+    ], bbox_params=A.BboxParams(format='albumentations'))
+
+    #Annoation change
+    transformed = transform(image = img, bboxes = bboxes)
+    transformed_bboxes = transformed['bboxes']
+    transformed_img = transformed["image"]
+    #visualize_bboxes(transformed_img, transformed_bboxes)
+    
+    transformed_bboxes = np.array(transformed_bboxes)
+    transformed_img = torch.tensor(transformed_img, dtype=torch.float32).permute(2, 0, 1)
+    
+    return  transformed_img, transformed_bboxes 
+    
 class BatchMosaicAug(torch.utils.data.Dataset):
-    def __init__(self, datasets, CurrentClasses):
+    def __init__(self, datasets, CurrentClasses, Mosaic=False):
         self.Datasets = datasets
-        self.labels = [np.zeros((0, 5), dtype=np.float32)] * len(self.Datasets) #[0, xc, yc, w, h]
-        self.img_size = 1024 # 만들어질 이미지 크기를 말하는 듯함.
         self.current_classes = CurrentClasses
-        im_w = 1024
-        im_h = 1024
+        self.Confidence = 0
+        self.Mosaic = Mosaic
+        self.img_size = (1024, 1024) #변경될 크기(이미지 변경을 위함)
         
-        #!TODO only No Transform image (In Batch Class Augmentation) 
-        for index in range(len(self.Datasets)): #TO make Batch Augmentation
-            samples, targets, _, _ = self.Datasets[index]
-            boxes = targets['boxes'] #xywh
-            classes = targets["labels"]
+    def __len__(self):
+        if self.Mosaic == True:
+            return len(self.Datasets) * 3
+        else:
+            return len(self.Datasets)    
+        
+    def __getitem__(self, index):
+        img, target, origin_img, origin_target = self.Datasets[index]
+        if random.random() > self.Confidence: #! For Randomness
+            self.Mosaic = True
+
+        if self.Mosaic == True :
+            Current_mosaic_index, Diff_mosaic_index = self._Mosaic_index(index,)
+            Cur_img, Cur_lab, Dif_img, Dif_lab = self.load_mosaic(Current_mosaic_index, Diff_mosaic_index)
+            return img, target, origin_img, origin_target, Cur_img, Cur_lab, Dif_img, Dif_lab
+        else:
+            return img, target, origin_img, origin_target, None, None, None, None
+
+    def _augment_bboxes(self, index): #* Checking
+        '''
+            maybe index_list is constant shape in clockwise(1:origin / 2:Current Img / 3: Currnt image / 4: Current img)
+        '''
+        bboxes = []
+        _, _, _, origin_target = self.Datasets[index]
+        boxes = origin_target["boxes"] #* Torch tensor
+        classes = origin_target["labels"]
+        boxes = box_cxcywh_to_xyxy_resize(boxes)
+        
+        for box, cls in zip(boxes, classes):
+            x1, y1, x2, y2 = box
+            bboxes.append([x1, y1, x2, y2, int(cls)])
+        img, _, _ = self.load_image(index)
+        transposed_img, transposed_bboxesd = _Resize_for_batchmosaic(img, int(self.img_size[0]/2), int(self.img_size[1]/2), bboxes)
+        
+        return transposed_img, transposed_bboxesd
+
+    def _Mosaic_index(self, index): #* Done
+        '''
+            Only Mosaic index printed 
+        '''
+        Mosaic_index_list = set([index])
+        Current_mosaic_index = []
+        Diff_mosaic_index = []
+        while True: #*Curretn Class augmentation / Other class AUgmentation
+            Mosaic_index = random.randint(0, len(self.Datasets) - 1)
+            Mosaic_classs = self.Datasets[Mosaic_index][-1]["labels"][0].item() #! 어차피 하나의 이미지에 들어있는 Class는 동일한 Task에서만 추출된다(명심)
+
+            if Mosaic_index not in Mosaic_index_list: #No duplicate
+                if Mosaic_classs in self.current_classes:
+                    if len(Current_mosaic_index) < 3:
+                        Current_mosaic_index.append(Mosaic_index)
+                else:
+                    if len(Diff_mosaic_index) < 3:
+                        Diff_mosaic_index.append(Mosaic_index)
             
-            boxes[:, 2] = boxes[:, 0] + boxes[:, 2] #to change x1, y1, x2, y2
-            boxes[:, 3] = boxes[:, 1] + boxes[:, 3]
-            boxesyolo = []
-            for box, cls in zip(boxes, classes):
-                x1, y1, x2, y2 = box
-                xc, yc, w, h = 0.5*x1/im_w+0.5*x2/im_w, 0.5*y1/im_h+0.5*y2/im_h, abs(x2/im_w-x1/im_w), abs(y2/im_h-y1/im_h)
-                boxesyolo.append([cls, xc, yc, w, h])
-            self.labels[index] = np.array(boxesyolo)
-            
-    def load_image(self, index): #torch sample shape : {1, 3, 1066, 800}
+                if len(Current_mosaic_index) == 3 and len(Diff_mosaic_index) == 3:
+                    Current_mosaic_index.insert(0, index)
+                    Diff_mosaic_index.insert(0, index)
+                    break
+                Mosaic_index_list.add(Mosaic_index)
+        return Current_mosaic_index, Diff_mosaic_index
+    
+    #* No Augmentation before BatchClassAugmentation Method
+    def load_image(self, index):#* Done
         # loads 1 image from dataset, returns img, original hw, resized hw
-        img = self.Datasets[index][0].squeeze()
+        img = self.Datasets[index][2].squeeze() #* Original Image
         origin_shape = self.Datasets[index][1]["orig_size"]
-        
-        w0, h0 = origin_shape[0].item(), origin_shape[1].item()  # orig hw
-        return img, (h0, w0), img.shape[:0:-1]  # img, hw_original, hw_resized(height, Width)
 
-    def load_mosaic(index):
-        # loads images in a mosaic
-        labels4 = []
-        s = self.img_size #1024, im_w, im_h : 1024
-        xc, yc = [int(random.uniform(s * 0.5, s * 1.5)) for _ in range(2)]  # mosaic center x, y (1024의 0.5 ~ 1.5 사이에 center 생성)
-        Mosaic_index_list = []
-        while True:
-            Mosaic_index = random.randint(0, len(self.labels) - 1)
-            Mosaic_index_list.append(Mosaic_index)
-            Current_mosaic_index = []
-            diff_mosaic_index = []
-            if Mosaic_index in set(Mosaic_index_list): #No duplicate
-                continue
-            
-            if self.labels[Mosaic_index][0][0] in self.current_classes:
-                if len(Current_mosaic_index) < 3:
-                    Current_mosaic_index.append(Mosaic_index)
-            else:
-                if len(diff_mosaic_index) < 3:
-                    diff_mosaic_index.append(Mosaic_index)
-        
-            if len(Current_mosaic_index) == 3 and len(diff_mosaic_index) == 3:
-                break
-        
-        #*Original Mosaic Training   
-        #indices = [index] + [random.randint(0, len(self.labels) - 1) for _ in range(3)]  #여기서 다양한 Index를 추출해야하는데 같은 Task 1개 / 다른 Task 1개 추출해야함(다른은 Rehearsal에서 가져오기)
-            
-        for i, index in enumerate(indices):
+        h0, w0 = origin_shape[0].item(), origin_shape[1].item()  # orig hw
+        return img, (h0, w0), img.shape[1:]  # img, hw_original, hw_resized(height, Width)
+    
+    def make_batch_mosaic(self, mosaic_index, mosaic_size):
+        mosaic_aug_labels = []
+        for i, index in enumerate(mosaic_index):
             # Load image
-            img, _, (h, w) = load_image(index) #! cv2.imread 통해서 불러옴. 나는 coco 사용하기에 변경해야 함.
-
+            transposed_img, transposed_bboxes = self._augment_bboxes(index) #! cv2.imread 통해서 불러옴. 나는 coco 사용하기에 변경해야 함.
+            channel, height, width = transposed_img.shape
             # place img in img4(특정 center point 잡아서 할당)
             if i == 0:  # top left
-                img4 = np.full((s * 2, s * 2, img.shape[2]), 114, dtype=np.uint8)  # base image with 4 tiles
-                x1a, y1a, x2a, y2a = max(xc - w, 0), max(yc - h, 0), xc, yc  # xmin, ymin, xmax, ymax (large image)
-                x1b, y1b, x2b, y2b = w - (x2a - x1a), h - (y2a - y1a), w, h  # xmin, ymin, xmax, ymax (small image)
+                mosaic_aug_img = torch.zeros((channel, mosaic_size[0], mosaic_size[1]), dtype=torch.float32)  # base image with 4 tiles
+                mosaic_aug_img[:, :height, :width] = transposed_img
+                transposed_bboxes[:, 0] = transposed_bboxes[:, 0] / 2 #? x1 (xmin)
+                transposed_bboxes[:, 1] = transposed_bboxes[:, 1] / 2 #? y1 (ymin)
+                transposed_bboxes[:, 2] = transposed_bboxes[:, 2] / 2 #? x2 (xmax)
+                transposed_bboxes[:, 3] = transposed_bboxes[:, 3] / 2 #? y2 (ymax)
+                mosaic_bboxes = transposed_bboxes.copy()
             elif i == 1:  # top right
-                x1a, y1a, x2a, y2a = xc, max(yc - h, 0), min(xc + w, s * 2), yc
-                x1b, y1b, x2b, y2b = 0, h - (y2a - y1a), min(w, x2a - x1a), h
+                mosaic_aug_img[:, :height, width:] = transposed_img
+                transposed_bboxes[:, 0] = transposed_bboxes[:, 0] / 2 + 0.5
+                transposed_bboxes[:, 1] = transposed_bboxes[:, 1] / 2
+                transposed_bboxes[:, 2] = transposed_bboxes[:, 2] / 2 + 0.5
+                transposed_bboxes[:, 3] = transposed_bboxes[:, 3] / 2
+                mosaic_bboxes = np.row_stack((transposed_bboxes, mosaic_bboxes))
             elif i == 2:  # bottom left
-                x1a, y1a, x2a, y2a = max(xc - w, 0), yc, xc, min(s * 2, yc + h)
-                x1b, y1b, x2b, y2b = w - (x2a - x1a), 0, max(xc, w), min(y2a - y1a, h)
+                mosaic_aug_img[:, height:, :width] = transposed_img
+                transposed_bboxes[:, 0] = transposed_bboxes[:, 0] / 2 
+                transposed_bboxes[:, 1] = transposed_bboxes[:, 1] / 2 + 0.5
+                transposed_bboxes[:, 2] = transposed_bboxes[:, 2] / 2 
+                transposed_bboxes[:, 3] = transposed_bboxes[:, 3] / 2 + 0.5
+                mosaic_bboxes = np.row_stack((transposed_bboxes, mosaic_bboxes))
             elif i == 3:  # bottom right
-                x1a, y1a, x2a, y2a = xc, yc, min(xc + w, s * 2), min(s * 2, yc + h)
-                x1b, y1b, x2b, y2b = 0, 0, min(w, x2a - x1a), min(y2a - y1a, h)
+                mosaic_aug_img[:, height:, width:] = transposed_img
+                transposed_bboxes[:, 0] = transposed_bboxes[:, 0] / 2 + 0.5
+                transposed_bboxes[:, 1] = transposed_bboxes[:, 1] / 2 + 0.5
+                transposed_bboxes[:, 2] = transposed_bboxes[:, 2] / 2 + 0.5
+                transposed_bboxes[:, 3] = transposed_bboxes[:, 3] / 2 + 0.5
+                mosaic_bboxes = np.row_stack((transposed_bboxes, mosaic_bboxes))
+        
+        #visualize_bboxes(np.clip(mosaic_aug_img.permute(1, 2, 0).numpy(), 0, 1).copy(), mosaic_bboxes, self.img_size)
+        return mosaic_aug_img, mosaic_bboxes
+        
+    def load_mosaic(self, Current_mosaic_index:List[int], Diff_mosaic_index:List[int], ):
+        '''
+            Current_mosaic_index : For constructing masaic about current classes
+            Diff_mosaic_index : For constructing mosaic abhout differenct classes (Not Now classes)
+            Current_bboxes : numpy array. [cls, cx, cy, w, h] for current classes
+            Diff_bboxes : numpy array. [cls, cx, cy, w, h] for different classes (Not Now classes)
+        '''
+        # loads images in a mosaic
+        Mosaic_size = self.img_size #1024, im_w, im_h : 1024
+            
+        Current_mosaic_img, Current_mosaic_labels = self.make_batch_mosaic(Current_mosaic_index, Mosaic_size)
+        Diff_mosaic_img, Diff_mosaic_labels = self.make_batch_mosaic(Diff_mosaic_index, Mosaic_size)
 
-            img4[y1a:y2a, x1a:x2a] = img[y1b:y2b, x1b:x2b]  # img4[ymin:ymax, xmin:xmax] / img4가 비어있는 List 
-            padw = x1a - x1b
-            padh = y1a - y1b
-
-            # Labels
-            x = self.labels[index] #! (0, xc, yc, w, h)
-            labels = x.copy()
-            if x.size > 0:  # Normalized xywh to pixel xyxy format
-                labels[:, 1] = w * (x[:, 1] - x[:, 3] / 2) + padw
-                labels[:, 2] = h * (x[:, 2] - x[:, 4] / 2) + padh
-                labels[:, 3] = w * (x[:, 1] + x[:, 3] / 2) + padw
-                labels[:, 4] = h * (x[:, 2] + x[:, 4] / 2) + padh
-            labels4.append(labels) #! New labels for trainig
-
-        # Concat/clip labels
-        if len(labels4):
-            labels4 = np.concatenate(labels4, 0)
-            np.clip(labels4[:, 1:] - s / 2, 0, s, out=labels4[:, 1:])  # use with center crop -> my strategy for caculating
-            #np.clip(labels4[:, 1:], 0, 2 * s, out=labels4[:, 1:])  # use with random_affine
-
-        # Augment
-        img4 = img4[s // 2: int(s * 1.5), s // 2:int(s * 1.5)]  # center crop (WARNING, requires box pruning)
-        # img4, labels4 = random_affine(img4, labels4,
-        #                               degrees=1.98 * 2,
-        #                               translate=0.05 * 2,
-        #                               scale=0.05 * 2,
-        #                               shear=0.641 * 2,
-        #                               border=-s // 2)  # border to remove
-
-        return img4, labels4
+        return Current_mosaic_img, Current_mosaic_labels, Diff_mosaic_img, Diff_mosaic_labels
 
 #For Rehearsal
 def CombineDataset(args, RehearsalData, CurrentDataset, Worker, Batch_size):
     OldDataset = CustomDataset(RehearsalData) #oldDatset[idx]:
     class_ids = CurrentDataset.class_ids
-    CombinedDataset = ConcatDataset([OldDataset, CurrentDataset]) #Old : previous, Current : Now
-    BatchMosaicAug(CombinedDataset, CurrentDataset)
     
-    print(f"current Dataset length : {len(CurrentDataset)} -> Rehearsal + Current length : {len(CombinedDataset)}")
-    #CombinedDataset = OldDataset
+    CombinedDataset = ConcatDataset([OldDataset, CurrentDataset]) #Old : previous, Current : Now
+    MosaicBatchDataset = BatchMosaicAug(CombinedDataset, class_ids, args.Mosaic) #* if Mosaic == True -> 1 batch(divided three batch/ False -> 3 batch (only original)
+    
+    print(MosaicBatchDataset)
+    print(f"current Dataset length : {len(CurrentDataset)} -> Rehearsal + Current length : {len(MosaicBatchDataset)}")
+    
     if args.distributed:
         if args.cache_mode:
             sampler_train = samplers.NodeDistributedSampler(CombinedDataset)
@@ -226,9 +298,11 @@ def CombineDataset(args, RehearsalData, CurrentDataset, Worker, Batch_size):
         
     batch_sampler_train = torch.utils.data.BatchSampler(
     sampler_train, Batch_size, drop_last=True)
-    CombinedLoader = DataLoader(CombinedDataset, batch_sampler=batch_sampler_train,
+    CombinedLoader = DataLoader(CombinedDataset, batch_sampler=1,
                         collate_fn=utils.collate_fn, num_workers=Worker,
                         pin_memory=True)
     
     
-    return CombinedLoader
+    return MosaicBatchDataset, CombinedLoader
+
+#img, target, origin_img, origin_target, Cur_img, Cur_lab, Dif_img, Dif_lab

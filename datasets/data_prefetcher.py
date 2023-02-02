@@ -12,28 +12,42 @@ def to_cuda(samples, targets, device):
     return samples, targets
 
 class data_prefetcher():
-    def __init__(self, loader, device, prefetch=True):
+    def __init__(self, loader, device, prefetch=True, Mosaic=False):
         self.loader = iter(loader)
         self.prefetch = prefetch
         self.device = device
+        self.Mosaic = Mosaic
         if prefetch:
             self.stream = torch.cuda.Stream()
             self.preload()
 
     def preload(self):
         try:
-            self.next_samples, self.next_targets, self.next_origin_samples, self.next_origin_targets = next(self.loader)
+            if self.Mosaic == True:
+                self.next_samples, self.next_targets, self.next_origin_samples, self.next_origin_targets, self.next_Current_samples, self.next_Current_target, self.next_Diff_samples, self.next_Diff_targets= next(self.loader)
+            else:
+                self.next_samples, self.next_targets, self.next_origin_samples, self.next_origin_targets = next(self.loader)
+
         except StopIteration:
             self.next_samples = None
             self.next_targets = None
             self.next_origin_samples = None
             self.next_origin_targets = None
+            self.next_Current_samples = None
+            self.next_Current_targets = None
+            self.next_Diff_samples = None
+            self.next_Diff_targets = None
             return
+        
         except KeyError:
             self.next_samples = None
             self.next_targets = None
             self.next_origin_samples = None
             self.next_origin_targets = None
+            self.next_Current_samples = None
+            self.next_Current_targets = None
+            self.next_Diff_samples = None
+            self.next_Diff_targets = None
             return
         # if record_stream() doesn't work, another option is to make sure device inputs are created
         # on the main stream.
@@ -43,7 +57,12 @@ class data_prefetcher():
         # at the time we start copying to next_*:
         # self.stream.wait_stream(torch.cuda.current_stream())
         with torch.cuda.stream(self.stream):
-            self.next_samples, self.next_targets = to_cuda(self.next_samples, self.next_targets, self.device)
+            if self.Mosaic == True:
+                self.next_samples, self.next_targets = to_cuda(self.next_samples, self.next_targets, self.device)
+                self.next_Current_samples, self.next_Current_target = to_cuda(self.next_Current_samples, self.next_Current_target, self.device)
+                self.next_Diff_samples, self.next_Diff_samples = to_cuda(self.next_Diff_samples, self.next_Diff_samples, self.device)
+            else:
+                self.next_samples, self.next_targets = to_cuda(self.next_samples, self.next_targets, self.device)
             # more code for the alternative if record_stream() doesn't work:
             # copy_ will record the use of the pinned source tensor in this side stream.
             # self.next_input_gpu.copy_(self.next_input, non_blocking=True)

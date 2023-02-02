@@ -133,20 +133,29 @@ def _origin_transform(image_set):
 
     if image_set == 'train':
         return T.Compose([
-            T.RandomResize([600]),
+            #T.RandomResize([600]),
             normalize,
         ])
-        
-def make_coco_transforms(image_set):
-    '''
-    20K images Normalize value
-    0.4765055717570094 0.4796020579700674 0.4367498318498247
-    0.1581100638163539 0.16015381875056295 0.17477168550127367
+
+def mosaic_transform(image_set):
+    scales = [480, 512, 544, 576, 608, 640, 672, 704, 736, 768, 800]
     
-    최종적인 15만장 훈련 이미지
-    0.3127332811286186 0.3158770784230468 0.2948881412271259
-    0.1206623197619993 0.12231185518474008 0.1311658618589899
-    '''
+    if image_set == 'train':
+        return T.Compose([
+            T.RandomHorizontalFlip(),
+            T.RandomAdjustSharpness(), # Random apply ( p = 0.5 )
+            T.ColorJitter(),
+            T.RandomAugmetation(),
+            T.RandomSelect(   
+                T.RandomResize(scales, max_size=1333),
+                T.Compose([
+                    T.RandomResize([400, 500, 600]),
+                    T.RandomSizeCrop(384, 600),
+                    T.RandomResize(scales, max_size=1333),
+                ])
+        ]),
+def make_coco_transforms(image_set):
+
     normalize = T.Compose([
         T.ToTensor(),
         #T.Normalize([0.377, 0.381, 0.354], [0.143, 0.146, 0.155]) second ( ~ 11.13)

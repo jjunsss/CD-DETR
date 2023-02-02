@@ -316,16 +316,19 @@ def get_sha():
     message = f"sha: {sha}, status: {diff}, branch: {branch}"
     return message
 
-#! Dangerous : Nested Tensor && Tensor Combination
-def collate_fn(batch):
+#! Dangerous : Nested Tensor && Tensor Combination/Need Transform same resolution for training.
+def collate_fn(batch): #img, target, origin_img, origin_target, Cur_img, Cur_lab, Dif_img, Dif_lab
     batch = list(zip(*batch))
     #print(f"collate_fn batch : {batch}")
     #print(f"collate_fn batch : {batch[0]}")
     if isinstance(batch[0][0], NestedTensor) == False:
         batch[0] = nested_tensor_from_tensor_list(batch[0]) #for NewClasses(transformed)
     
-    if isinstance(batch[2][0], NestedTensor) == False:
-        batch[2] = nested_tensor_from_tensor_list(batch[2]) #for OldClasses(Original)
+    # if isinstance(batch[4][0], NestedTensor) == False:
+    #     batch[2] = nested_tensor_from_tensor_list(batch[2]) #for OldClasses(Original)
+    
+    # if isinstance(batch[6][0], NestedTensor) == False:
+    #     batch[2] = nested_tensor_from_tensor_list(batch[2]) #for OldClasses(Original)
     return tuple(batch)
 
 def _max_by_axis(the_list):
