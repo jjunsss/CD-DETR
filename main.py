@@ -135,13 +135,13 @@ def get_args_parser():
     parser.add_argument('--Task_Epochs', default=10, type=int, help='each Task epoch. like 1 task is 5 of 10 epoch training.. ')
     parser.add_argument('--Total_Classes', default=59, type=int, help='classes counts in custom COCODataset')
     parser.add_argument('--Total_Classes_Names', default=True, action='store_true', help="division classes through class names (DID,PZ,VE)")
-    parser.add_argument('--Continual_Batch_size', default=3, type=int, help='continual batch training method')
     parser.add_argument('--CL_Limited', default=5, type=int, help='Use Limited Training in CL')#IF you choose False, you should meet data imbalancing in training.
 
     #* Rehearsal method
     parser.add_argument('--Rehearsal', default=False, action='store_true', help="use Rehearsal starategy in diverse CL method")
-    parser.add_argument('--Mosaic', default=False, action='store_true', help="use Ours Mosaic Rehearsal starategy in diverse CL method")
+    parser.add_argument('--Mosaic', default=True, action='store_true', help="use Ours Mosaic Rehearsal starategy in diverse CL method")
     parser.add_argument('--Memory', default=500, type=int, help='memory capacity for rehearsal training')
+    parser.add_argument('--Continual_Batch_size', default=3, type=int, help='continual batch training method')
     return parser
 
 def main(args):

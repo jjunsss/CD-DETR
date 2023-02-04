@@ -39,15 +39,13 @@ def decompose_dataset(no_use_count: int, samples: utils.NestedTensor, targets: D
     return (batch_size, no_use_count, samples, targets, origin_samples, origin_targets, used_number)
 
 
-def Original_training(args, epo, idx, sum_loss, samples, targets, origin_sam, origin_tar, 
+def Original_training(args, epo, idx, count, sum_loss, samples, targets, origin_sam, origin_tar, 
                       model: torch.nn.Module, criterion: torch.nn.Module, optimizer: torch.optim.Optimizer,
                       rehearsal_classes, train_check, current_classes): 
     '''
         Only Training Original Data or (Transformed image, Transformed Target).
         This is not Mosaic Data.
     '''
-    global count #! 이거 정상적으로 작동하는지 확인이 필요함. 
-    
     device = torch.device("cuda")
     ex_device = torch.device("cpu")
     model.train()
@@ -61,7 +59,7 @@ def Original_training(args, epo, idx, sum_loss, samples, targets, origin_sam, or
     losses_value = losses.item()
     
     with torch.no_grad():
-        #if train_check == True and args.Rehearsal == True:
+        #if train_check == True and args.Rehearsal == True: #* I will use this code line. No delete.
         if True:
             targets = [{k: v.to(ex_device) for k, v in t.items()} for t in targets]
             rehearsal_classes = contruct_rehearsal(losses_value=losses_value, lower_limit=0.1, upper_limit=100, samples=samples, targets=targets, 
@@ -75,7 +73,7 @@ def Original_training(args, epo, idx, sum_loss, samples, targets, origin_sam, or
                 
     if loss_dict_reduced != False:
         count += 1
-        loss_dict_reduced_scaled = {k: v * weight_dict[k]
+        loss_dict_reduced_scaled = {k: v.item() * weight_dict[k]
                                     for k, v in loss_dict_reduced.items() if k in weight_dict}
         losses_reduced_scaled = sum(loss_dict_reduced_scaled.values())
         
@@ -100,16 +98,14 @@ def Original_training(args, epo, idx, sum_loss, samples, targets, origin_sam, or
         grad_total_norm = utils.get_total_grad_norm(model.parameters(), args.clip_max_norm)
     optimizer.step()
 
-    del samples, targets, origin_samples, origin_targets, losses_reduced_scaled, loss_dict_reduced_scaled, loss_dict, outputs, loss_dict_reduced #무조건 마지막까지 함께훈련이 되도록 유도
+    del samples, targets, origin_sam, origin_tar, losses_reduced_scaled, loss_dict_reduced_scaled, loss_dict, outputs, loss_dict_reduced #무조건 마지막까지 함께훈련이 되도록 유도
     torch.cuda.empty_cache()
     
-    return rehearsal_classes, sum_loss
+    return rehearsal_classes, sum_loss, count
 
-def Mosaic_training(args, epo, idx, sum_loss, samples, targets,
+def Mosaic_training(args, epo, idx, count, sum_loss, samples, targets,
                     model: torch.nn.Module, criterion: torch.nn.Module, optimizer: torch.optim.Optimizer, current_classes):
-    global count
-    
-    train_check = True
+
     device = torch.device("cuda")
     ex_device = torch.device("cpu")
     model.train()
@@ -122,7 +118,7 @@ def Mosaic_training(args, epo, idx, sum_loss, samples, targets,
     losses = sum(loss_dict[k] * weight_dict[k] for k in loss_dict.keys() if k in weight_dict)
     losses_value = losses.item()
     
-    loss_dict_reduced = utils.reduce_dict(loss_dict, train_check)
+    loss_dict_reduced = utils.reduce_dict(loss_dict, True)
     
     if loss_dict_reduced != False:
         count += 1
@@ -133,7 +129,6 @@ def Mosaic_training(args, epo, idx, sum_loss, samples, targets,
     
     if utils.is_main_process(): #sum_loss가 GPU의 개수에 맞춰서 더해주고 있으니,
         print(f"epoch : {epo}, losses : {losses_reduced_scaled:05f}, epoch_total_loss : {(sum_loss / count):05f}, count : {count}")
-        print(f"total examplar counts : {sum([len(contents) for contents in list(rehearsal_classes.values())])}")
         if idx % 10 == 0:
             print(f"current classes is {current_classes}")
 
@@ -147,10 +142,10 @@ def Mosaic_training(args, epo, idx, sum_loss, samples, targets,
     if args.clip_max_norm > 0:
         grad_total_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip_max_norm)
     else:
-        grad_total_norm = utils.get_total_grad_norm(model.parameters(), args.clip_max_norm)
+        grad_total_norm = utils.get_total_grad_norm(model.parameters(), args.clip_max_norm) #* inplace format 
     optimizer.step()
 
-    del samples, targets, origin_samples, origin_targets, losses_reduced_scaled, loss_dict_reduced_scaled, loss_dict, outputs, loss_dict_reduced #무조건 마지막까지 함께훈련이 되도록 유도
+    del samples, targets 
     torch.cuda.empty_cache()
     
-    return sum_loss
+    return count, sum_loss

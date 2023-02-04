@@ -27,13 +27,14 @@ import util.misc as utils
 import numpy as np
 from typing import Tuple, Dict, List, Optional
 from tqdm import tqdm
-from .custom_training import *
+from custom_training import *
 
 @decompose
 def decompose_dataset(no_use_count: int, samples: utils.NestedTensor, targets: Dict, origin_samples: utils.NestedTensor, origin_targets: Dict, 
                       used_number: List) -> Tuple[int, List, utils.NestedTensor, Dict, utils.NestedTensor, Dict, List]:
     batch_size = len(targets)
     return (batch_size, no_use_count, samples, targets, origin_samples, origin_targets, used_number)
+
 
 def train_one_epoch(args, epo, model: torch.nn.Module, criterion: torch.nn.Module,
                     data_loader: Iterable, optimizer: torch.optim.Optimizer,
@@ -45,9 +46,10 @@ def train_one_epoch(args, epo, model: torch.nn.Module, criterion: torch.nn.Modul
         prefetcher = data_prefetcher(data_loader, device, prefetch=True, Mosaic=False)
     else:
         prefetcher = data_prefetcher(data_loader, device, prefetch=True, Mosaic=True)
-        
-    sum_loss = 0.0
+
+
     set_tm = time.time()
+    sum_loss = 0.0
     count = 0
     for idx in tqdm(range(len(data_loader))): #targets 
         torch.cuda.empty_cache()
@@ -66,17 +68,19 @@ def train_one_epoch(args, epo, model: torch.nn.Module, criterion: torch.nn.Modul
                 no_use, yes_use, label_dict = check_class(True, targets, label_dict, CL_Limited=args.CL_Limited) #! Original에 한해서만 Limited Training(현재 Task의 데이터에 대해서만 가정)
                 samples, targets, _, _, train_check = decompose_dataset(no_use_count=len(no_use), samples= samples, targets = targets, origin_samples=origin_samples, origin_targets= origin_targets ,used_number= yes_use)
             
-            rehearsal_classes, sum_loss = Original_training(args, epo, idx, sum_loss, samples, targets, origin_samples, origin_targets, model,
-                              criterion, optimizer, rehearsal_classes, train_check, current_classes)
+            #contruct rehearsal buffer in main training
+            rehearsal_classes, sum_loss, count = Original_training(args, epo, idx, count, sum_loss, samples, targets, origin_samples, origin_targets, 
+                                                  model, criterion, optimizer, rehearsal_classes, train_check, current_classes)
             
             #* For Mosaic Training method
             if MosaicBatch == True:
-                sum_loss = Mosaic_training(args, epo, idx, sum_loss, samples, targets, model, criterion, optimizer, current_classes)
+                Mosaic_training(args, epo, idx, count, sum_loss, current_samples, current_targets, model, criterion, optimizer, current_classes)
+                Mosaic_training(args, epo, idx, count, sum_loss, Diff_samples, Diff_targets, model, criterion, optimizer, current_classes)
         else:
             break
+        
     if utils.is_main_process():
         print("Total Time : ", time.time() - set_tm)
-
     return rehearsal_classes, label_dict
 
 @torch.no_grad()
