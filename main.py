@@ -138,10 +138,10 @@ def get_args_parser():
     parser.add_argument('--CL_Limited', default=5, type=int, help='Use Limited Training in CL')#IF you choose False, you should meet data imbalancing in training.
 
     #* Rehearsal method
-    parser.add_argument('--Rehearsal', default=False, action='store_true', help="use Rehearsal starategy in diverse CL method")
+    parser.add_argument('--Rehearsal', default=True, action='store_true', help="use Rehearsal starategy in diverse CL method")
     parser.add_argument('--Mosaic', default=True, action='store_true', help="use Ours Mosaic Rehearsal starategy in diverse CL method")
     parser.add_argument('--Memory', default=500, type=int, help='memory capacity for rehearsal training')
-    parser.add_argument('--Continual_Batch_size', default=3, type=int, help='continual batch training method')
+    parser.add_argument('--Continual_Batch_size', default=1, type=int, help='continual batch training method')
     return parser
 
 def main(args):

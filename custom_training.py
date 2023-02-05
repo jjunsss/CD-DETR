@@ -59,8 +59,7 @@ def Original_training(args, epo, idx, count, sum_loss, samples, targets, origin_
     losses_value = losses.item()
     
     with torch.no_grad():
-        #if train_check == True and args.Rehearsal == True: #* I will use this code line. No delete.
-        if True:
+        if train_check == True and args.Rehearsal == True: #* I will use this code line. No delete.
             targets = [{k: v.to(ex_device) for k, v in t.items()} for t in targets]
             rehearsal_classes = contruct_rehearsal(losses_value=losses_value, lower_limit=0.1, upper_limit=100, samples=samples, targets=targets, 
                                     origin_samples=origin_sam, origin_targets=origin_tar, rehearsal_classes=rehearsal_classes, Current_Classes=current_classes, Rehearsal_Memory=args.Memory)
@@ -145,7 +144,7 @@ def Mosaic_training(args, epo, idx, count, sum_loss, samples, targets,
         grad_total_norm = utils.get_total_grad_norm(model.parameters(), args.clip_max_norm) #* inplace format 
     optimizer.step()
 
-    del samples, targets 
+    del samples, targets , losses_reduced_scaled, loss_dict_reduced_scaled, loss_dict, outputs, loss_dict_reduced
     torch.cuda.empty_cache()
     
     return count, sum_loss

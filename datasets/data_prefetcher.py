@@ -17,6 +17,7 @@ class data_prefetcher():
         self.prefetch = prefetch
         self.device = device
         self.Mosaic = Mosaic
+        self.data_gen = None
         if prefetch:
             self.stream = torch.cuda.Stream()
             self.preload()
@@ -24,7 +25,19 @@ class data_prefetcher():
     def preload(self):
         try:
             if self.Mosaic == True:
-                self.next_samples, self.next_targets, self.next_origin_samples, self.next_origin_targets, self.next_Current_samples, self.next_Current_target, self.next_Diff_samples, self.next_Diff_targets= next(self.loader)
+                if self.data_gen is None:
+                    self.next_samples, self.next_targets, self.next_origin_samples, self.next_origin_targets, self.next_Current_samples, self.next_Current_target, self.next_Diff_samples, self.next_Diff_targets= next(self.loader)
+                    temp = [[self.next_samples, self.next_targets ,self.next_origin_samples, self.next_origin_targets], [self.next_Current_samples, self.next_Current_target, None, None], [self.next_Diff_samples, self.next_Diff_targets, None, None]]
+                    self.data_gen = self._split_gpu_preload(temp)
+                    self.next_samples, self.next_targets, self.next_origin_samples, self.next_origin_targets = next(self.data_gen)
+                elif self.data_gen is not None:
+                    self.next_samples, self.next_targets, self.next_origin_samples, self.next_origin_targets = next(self.data_gen, (None, None, None, None))
+                    
+                    if self.next_samples is None:
+                        self.next_samples, self.next_targets, self.next_origin_samples, self.next_origin_targets, self.next_Current_samples, self.next_Current_target, self.next_Diff_samples, self.next_Diff_targets= next(self.loader)
+                        temp = [[self.next_samples, self.next_targets ,self.next_origin_samples, self.next_origin_targets], [self.next_Current_samples, self.next_Current_target, None, None], [self.next_Diff_samples, self.next_Diff_targets, None, None]]
+                        self.data_gen = self._split_gpu_preload(temp)
+                        self.next_samples, self.next_targets, self.next_origin_samples, self.next_origin_targets = next(self.data_gen)
             else:
                 self.next_samples, self.next_targets, self.next_origin_samples, self.next_origin_targets = next(self.loader)
 
@@ -53,76 +66,38 @@ class data_prefetcher():
         with torch.cuda.stream(self.stream):
             if self.Mosaic == True:
                 self.next_samples, self.next_targets = to_cuda(self.next_samples, self.next_targets, self.device)
-                self.next_Current_samples, self.next_Current_target = to_cuda(self.next_Current_samples, self.next_Current_target, self.device)
-                self.next_Diff_samples, self.next_Diff_samples = to_cuda(self.next_Diff_samples, self.next_Diff_samples, self.device)
             else:
                 self.next_samples, self.next_targets = to_cuda(self.next_samples, self.next_targets, self.device)
-
+    
+    def _split_gpu_preload(self, temp):
+        for samples, targets, origin_samples, origin_targets in temp:
+            if origin_samples is not None :
+                yield samples, targets, origin_samples, origin_targets
+            else :
+                yield samples, targets, None, None #* for Mosaic augmentation Dataset(Current Mosaic, Different Mosaic)
+                
     def next(self):
-        if self.Mosaic:
-            if self.prefetch:
-                torch.cuda.current_stream().wait_stream(self.stream)
-                samples = self.next_samples
-                targets = self.next_targets
-                origin_samples = self.next_origin_samples
-                origin_targets = self.next_origin_targets
-                current_samples = self.next_Current_samples
-                current_targets = self.next_Current_targets
-                Diff_samples = self.next_Diff_samples
-                Diff_targets = self.next_Diff_targets
-                
-                if samples is not None:
-                    samples.record_stream(torch.cuda.current_stream())
-                if targets is not None:
-                    for t in targets:
-                        for k, v in t.items():
-                            v.record_stream(torch.cuda.current_stream())
-                            
-                if current_samples is not None:
-                    current_samples.record_stream(torch.cuda.current_stream())
-                if current_targets is not None:
-                    for t in current_targets:
-                        for k, v in t.items():
-                            v.record_stream(torch.cuda.current_stream())
-                            
-                if Diff_samples is not None:
-                    Diff_samples.record_stream(torch.cuda.current_stream())
-                if Diff_targets is not None:
-                    for t in Diff_targets:
-                        for k, v in t.items():
-                            v.record_stream(torch.cuda.current_stream())
-                self.preload()
-            else:
-                try:
-                    samples, targets, origin_samples, origin_targets, current_samples, current_targets, Diff_samples, Diff_targets = next(self.loader)
-                    samples, targets = to_cuda(samples, targets, self.device)
-                    current_samples, current_targets = to_cuda(samples, targets, self.device)
-                    Diff_samples, Diff_targets = to_cuda(samples, targets, self.device)
-                except StopIteration:
-                    samples = None
-                    targets = None
-            return samples, targets, origin_samples, origin_targets, current_samples, current_targets, Diff_samples, Diff_targets
-
+        if self.prefetch:
+            torch.cuda.current_stream().wait_stream(self.stream)
+            samples = self.next_samples
+            targets = self.next_targets
+            origin_samples = self.next_origin_samples
+            origin_targets = self.next_origin_targets
+            
+            if samples is not None:
+                samples.record_stream(torch.cuda.current_stream())
+            if targets is not None:
+                for t in targets:
+                    for k, v in t.items():
+                        v.record_stream(torch.cuda.current_stream())
+            self.preload()
         else:
-            if self.prefetch:
-                torch.cuda.current_stream().wait_stream(self.stream)
-                samples = self.next_samples
-                targets = self.next_targets
-                origin_samples = self.next_origin_samples
-                origin_targets = self.next_origin_targets
+            try:
+                samples, targets, origin_samples, origin_targets, current_samples, current_targets, Diff_samples, Diff_targets = next(self.loader)
+                samples, targets = to_cuda(samples, targets, self.device)
+            except StopIteration:
+                samples = None
+                targets = None
                 
-                if samples is not None:
-                    samples.record_stream(torch.cuda.current_stream())
-                if targets is not None:
-                    for t in targets:
-                        for k, v in t.items():
-                            v.record_stream(torch.cuda.current_stream())
-                self.preload()
-            else:
-                try:
-                    samples, targets, origin_samples, origin_targets = next(self.loader)
-                    samples, targets = to_cuda(samples, targets, self.device)
-                except StopIteration:
-                    samples = None
-                    targets = None
-            return samples, targets, origin_samples, origin_targets
+        return samples, targets, origin_samples, origin_targets
+

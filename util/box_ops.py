@@ -22,9 +22,13 @@ def box_cxcywh_to_xyxy(x):
 
 def box_cxcywh_to_xyxy_resize(x):
     x_c, y_c, w, h = x.unbind(-1)
-    b = [(x_c - 0.5 * w), (y_c - 0.5 * h),
-         (x_c + 0.5 * w), (y_c + 0.5 * h)]
-    return torch.tensor([b])
+    # b = [(x_c - 0.5 * w), (y_c - 0.5 * h),
+    #      (x_c + 0.5 * w), (y_c + 0.5 * h)]
+    
+    b = torch.stack([(x_c - 0.5 * w), (y_c - 0.5 * h),
+                    (x_c + 0.5 * w), (y_c + 0.5 * h)], dim=-1)
+    return b
+    #return torch.tensor([b])
 
 def box_xyxy_to_cxcywh(x):
     x0, y0, x1, y1 = x.unbind(-1)

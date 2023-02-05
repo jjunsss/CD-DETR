@@ -103,9 +103,8 @@ class CustomDataset(torch.utils.data.Dataset):
     def __init__(self, re_dict):
         self.re_dict = re_dict
         self.keys = list(re_dict.keys())
-        values = [v for v in re_dict.values() if v]
-        values = np.concatenate(values)
-        self.data = np.array(values, dtype = object)        
+        self.values = [np.array(v) for v in self.re_dict.values() if v]
+        self.data = np.concatenate(self.values)      
             
     def __len__(self):
         return len(self.data)
@@ -115,7 +114,7 @@ class CustomDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, idx):
         new_samples, new_targets = self.data[idx]
-        
+        new_samples = new_samples[0]
         return new_samples, new_targets, new_samples, new_targets
 
 def _Resize_for_batchmosaic(img:torch.Tensor, height_resized, width_resized, bboxes): #* Checking
@@ -138,7 +137,7 @@ def _Resize_for_batchmosaic(img:torch.Tensor, height_resized, width_resized, bbo
     transformed_img = transformed["image"]
     #visualize_bboxes(transformed_img, transformed_bboxes)
     
-    transformed_bboxes = np.array(transformed_bboxes)
+    transformed_bboxes = torch.tensor(transformed_bboxes)
     transformed_img = torch.tensor(transformed_img, dtype=torch.float32).permute(2, 0, 1)
     
     return  transformed_img, transformed_bboxes 
@@ -151,6 +150,7 @@ class BatchMosaicAug(torch.utils.data.Dataset):
         self.Mosaic = Mosaic
         self.img_size = (1024, 1024) #변경될 크기(이미지 변경을 위함)
         self.Rehearsal_dataset = datasets.datasets[0] #* Old Dataset
+        self.Current_dataset = datasets.datasets[1] #* Old Dataset
         
     def __len__(self):
             return len(self.Datasets)    
@@ -172,9 +172,13 @@ class BatchMosaicAug(torch.utils.data.Dataset):
             maybe index_list is constant shape in clockwise(1:origin / 2:Current Img / 3: Currnt image / 4: Current img)
         '''
         bboxes = []
-        _, _, _, origin_target = self.Datasets[index]
-        boxes = origin_target["boxes"] #* Torch tensor
-        classes = origin_target["labels"]
+        if diff == True and count != 0:
+            boxes = self.Rehearsal_dataset[index][1]["boxes"]
+            classes = self.Rehearsal_dataset[index][1]["labels"]
+        else:
+            _, _, _, origin_target = self.Datasets[index]
+            boxes = origin_target["boxes"] #* Torch tensor
+            classes = origin_target["labels"]
         boxes = box_cxcywh_to_xyxy_resize(boxes)
         
         for box, cls in zip(boxes, classes):
@@ -189,29 +193,18 @@ class BatchMosaicAug(torch.utils.data.Dataset):
         '''
             Only Mosaic index printed 
         '''
-        Mosaic_index_list = set([index])
-        Rehearsal_index_list = set([index])
-        Current_mosaic_index = []
-        Diff_mosaic_index = []
-        while True: #*Curretn Class augmentation / Other class AUgmentation
-            Mosaic_index = random.randint(0, len(self.Datasets) - 1)
-            Rehearsal_index = random.randint(0, len(self.Rehearsal_dataset) - 1)
-            Mosaic_classes = self.Datasets[Mosaic_index][-1]["labels"][0].item() #! 어차피 하나의 이미지에 들어있는 Class는 동일한 Task에서만 추출된다(명심)
-
-            if Mosaic_index not in Mosaic_index_list and Rehearsal_index not in Rehearsal_index_list: #* No duplicate in Current Dataset( because)
-                if Mosaic_classes in self.current_classes:
-                    if len(Current_mosaic_index) < 3:
-                        Current_mosaic_index.append(Mosaic_index)
-                if len(Diff_mosaic_index) < 3:
-                    Diff_mosaic_index.append(Rehearsal_index)
+        #*Curretn Class augmentation / Other class AUgmentation
+        Mosaic_index = random.sample(range(len(self.Current_dataset)), 3)
+        Rehearsal_index = random.sample(range(len(self.Rehearsal_dataset)), 3)
+        
+        for now, old in zip(Mosaic_index, Rehearsal_index):
+            if self.Rehearsal_dataset[old][1]["boxes"].shape[-1] < 1 and self.Datasets[now][1]["boxes"] < 1:
+                raise Exception("Error: NOT correct Dataset")
             
-                if len(Current_mosaic_index) == 3 and len(Diff_mosaic_index) == 3:
-                    Current_mosaic_index.insert(0, index)
-                    Diff_mosaic_index.insert(0, index)
-                    break
-                Mosaic_index_list.add(Mosaic_index)
+        Mosaic_index.insert(0, index)
+        Rehearsal_index.insert(0, index)
 
-        return Current_mosaic_index, Diff_mosaic_index
+        return Mosaic_index, Rehearsal_index
     
     #* No Augmentation before BatchClassAugmentation Method
     def load_image(self, count, index, diff):#* Done
@@ -232,36 +225,39 @@ class BatchMosaicAug(torch.utils.data.Dataset):
             # Load image
             transposed_img, transposed_bboxes = self._augment_bboxes(i, index, diff) #! cv2.imread 통해서 불러옴. 나는 coco 사용하기에 변경해야 함.
             channel, height, width = transposed_img.shape
+            temp_bbox = transposed_bboxes.clone().detach()
             # place img in img4(특정 center point 잡아서 할당)
             if i == 0:  # top left
                 mosaic_aug_img = torch.zeros((channel, mosaic_size[0], mosaic_size[1]), dtype=torch.float32)  # base image with 4 tiles
                 mosaic_aug_img[:, :height, :width] = transposed_img
-                transposed_bboxes[:, 0] = transposed_bboxes[:, 0] / 2 #? x1 (xmin)
-                transposed_bboxes[:, 1] = transposed_bboxes[:, 1] / 2 #? y1 (ymin)
-                transposed_bboxes[:, 2] = transposed_bboxes[:, 2] / 2 #? x2 (xmax)
-                transposed_bboxes[:, 3] = transposed_bboxes[:, 3] / 2 #? y2 (ymax)
-                mosaic_bboxes = transposed_bboxes.copy()
+                temp_bbox[:, 0] =(temp_bbox[:, 0]) / 2 #? x1 (xmin)
+                temp_bbox[:, 1] = (temp_bbox[:, 1]) / 2 #? y1 (ymin)
+                temp_bbox[:, 2] = (temp_bbox[:, 2]) / 2 #? x2 (xmax)
+                temp_bbox[:, 3] = (temp_bbox[:, 3]) / 2 #? y2 (ymax)
+                mosaic_bboxes = temp_bbox.clone().detach()
             elif i == 1:  # top right
                 mosaic_aug_img[:, :height, width:] = transposed_img
-                transposed_bboxes[:, 0] = transposed_bboxes[:, 0] / 2 + 0.5
-                transposed_bboxes[:, 1] = transposed_bboxes[:, 1] / 2
-                transposed_bboxes[:, 2] = transposed_bboxes[:, 2] / 2 + 0.5
-                transposed_bboxes[:, 3] = transposed_bboxes[:, 3] / 2
-                mosaic_bboxes = np.row_stack((transposed_bboxes, mosaic_bboxes))
+                print(f"Indexing list : {mosaic_index}, Index : {index}, Transposed bboxes : {temp_bbox}")
+                print(f"dimension : {temp_bbox.shape}")
+                temp_bbox[:, 0] = (temp_bbox[:, 0] / 2) + 0.5
+                temp_bbox[:, 1] = (temp_bbox[:, 1] / 2)
+                temp_bbox[:, 2] = (temp_bbox[:, 2] / 2) + 0.5
+                temp_bbox[:, 3] = (temp_bbox[:, 3] / 2)
+                mosaic_bboxes = torch.vstack((temp_bbox, mosaic_bboxes))
             elif i == 2:  # bottom left
                 mosaic_aug_img[:, height:, :width] = transposed_img
-                transposed_bboxes[:, 0] = transposed_bboxes[:, 0] / 2 
-                transposed_bboxes[:, 1] = transposed_bboxes[:, 1] / 2 + 0.5
-                transposed_bboxes[:, 2] = transposed_bboxes[:, 2] / 2 
-                transposed_bboxes[:, 3] = transposed_bboxes[:, 3] / 2 + 0.5
-                mosaic_bboxes = np.row_stack((transposed_bboxes, mosaic_bboxes))
+                temp_bbox[:, 0] = (temp_bbox[:, 0] / 2) 
+                temp_bbox[:, 1] = (temp_bbox[:, 1] / 2) + 0.5
+                temp_bbox[:, 2] = (temp_bbox[:, 2] / 2) 
+                temp_bbox[:, 3] = (temp_bbox[:, 3] / 2) + 0.5
+                mosaic_bboxes = torch.vstack((temp_bbox, mosaic_bboxes))
             elif i == 3:  # bottom right
                 mosaic_aug_img[:, height:, width:] = transposed_img
-                transposed_bboxes[:, 0] = transposed_bboxes[:, 0] / 2 + 0.5
-                transposed_bboxes[:, 1] = transposed_bboxes[:, 1] / 2 + 0.5
-                transposed_bboxes[:, 2] = transposed_bboxes[:, 2] / 2 + 0.5
-                transposed_bboxes[:, 3] = transposed_bboxes[:, 3] / 2 + 0.5
-                mosaic_bboxes = np.row_stack((transposed_bboxes, mosaic_bboxes))
+                temp_bbox[:, 0] = (temp_bbox[:, 0] / 2) + 0.5 
+                temp_bbox[:, 1] = (temp_bbox[:, 1] / 2) + 0.5
+                temp_bbox[:, 2] = (temp_bbox[:, 2] / 2) + 0.5
+                temp_bbox[:, 3] = (temp_bbox[:, 3] / 2) + 0.5
+                mosaic_bboxes = torch.vstack((temp_bbox, mosaic_bboxes))
         
         #visualize_bboxes(np.clip(mosaic_aug_img.permute(1, 2, 0).numpy(), 0, 1).copy(), mosaic_bboxes, self.img_size)
         return mosaic_aug_img, mosaic_bboxes
@@ -278,9 +274,25 @@ class BatchMosaicAug(torch.utils.data.Dataset):
             
         Current_mosaic_img, Current_mosaic_labels = self.make_batch_mosaic(Current_mosaic_index, Mosaic_size, False)
         Diff_mosaic_img, Diff_mosaic_labels = self.make_batch_mosaic(Diff_mosaic_index, Mosaic_size, True)
-
+        Current_mosaic_labels = self._make_resized_targets(Current_mosaic_labels)
+        Diff_mosaic_labels = self._make_resized_targets(Diff_mosaic_labels)
+        
         return Current_mosaic_img, Current_mosaic_labels, Diff_mosaic_img, Diff_mosaic_labels
-
+    
+    def _make_resized_targets(self, target: Dict)-> Dict:
+        
+        temp_dict = {}
+        boxes = target[:, :-1]
+        labels = target[:, -1]
+        temp_dict['boxes'] = boxes
+        temp_dict['labels'] = labels.to(dtype=torch.long)
+        temp_dict['images_id'] = torch.tensor(0)
+        temp_dict['area'] = torch.tensor(0)
+        temp_dict['is_crowded'] = torch.tensor(0)
+        temp_dict['orig_size'] = torch.tensor(self.img_size)
+        temp_dict['size'] = torch.tensor(self.img_size)
+        
+        return temp_dict
 #For Rehearsal
 def CombineDataset(args, RehearsalData, CurrentDataset, Worker, Batch_size):
     OldDataset = CustomDataset(RehearsalData) #oldDatset[idx]:

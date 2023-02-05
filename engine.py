@@ -52,11 +52,7 @@ def train_one_epoch(args, epo, model: torch.nn.Module, criterion: torch.nn.Modul
     sum_loss = 0.0
     count = 0
     for idx in tqdm(range(len(data_loader))): #targets 
-        torch.cuda.empty_cache()
-        if MosaicBatch == False:  
-            samples, targets, origin_samples, origin_targets = prefetcher.next()
-        else:                                                   #! 참고로 current_samples, Diff_samples은 동일한 크기를 가진다. Sample을 Mask를 입혀서 동일한 크기로 맞춰주면 되지 않을까 싶다.
-            samples, targets, origin_samples, origin_targets, current_samples, current_targets, Diff_samples, Diff_targets = prefetcher.next() #TODO : Mosaic이 되면 Nested Tensor 그 자체가 (Original, CurrentMosaic, DiffMosaic)의 형태가 완성되어야 한다.
+        samples, targets, origin_samples, origin_targets = prefetcher.next()
             
         train_check = True
         samples = samples.to(ex_device)
@@ -64,9 +60,9 @@ def train_one_epoch(args, epo, model: torch.nn.Module, criterion: torch.nn.Modul
         
         #TODO : one samples no over / one samples over solve this ! 
         if idx < 10:
-            with torch.no_grad(): #!If Mosaic Batch 시에 1개씩 뿌리는데 (3증강)으로 변경할 것이면 굳이 사용할 필요가 없음. 
-                no_use, yes_use, label_dict = check_class(True, targets, label_dict, CL_Limited=args.CL_Limited) #! Original에 한해서만 Limited Training(현재 Task의 데이터에 대해서만 가정)
-                samples, targets, _, _, train_check = decompose_dataset(no_use_count=len(no_use), samples= samples, targets = targets, origin_samples=origin_samples, origin_targets= origin_targets ,used_number= yes_use)
+            #* because MosaicAugmentation Data has not original data
+            no_use, yes_use, label_dict = check_class(True, targets, label_dict, CL_Limited=args.CL_Limited) #! Original에 한해서만 Limited Training(현재 Task의 데이터에 대해서만 가정)
+            samples, targets, origin_samples, origin_targets, train_check = decompose_dataset(no_use_count=len(no_use), samples= samples, targets = targets, origin_samples=origin_samples, origin_targets= origin_targets ,used_number= yes_use)
             
             #contruct rehearsal buffer in main training
             rehearsal_classes, sum_loss, count = Original_training(args, epo, idx, count, sum_loss, samples, targets, origin_samples, origin_targets, 
@@ -74,8 +70,10 @@ def train_one_epoch(args, epo, model: torch.nn.Module, criterion: torch.nn.Modul
             
             #* For Mosaic Training method
             if MosaicBatch == True:
-                Mosaic_training(args, epo, idx, count, sum_loss, current_samples, current_targets, model, criterion, optimizer, current_classes)
-                Mosaic_training(args, epo, idx, count, sum_loss, Diff_samples, Diff_targets, model, criterion, optimizer, current_classes)
+                samples, targets, _, _ = prefetcher.next() #* Different
+                Mosaic_training(args, epo, idx, count, sum_loss, samples, targets, model, criterion, optimizer, current_classes)
+                samples, targets, _, _ = prefetcher.next() #* Next samples
+                Mosaic_training(args, epo, idx, count, sum_loss, samples, targets, model, criterion, optimizer, current_classes)
         else:
             break
         
