@@ -46,12 +46,17 @@ def Original_training(args, epo, idx, count, sum_loss, samples, targets, origin_
         Only Training Original Data or (Transformed image, Transformed Target).
         This is not Mosaic Data.
     '''
+    if train_check :
+        model.train()
+    else:
+        model.eval()
+                
     device = torch.device("cuda")
     ex_device = torch.device("cpu")
-    model.train()
     criterion.train()
     samples = samples.to(device)
     targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
+    
     outputs = model(samples)
     loss_dict = criterion(outputs, targets)
     weight_dict = criterion.weight_dict
@@ -63,18 +68,18 @@ def Original_training(args, epo, idx, count, sum_loss, samples, targets, origin_
             targets = [{k: v.to(ex_device) for k, v in t.items()} for t in targets]
             rehearsal_classes = contruct_rehearsal(losses_value=losses_value, lower_limit=0.1, upper_limit=100, samples=samples, targets=targets, 
                                     origin_samples=origin_sam, origin_targets=origin_tar, rehearsal_classes=rehearsal_classes, Current_Classes=current_classes, Rehearsal_Memory=args.Memory)
-
+    del samples, targets
+    
     loss_dict_reduced = utils.reduce_dict(loss_dict, train_check)
     if loss_dict_reduced == False:
-                losses_reduced_scaled = 0
-                loss_dict_reduced_scaled = 0
-                losses = torch.tensor(0, device=torch.device("cuda"), requires_grad=True, dtype=torch.float32)
-                
+        losses_reduced_scaled = 0
+        loss_dict_reduced_scaled = 0
+        
+        
     if loss_dict_reduced != False:
         count += 1
-        loss_dict_reduced_scaled = {k: v.item() * weight_dict[k]
-                                    for k, v in loss_dict_reduced.items() if k in weight_dict}
-        losses_reduced_scaled = sum(loss_dict_reduced_scaled.values())
+        loss_dict_reduced_scaled = {v * weight_dict[k] for k, v in loss_dict_reduced.items() if k in weight_dict}
+        losses_reduced_scaled = sum(loss_dict_reduced_scaled)
         
     sum_loss += losses_reduced_scaled
     
@@ -87,7 +92,7 @@ def Original_training(args, epo, idx, count, sum_loss, samples, targets, origin_
     if not math.isfinite(losses_reduced_scaled):
         print("Loss is {}, Dagerous training".format(losses_reduced_scaled))
         print(f"all reduce GPU Params : {loss_dict_reduced}")
-        
+    
     optimizer.zero_grad()
     losses.backward()
     
@@ -96,14 +101,14 @@ def Original_training(args, epo, idx, count, sum_loss, samples, targets, origin_
     else:
         grad_total_norm = utils.get_total_grad_norm(model.parameters(), args.clip_max_norm)
     optimizer.step()
-
-    del samples, targets, origin_sam, origin_tar, losses_reduced_scaled, loss_dict_reduced_scaled, loss_dict, outputs, loss_dict_reduced #무조건 마지막까지 함께훈련이 되도록 유도
+        
+    del origin_sam, origin_tar, losses_reduced_scaled, loss_dict_reduced_scaled, loss_dict, outputs, loss_dict_reduced, losses#무조건 마지막까지 함께훈련이 되도록 유도
     torch.cuda.empty_cache()
     
     return rehearsal_classes, sum_loss, count
 
 def Mosaic_training(args, epo, idx, count, sum_loss, samples, targets,
-                    model: torch.nn.Module, criterion: torch.nn.Module, optimizer: torch.optim.Optimizer, current_classes):
+                    model: torch.nn.Module, criterion: torch.nn.Module, optimizer: torch.optim.Optimizer, current_classes, data_type):
 
     device = torch.device("cuda")
     ex_device = torch.device("cpu")
@@ -115,8 +120,8 @@ def Mosaic_training(args, epo, idx, count, sum_loss, samples, targets,
     loss_dict = criterion(outputs, targets)
     weight_dict = criterion.weight_dict
     losses = sum(loss_dict[k] * weight_dict[k] for k in loss_dict.keys() if k in weight_dict)
-    losses_value = losses.item()
     
+    del samples, targets, 
     loss_dict_reduced = utils.reduce_dict(loss_dict, True)
     
     if loss_dict_reduced != False:
@@ -127,7 +132,7 @@ def Mosaic_training(args, epo, idx, count, sum_loss, samples, targets,
     sum_loss += losses_reduced_scaled
     
     if utils.is_main_process(): #sum_loss가 GPU의 개수에 맞춰서 더해주고 있으니,
-        print(f"epoch : {epo}, losses : {losses_reduced_scaled:05f}, epoch_total_loss : {(sum_loss / count):05f}, count : {count}")
+        print(f"epoch : {epo}, data_type : {data_type}, losses : {losses_reduced_scaled:05f}, epoch_total_loss : {(sum_loss / count):05f}, count : {count}")
         if idx % 10 == 0:
             print(f"current classes is {current_classes}")
 
@@ -144,7 +149,7 @@ def Mosaic_training(args, epo, idx, count, sum_loss, samples, targets,
         grad_total_norm = utils.get_total_grad_norm(model.parameters(), args.clip_max_norm) #* inplace format 
     optimizer.step()
 
-    del samples, targets , losses_reduced_scaled, loss_dict_reduced_scaled, loss_dict, outputs, loss_dict_reduced
+    del losses_reduced_scaled, loss_dict_reduced_scaled, loss_dict, outputs, loss_dict_reduced
     torch.cuda.empty_cache()
     
     return count, sum_loss

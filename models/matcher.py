@@ -15,7 +15,7 @@ from scipy.optimize import linear_sum_assignment
 from torch import nn
 
 from util.box_ops import box_cxcywh_to_xyxy, generalized_box_iou
-
+import torch.distributed as dist
 
 class HungarianMatcher(nn.Module):
     """This class computes an assignment between the targets and the predictions of the network
@@ -84,6 +84,7 @@ class HungarianMatcher(nn.Module):
             cost_bbox = torch.cdist(out_bbox, tgt_bbox, p=1)
 
             # Compute the giou cost betwen boxes
+            #print(f"Error generate bbox: {out_bbox} tgt_ids : {tgt_ids.max()}")
             cost_giou = -generalized_box_iou(box_cxcywh_to_xyxy(out_bbox),
                                              box_cxcywh_to_xyxy(tgt_bbox))
 

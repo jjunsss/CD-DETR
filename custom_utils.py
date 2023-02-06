@@ -7,7 +7,7 @@ import util.misc as utils
 import numpy as np
 from typing import Tuple, Dict, List, Optional
 import os
-
+from custom_prints import over_label_checker
 
 def decompose(func):
     def wrapper(no_use_count: int, samples: utils.NestedTensor, targets: Dict, 
@@ -236,11 +236,10 @@ def check_class(verbose: bool, targets: Dict, label_dict: Dict,
             check_list4 = [idx.item() for idx in label_tensor_unique if idx.item() in label_dict  if label_dict[idx.item()] > CL_Limited] #ve (other)
             
         #TODO : before checking overlist Process outputdim and continue iter
+        
         if len(check_list) > 0 or len(check_list2) > 0 or len(check_list3) > 0 or len(check_list4) > 0:
-            if utils.is_main_process() and verbose:
-                print("overlist: ", check_list, check_list2, check_list3, check_list4)
+            over_label_checker(check_list, check_list2, check_list3, check_list4)           
             no_use.append(enum)
-
         else:
             yes_use.append(enum)
             label_tensor_count = label_tensor.numpy()
@@ -263,7 +262,6 @@ def new_dataLoader(saved_dict, args):
         if len(value) > 0 :
             np_idx_list = np.array(value, dtype=object)
             dataset_idx_list.extend(np.unique(np_idx_list[:, 3]).astype(np.uint8).tolist())
-    #print(f"{dist.get_rank()} gpu dataset_idx_list : {dataset_idx_list}")
     
     custom_dataset = build_dataset(image_set='train', args=args, img_ids=dataset_idx_list)
     
@@ -278,7 +276,7 @@ def _dataset_for_memory_check(*args):
     
     return check_sample, check_target
 
-def _divede_targetset(target: Dict, index: int)-> Dict:
+def _divide_targetset(target: Dict, index: int)-> Dict:
     
     changed_target_boxes = target['boxes'][target["labels"] == index]
     changed_target_area = target['area'][target["labels"] == index]
@@ -319,9 +317,9 @@ def contruct_rehearsal(losses_value: float, lower_limit: float, upper_limit: flo
                                used_number=[enum])
 
             #Rehearsal. 오름차순 정렬하고, Loss가 큰 값들부터 제거 -> Loss가 크면 대표성이 떨어짐.
-            for unique_idx in label_tensor_unique:
+            for index, unique_idx in enumerate(label_tensor_unique):
                 unique_idx = unique_idx.item()
-                divided_target = _divede_targetset(new_target[0], int(unique_idx))
+                divided_target = _divide_targetset(new_target[0], int(unique_idx))
                 if divided_target['boxes'].shape[-1] < 4:
                     continue
                 
@@ -332,14 +330,24 @@ def contruct_rehearsal(losses_value: float, lower_limit: float, upper_limit: flo
                     instances_bytes = asizeof.asizeof(for_usage_check_list) 
                     memory_usage_MB = instances_bytes * 0.00000095367432
                     
-                    if memory_usage_MB <= Rehearsal_Memory: # construct based on capacity / # If the memory usage is greater than 500MB, replace the sample with the highest loss value with the new sample
-                        rehearsal_classes[unique_idx].append([bin[unique_idx], losses_value, new_sample, divided_target])
-                    else :
-                        if rehearsal_classes[unique_idx][-1][1] > losses_value:
-                            rehearsal_classes[unique_idx][-1] = [bin[unique_idx], losses_value, new_sample, divided_target]
-                else : 
-                    rehearsal_classes[unique_idx] = [[bin[unique_idx], losses_value, new_sample, divided_target]]
-        
+                    if index == 0:
+                        if memory_usage_MB <= Rehearsal_Memory: # construct based on capacity / # If the memory usage is greater than 500MB, replace the sample with the highest loss value with the new sample
+                            rehearsal_classes[unique_idx].append([bin[unique_idx], losses_value, new_sample, divided_target, True])
+                        else :
+                            if rehearsal_classes[unique_idx][-1][1] > losses_value:
+                                rehearsal_classes[unique_idx][-1] = [bin[unique_idx], losses_value, new_sample, divided_target, True]
+                    else:
+                        if memory_usage_MB <= Rehearsal_Memory: # construct based on capacity / # If the memory usage is greater than 500MB, replace the sample with the highest loss value with the new sample
+                            rehearsal_classes[unique_idx].append([bin[unique_idx], losses_value, new_sample, divided_target, False])
+                        else :
+                            if rehearsal_classes[unique_idx][-1][1] > losses_value:
+                                rehearsal_classes[unique_idx][-1] = [bin[unique_idx], losses_value, new_sample, divided_target, False]
+                else :
+                    if index == 0:
+                        rehearsal_classes[unique_idx] = [[bin[unique_idx], losses_value, new_sample, divided_target, True]]
+                    else:
+                        rehearsal_classes[unique_idx] = [[bin[unique_idx], losses_value, new_sample, divided_target, False]]
+
     return rehearsal_classes
 
 def rearrange_rehearsal(rehearsal_classes: dict, current_classes: list) -> dict:
@@ -390,7 +398,7 @@ def save_model_params(model_without_ddp:model, optimizer:torch.optim, lr_schedul
         os.mkdir(output_dir)
         print(f"Directroy created")
         
-    checkpoint_paths = output_dir + f'checkpoint{TASK_num:02}_{Total_task:02}.pth'
+    checkpoint_paths = output_dir + f'checkpoint{TASK_num+1:02}_{Total_task:02}.pth'
     utils.save_on_master({
         'model': model_without_ddp.state_dict(), 
         'optimizer': optimizer.state_dict(),

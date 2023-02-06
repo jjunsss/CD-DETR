@@ -33,7 +33,7 @@ from models import build_model
 
 def get_args_parser():
     parser = argparse.ArgumentParser('Deformable DETR Detector', add_help=False)
-    parser.add_argument('--lr', default=2e-4, type=float)
+    parser.add_argument('--lr', default=1e-4, type=float)
     parser.add_argument('--lr_backbone_names', default=["backbone.0"], type=str, nargs='+')
     parser.add_argument('--lr_backbone', default=2e-5, type=float)
     parser.add_argument('--lr_linear_proj_names', default=['reference_points', 'sampling_offsets'], type=str, nargs='+')
@@ -41,7 +41,7 @@ def get_args_parser():
     parser.add_argument('--batch_size', default=3, type=int)
     parser.add_argument('--weight_decay', default=1e-4, type=float)
     parser.add_argument('--epochs', default=600, type=int)
-    parser.add_argument('--lr_drop', default=500, type=int)
+    parser.add_argument('--lr_drop', default=10, type=int)
     parser.add_argument('--lr_drop_epochs', default=None, type=int, nargs='+')
     #TODO : clip max grading usually set value 1 or 5 but this therory used to value 0.1 originally
     parser.add_argument('--clip_max_norm', default=0.1, type=float,
@@ -124,24 +124,24 @@ def get_args_parser():
                         help='device to use for training / testing')
     parser.add_argument('--seed', default=42, type=int)
     parser.add_argument('--pretrained_model', default=None, help='resume from checkpoint')
-    parser.add_argument('--start_epoch', default=328, type=int, metavar='N',
+    parser.add_argument('--start_epoch', default=0, type=int, metavar='N',
                         help='start epoch')
     parser.add_argument('--eval', action='store_true')
     parser.add_argument('--num_workers', default=8, type=int)
     parser.add_argument('--cache_mode', default=False, action='store_true', help='whether to cache images on memory')
 
     #* Continual Learning 
-    parser.add_argument('--Task', default=5, type=int, help='TASK is the number that divides the entire dataset.Like Domain') #if Task is 1, so then you could use it for normal training.
+    parser.add_argument('--Task', default=5, type=int, help=r'TASK is the number that divides the entire dataset.Like Domain') #if Task is 1, so then you could use it for normal training.
     parser.add_argument('--Task_Epochs', default=10, type=int, help='each Task epoch. like 1 task is 5 of 10 epoch training.. ')
     parser.add_argument('--Total_Classes', default=59, type=int, help='classes counts in custom COCODataset')
-    parser.add_argument('--Total_Classes_Names', default=True, action='store_true', help="division classes through class names (DID,PZ,VE)")
-    parser.add_argument('--CL_Limited', default=5, type=int, help='Use Limited Training in CL')#IF you choose False, you should meet data imbalancing in training.
+    parser.add_argument('--Total_Classes_Names', default=False, action='store_true', help="division classes through class names (DID,PZ,VE). This option present for LG Dataset")
+    parser.add_argument('--CL_Limited', default=1000, type=int, help='Use Limited Training in CL')#IF you choose False, you should meet data imbalancing in training.
 
     #* Rehearsal method
-    parser.add_argument('--Rehearsal', default=True, action='store_true', help="use Rehearsal starategy in diverse CL method")
-    parser.add_argument('--Mosaic', default=True, action='store_true', help="use Ours Mosaic Rehearsal starategy in diverse CL method")
+    parser.add_argument('--Rehearsal', default=False, action='store_true', help="use Rehearsal starategy in diverse CL method")
+    parser.add_argument('--Mosaic', default=False, action='store_true', help="use Ours Mosaic Rehearsal starategy in diverse CL method")
     parser.add_argument('--Memory', default=500, type=int, help='memory capacity for rehearsal training')
-    parser.add_argument('--Continual_Batch_size', default=1, type=int, help='continual batch training method')
+    parser.add_argument('--Continual_Batch_size', default=3, type=int, help='continual batch training method')
     return parser
 
 def main(args):
@@ -179,8 +179,8 @@ def main(args):
                 break
         return out
 
-    for n, p in model_without_ddp.named_parameters():
-        print(n)
+    # for n, p in model_without_ddp.named_parameters():
+    #     print(n)
 
     param_dicts = [
         {
@@ -232,7 +232,7 @@ def main(args):
         MosaicBatch = False
         if task_idx >= 1 and len(rehearsal_classes) > 0 :
             if len(rehearsal_classes.values()) < 5:
-                raise Exception("Too small rehearsal Dataset. Can't MosaicBatch")
+                raise Exception("Too small rehearsal Dataset. Can't MosaicBatch Augmentation")
             dataset_train, data_loader_train = CombineDataset(args, rehearsal_classes, dataset_train, args.num_workers, args.Continual_Batch_size)#Rehearsal을 사용하는 Task 1 부터는 train_data_loader의 이름 자체를 변경
             if args.Mosaic == True:
                 MosaicBatch = True
@@ -240,8 +240,8 @@ def main(args):
             print(f"no use rehearsal training method")
         
         label_dict = {}
-        #for epoch in range(args.Task_Epochs): #어차피 Task마다 훈련을 진행해야 하고, 중간점음 없을 것이므로 TASK마다 훈련이 되도록 만들어도 상관이 없음
-        for epoch in range(3):
+        for epoch in range(args.Task_Epochs): #어차피 Task마다 훈련을 진행해야 하고, 중간점음 없을 것이므로 TASK마다 훈련이 되도록 만들어도 상관이 없음
+        #for epoch in range(3):
             if args.distributed:
                 sampler_train.set_epoch(epoch)#TODO: 추후에 epoch를 기준으로 batch sampler를 추출하는 행위 자체가 오류를 일으킬 가능성이 있음 Incremental Learning에서                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
             print(f"task id : {task_idx}")
@@ -255,13 +255,13 @@ def main(args):
         
         save_model_params(model_without_ddp, optimizer, lr_scheduler, args, args.output_dir, task_idx, int(args.Task))
         rehearsal_classes = rearrange_rehearsal(rehearsal_classes, list_CC)
-        check_rehearsal_components(rehearsal_classes, args.output_dir, True, False)
+        check_rehearsal_components(rehearsal_classes=rehearsal_classes, output_dir=args.output_dir, print_stat=False, save=False)
         
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
     print('Training time {}'.format(total_time_str))
 
-    check_rehearsal_components(rehearsal_classes, args.output_dir, False, True)
+    check_rehearsal_components(rehearsal_classes=rehearsal_classes, output_dir=args.output_dir, print_stat=False, save=True)
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('Deformable DETR training and evaluation script', parents=[get_args_parser()])
     args = parser.parse_args()

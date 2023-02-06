@@ -159,7 +159,6 @@ def make_coco_transforms(image_set):
 
     normalize = T.Compose([
         T.ToTensor(),
-        #T.Normalize([0.377, 0.381, 0.354], [0.143, 0.146, 0.155]) second ( ~ 11.13)
         T.Normalize([0.312, 0.315, 0.294], [0.120, 0.122, 0.131]) # third (11.14 ~ )
     ])
 
@@ -173,11 +172,11 @@ def make_coco_transforms(image_set):
             T.ColorJitter(),
             T.RandomAugmetation(),
             T.RandomSelect(   
-                T.RandomResize(scales, max_size=1333),
+                T.RandomResize(scales, max_size=1233),
                 T.Compose([
                     T.RandomResize([400, 500, 600]),
                     T.RandomSizeCrop(384, 600),
-                    T.RandomResize(scales, max_size=1333),
+                    T.RandomResize(scales, max_size=1233),
                 ])
             ),
             normalize,

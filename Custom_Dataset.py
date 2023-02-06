@@ -33,7 +33,7 @@ def Incre_Dataset(Task_Num, args, Incre_Classes):
     current_classes = Incre_Classes[Task_Num]
     print(f"current_classes : {current_classes}")
     
-    if args.Task == 1:
+    if len(Incre_Classes) == 1:
         dataset_train = build_dataset(image_set='train', args=args, class_ids=None) #* Task ID에 해당하는 Class들만 Dataset을 통해서 불러옴
     else: 
         dataset_train = build_dataset(image_set='train', args=args, class_ids=current_classes)
@@ -103,17 +103,17 @@ class CustomDataset(torch.utils.data.Dataset):
     def __init__(self, re_dict):
         self.re_dict = re_dict
         self.keys = list(re_dict.keys())
-        self.values = [np.array(v) for v in self.re_dict.values() if v]
-        self.data = np.concatenate(self.values)      
-            
+        self.values = [v for v in self.re_dict.values() if v]
+        self.data = np.concatenate(self.values, dtype=object)      
+        self.true_data = self.data[np.concatenate(self.values)[:, -1] == True]
     def __len__(self):
-        return len(self.data)
+        return len(self.true_data)
     
     def __repr__(self):
         print(f"Data key presented in buffer : {self.keys}")    
 
     def __getitem__(self, idx):
-        new_samples, new_targets = self.data[idx]
+        new_samples, new_targets, _ = self.true_data[idx]
         new_samples = new_samples[0]
         return new_samples, new_targets, new_samples, new_targets
 
@@ -149,7 +149,7 @@ class BatchMosaicAug(torch.utils.data.Dataset):
         self.Confidence = 0
         self.Mosaic = Mosaic
         self.img_size = (1024, 1024) #변경될 크기(이미지 변경을 위함)
-        self.Rehearsal_dataset = datasets.datasets[0] #* Old Dataset
+        self.Rehearsal_dataset = datasets.datasets[0] #* Old Data1set
         self.Current_dataset = datasets.datasets[1] #* Old Dataset
         
     def __len__(self):
@@ -237,8 +237,8 @@ class BatchMosaicAug(torch.utils.data.Dataset):
                 mosaic_bboxes = temp_bbox.clone().detach()
             elif i == 1:  # top right
                 mosaic_aug_img[:, :height, width:] = transposed_img
-                print(f"Indexing list : {mosaic_index}, Index : {index}, Transposed bboxes : {temp_bbox}")
-                print(f"dimension : {temp_bbox.shape}")
+                #print(f"Indexing list : {mosaic_index}, Index : {index}, Transposed bboxes : {temp_bbox}")
+                #print(f"dimension : {temp_bbox.shape}")
                 temp_bbox[:, 0] = (temp_bbox[:, 0] / 2) + 0.5
                 temp_bbox[:, 1] = (temp_bbox[:, 1] / 2)
                 temp_bbox[:, 2] = (temp_bbox[:, 2] / 2) + 0.5
@@ -300,7 +300,7 @@ def CombineDataset(args, RehearsalData, CurrentDataset, Worker, Batch_size):
     CombinedDataset = ConcatDataset([OldDataset, CurrentDataset]) #Old : previous, Current : Now
     MosaicBatchDataset = BatchMosaicAug(CombinedDataset, class_ids, args.Mosaic) #* if Mosaic == True -> 1 batch(divided three batch/ False -> 3 batch (only original)
     
-    print(MosaicBatchDataset[0])
+    #print(MosaicBatchDataset[0])
     print(f"current Dataset length : {len(CurrentDataset)} -> Rehearsal + Current length : {len(MosaicBatchDataset)}")
     
     if args.distributed:
