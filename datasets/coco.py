@@ -137,7 +137,7 @@ def _origin_transform(image_set):
             normalize,
         ])
 
-def mosaic_transform(image_set):
+def mosaic_transform():
     '''
         Augmentation for CBB.
         CBB is combined four images combination
