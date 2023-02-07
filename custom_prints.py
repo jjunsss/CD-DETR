@@ -66,5 +66,27 @@ def Memory_checker():
     print(f"max allocated Memory : {torch.cuda.max_memory_cached()}")
     print(f"*" * 50)
     
-def over_label_checker(check_list:List , check_list2:List, check_list3:List, check_list4:List):
+def over_label_checker(check_list:List , check_list2:List = [], check_list3:List = [], check_list4:List = []):
+    
     print("overlist: ", check_list, check_list2, check_list3, check_list4)
+    
+    
+def check_losses(epoch, index, losses, epoch_loss, count, training_class, rehearsal=None, dtype=None):
+    '''
+        protect to division zero Error.
+        print (epoch, losses, losses of epoch, training count, training classes now, rehearsal check, CBB format check)
+    '''
+    try :
+        epoch_total_loss = epoch_loss / count
+    except ZeroDivisionError:
+        epoch_total_loss = 0
+        
+    if index % 10 == 0: 
+        print(f"epoch : {epoch}, losses : {losses:05f}, epoch_total_loss : {epoch_total_loss:05f}, count : {count}")
+        if rehearsal is not None:
+            print(f"total examplar counts : {sum([len(contents) for contents in list(rehearsal.values())])}")
+        if dtype is not None:
+            print(f"Now, CBB is {dtype}")    
+    
+    if index % 30 == 0:
+        print(f"current classes is {training_class}")

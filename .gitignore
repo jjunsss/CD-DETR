@@ -174,3 +174,4 @@ poetry.toml
 
 #pretrained dataset file
 *.pth
+*.png

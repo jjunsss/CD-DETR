@@ -15,6 +15,7 @@ import copy
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from util.box_ops import box_cxcywh_to_xyxy_resize
+from datasets.coco import mosaic_transform
 
 def visualize_bboxes(img, bboxes, img_size = 0):
     min_or = img.min()
@@ -36,7 +37,10 @@ def Incre_Dataset(Task_Num, args, Incre_Classes):
     if len(Incre_Classes) == 1:
         dataset_train = build_dataset(image_set='train', args=args, class_ids=None) #* Task ID에 해당하는 Class들만 Dataset을 통해서 불러옴
     else: 
-        dataset_train = build_dataset(image_set='train', args=args, class_ids=current_classes)
+        if Task_Num == 0 : #* First Task training
+            dataset_train = build_dataset(image_set='train', args=args, class_ids=current_classes)
+        else:
+            dataset_train = build_dataset(image_set='train', args=args, class_ids=current_classes)
     dataset_val = build_dataset(image_set='val', args=args)
     
     if args.distributed:
@@ -143,7 +147,7 @@ def _Resize_for_batchmosaic(img:torch.Tensor, height_resized, width_resized, bbo
     return  transformed_img, transformed_bboxes 
     
 class BatchMosaicAug(torch.utils.data.Dataset):
-    def __init__(self, datasets, CurrentClasses, Mosaic=False):
+    def __init__(self, datasets, CurrentClasses, transform, Mosaic=False ):
         self.Datasets = datasets
         self.current_classes = CurrentClasses
         self.Confidence = 0
@@ -151,6 +155,7 @@ class BatchMosaicAug(torch.utils.data.Dataset):
         self.img_size = (1024, 1024) #변경될 크기(이미지 변경을 위함)
         self.Rehearsal_dataset = datasets.datasets[0] #* Old Data1set
         self.Current_dataset = datasets.datasets[1] #* Old Dataset
+        self._transform = transform
         
     def __len__(self):
             return len(self.Datasets)    
@@ -163,6 +168,8 @@ class BatchMosaicAug(torch.utils.data.Dataset):
         if self.Mosaic == True :
             Current_mosaic_index, Diff_mosaic_index = self._Mosaic_index(index,)
             Cur_img, Cur_lab, Dif_img, Dif_lab = self.load_mosaic(Current_mosaic_index, Diff_mosaic_index)
+            Cur_img, Cur_lab = self._transform(Cur_img, Cur_lab)
+            Dif_img, Dif_lab = self._transform(Dif_img, Dif_lab)
             return img, target, origin_img, origin_target, Cur_img, Cur_lab, Dif_img, Dif_lab
         else:
             return img, target, origin_img, origin_target, None, None, None, None
@@ -293,12 +300,13 @@ class BatchMosaicAug(torch.utils.data.Dataset):
         temp_dict['size'] = torch.tensor(self.img_size)
         
         return temp_dict
+    
 #For Rehearsal
 def CombineDataset(args, RehearsalData, CurrentDataset, Worker, Batch_size):
     OldDataset = CustomDataset(RehearsalData) #oldDatset[idx]:
     class_ids = CurrentDataset.class_ids
     CombinedDataset = ConcatDataset([OldDataset, CurrentDataset]) #Old : previous, Current : Now
-    MosaicBatchDataset = BatchMosaicAug(CombinedDataset, class_ids, args.Mosaic) #* if Mosaic == True -> 1 batch(divided three batch/ False -> 3 batch (only original)
+    MosaicBatchDataset = BatchMosaicAug(CombinedDataset, class_ids, mosaic_transform, args.Mosaic) #* if Mosaic == True -> 1 batch(divided three batch/ False -> 3 batch (only original)
     
     #print(MosaicBatchDataset[0])
     print(f"current Dataset length : {len(CurrentDataset)} -> Rehearsal + Current length : {len(MosaicBatchDataset)}")
@@ -311,13 +319,10 @@ def CombineDataset(args, RehearsalData, CurrentDataset, Worker, Batch_size):
     else:
         sampler_train = torch.utils.data.RandomSampler(CombinedDataset)
         
-    batch_sampler_train = torch.utils.data.BatchSampler(
-    sampler_train, Batch_size, drop_last=True)
+    batch_sampler_train = torch.utils.data.BatchSampler(sampler_train, Batch_size, drop_last=True)
     CombinedLoader = DataLoader(MosaicBatchDataset, batch_sampler=batch_sampler_train,
                         collate_fn=utils.collate_fn, num_workers=Worker,
                         pin_memory=True)
     
     
     return MosaicBatchDataset, CombinedLoader
-
-#img, target, origin_img, origin_target, Cur_img, Cur_lab, Dif_img, Dif_lab

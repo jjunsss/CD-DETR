@@ -19,6 +19,7 @@ from torch.utils.data import DataLoader
 from pympler import summary
 from pympler import asizeof
 from custom_utils import *
+from custom_prints import check_losses
 import os
 import time
 from pycocotools.coco import COCO
@@ -84,15 +85,8 @@ def Original_training(args, epo, idx, count, sum_loss, samples, targets, origin_
     sum_loss += losses_reduced_scaled
     
     if utils.is_main_process(): #sum_loss가 GPU의 개수에 맞춰서 더해주고 있으니,
-        print(f"epoch : {epo}, losses : {losses_reduced_scaled:05f}, epoch_total_loss : {(sum_loss / count):05f}, count : {count}")
-        print(f"total examplar counts : {sum([len(contents) for contents in list(rehearsal_classes.values())])}")
-        if idx % 10 == 0:
-            print(f"current classes is {current_classes}")
+        check_losses(epo, idx, losses_reduced_scaled, sum_loss, count, current_classes, rehearsal_classes)
 
-    if not math.isfinite(losses_reduced_scaled):
-        print("Loss is {}, Dagerous training".format(losses_reduced_scaled))
-        print(f"all reduce GPU Params : {loss_dict_reduced}")
-    
     optimizer.zero_grad()
     losses.backward()
     
@@ -132,14 +126,12 @@ def Mosaic_training(args, epo, idx, count, sum_loss, samples, targets,
     sum_loss += losses_reduced_scaled
     
     if utils.is_main_process(): #sum_loss가 GPU의 개수에 맞춰서 더해주고 있으니,
+        check_losses(epo, idx, losses_reduced_scaled, sum_loss, count, current_classes, None, data_type)
+
         print(f"epoch : {epo}, data_type : {data_type}, losses : {losses_reduced_scaled:05f}, epoch_total_loss : {(sum_loss / count):05f}, count : {count}")
         if idx % 10 == 0:
             print(f"current classes is {current_classes}")
 
-    if not math.isfinite(losses_reduced_scaled):
-        print("Loss is {}, Dagerous training".format(losses_reduced_scaled))
-        print(f"all reduce GPU Params : {loss_dict_reduced}")
-        
     optimizer.zero_grad()
     losses.backward()
     

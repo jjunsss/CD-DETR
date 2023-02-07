@@ -205,52 +205,73 @@ def decompose(func):
     return wrapper
 
 # how many classes in targets for couning each isntances 
-def check_class(verbose: bool, targets: Dict, label_dict: Dict, 
+def check_class(LG_Dataset: bool, targets: Dict, label_dict: Dict, 
                 DID_COUNT: int =4000, VE_COUNT: int=7000, PZ_COUNT: int=4000, CL_Limited: int = 0):
-    
-
-    limit2 = [28, 32, 35, 41, 56] #photozone
-    limit3 = [22, 23, 24, 25, 26, 27, 29, 31, 33, 37, 39, 40, 45, 46, 48, 49, 51, 52, 58, 59] #VE 
     no_use = []
     yes_use = []
     check_list = []
     
-        
-    for enum, target in enumerate(targets):
-        
-        label_tensor = target['labels']
-        label_tensor = label_tensor.cpu()
-        label_tensor_unique = torch.unique(label_tensor)
-        
-        # Normal Limited Training (for equivalent Performance)
-        if CL_Limited is 0 :
-            check_list = [idx.item() for idx in label_tensor_unique if idx.item() in label_dict  if idx.item() <= 21 and label_dict[idx.item()] > DID_COUNT] #did
-            check_list2 = [idx.item() for idx in label_tensor_unique if idx.item() in label_dict  if idx.item() in limit2 and label_dict[idx.item()] > PZ_COUNT] #pz
-            check_list3 = [idx.item() for idx in label_tensor_unique if idx.item() in label_dict  if idx.item() in limit3 and label_dict[idx.item()] > VE_COUNT] #ve (more)
-            check_list4 = []
-        else:
-            # Continual Limited Training (for equivalent Performance)
-            check_list = [idx.item() for idx in label_tensor_unique if idx.item() in label_dict  if idx.item() <= 21 and label_dict[idx.item()] > CL_Limited] #did
-            check_list2 = [idx.item() for idx in label_tensor_unique if idx.item() in label_dict  if idx.item() in limit2 and label_dict[idx.item()] > CL_Limited] #pz
-            check_list3 = [idx.item() for idx in label_tensor_unique if idx.item() in label_dict  if idx.item() in limit3 and label_dict[idx.item()] > CL_Limited] #ve (more)
-            check_list4 = [idx.item() for idx in label_tensor_unique if idx.item() in label_dict  if label_dict[idx.item()] > CL_Limited] #ve (other)
+    if LG_Dataset :
+        limit2 = [28, 32, 35, 41, 56] #photozone
+        limit3 = [22, 23, 24, 25, 26, 27, 29, 31, 33, 37, 39, 40, 45, 46, 48, 49, 51, 52, 58, 59] #VE 
             
-        #TODO : before checking overlist Process outputdim and continue iter
-        
-        if len(check_list) > 0 or len(check_list2) > 0 or len(check_list3) > 0 or len(check_list4) > 0:
-            over_label_checker(check_list, check_list2, check_list3, check_list4)           
-            no_use.append(enum)
-        else:
-            yes_use.append(enum)
-            label_tensor_count = label_tensor.numpy()
-            bin = np.bincount(label_tensor_count)
-            for idx in label_tensor_unique:
-                idx = idx.item()
-                if idx in label_dict.keys():
-                    label_dict[idx] += bin[idx]
-                else :
-                    label_dict[idx] = bin[idx]
-
+        for enum, target in enumerate(targets):
+            
+            label_tensor = target['labels']
+            label_tensor = label_tensor.cpu()
+            label_tensor_unique = torch.unique(label_tensor)
+            
+            # Normal Limited Training (for equivalent Performance)
+            if CL_Limited is 0 :
+                check_list = [idx.item() for idx in label_tensor_unique if idx.item() in label_dict  if idx.item() <= 21 and label_dict[idx.item()] > DID_COUNT] #did
+                check_list2 = [idx.item() for idx in label_tensor_unique if idx.item() in label_dict  if idx.item() in limit2 and label_dict[idx.item()] > PZ_COUNT] #pz
+                check_list3 = [idx.item() for idx in label_tensor_unique if idx.item() in label_dict  if idx.item() in limit3 and label_dict[idx.item()] > VE_COUNT] #ve (more)
+                check_list4 = []
+            else:
+                # Continual Limited Training (for equivalent Performance)
+                check_list = [idx.item() for idx in label_tensor_unique if idx.item() in label_dict  if idx.item() <= 21 and label_dict[idx.item()] > CL_Limited] #did
+                check_list2 = [idx.item() for idx in label_tensor_unique if idx.item() in label_dict  if idx.item() in limit2 and label_dict[idx.item()] > CL_Limited] #pz
+                check_list3 = [idx.item() for idx in label_tensor_unique if idx.item() in label_dict  if idx.item() in limit3 and label_dict[idx.item()] > CL_Limited] #ve (more)
+                check_list4 = [idx.item() for idx in label_tensor_unique if idx.item() in label_dict  if label_dict[idx.item()] > CL_Limited] #ve (other)
+                
+            #TODO : before checking overlist Process outputdim and continue iter
+            
+            if len(check_list) > 0 or len(check_list2) > 0 or len(check_list3) > 0 or len(check_list4) > 0:
+                over_label_checker(check_list, check_list2, check_list3, check_list4)           
+                no_use.append(enum)
+            else:
+                yes_use.append(enum)
+                label_tensor_count = label_tensor.numpy()
+                bin = np.bincount(label_tensor_count)
+                for idx in label_tensor_unique:
+                    idx = idx.item()
+                    if idx in label_dict.keys():
+                        label_dict[idx] += bin[idx]
+                    else :
+                        label_dict[idx] = bin[idx]
+    else:
+        if CL_Limited == 0 :
+            CL_Limited = 99999999 #No use Limited Training
+            
+        for enum, target in enumerate(targets):
+            label_tensor = target['labels']
+            label_tensor = label_tensor.cpu()
+            label_tensor_unique = torch.unique(label_tensor)
+            
+            check_list = [idx.item() for idx in label_tensor_unique if idx.item() in label_dict  if idx.item() <= 21 and label_dict[idx.item()] > CL_Limited] #* 데이터가 몇 개로 나눠져도 상관 없도록 구성해야함
+            if len(check_list) > 0 :
+                over_label_checker(check_list)           
+                no_use.append(enum)
+            else:
+                yes_use.append(enum)
+                label_tensor_count = label_tensor.numpy()
+                bin = np.bincount(label_tensor_count)
+                for idx in label_tensor_unique:
+                    idx = idx.item()
+                    if idx in label_dict.keys():
+                        label_dict[idx] += bin[idx]
+                    else :
+                        label_dict[idx] = bin[idx]
     return no_use, yes_use, label_dict
 
 from torch.utils.data import DataLoader
@@ -390,15 +411,18 @@ def load_model_params(model: model,
 
 
 def save_model_params(model_without_ddp:model, optimizer:torch.optim, lr_scheduler:scheduler,
-                     args:arg, output_dir: str, TASK_num:int, Total_task:int):
+                     args:arg, output_dir: str, task_index:int, task_total:int, epoch):
     '''
         Save the model for each task
     '''
     if not os.path.exists(output_dir):
         os.mkdir(output_dir)
         print(f"Directroy created")
-        
-    checkpoint_paths = output_dir + f'checkpoint{TASK_num+1:02}_{Total_task:02}.pth'
+    
+    if epoch == -1:
+        checkpoint_paths = output_dir + f'cp_{task_total:02}_{task_index+1:02}.pth'
+    else:
+        checkpoint_paths = output_dir + f'cp_{task_total:02}_{task_index+1:02}_{epoch}.pth'
     utils.save_on_master({
         'model': model_without_ddp.state_dict(), 
         'optimizer': optimizer.state_dict(),

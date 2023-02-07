@@ -38,7 +38,7 @@ def decompose_dataset(no_use_count: int, samples: utils.NestedTensor, targets: D
 
 def train_one_epoch(args, epo, model: torch.nn.Module, criterion: torch.nn.Module,
                     data_loader: Iterable, optimizer: torch.optim.Optimizer,
-                    device: torch.device, MosaicBatch: Boolean, label_dict: Dict , 
+                    device: torch.device, MosaicBatch: Boolean,  
                     current_classes: List = [], rehearsal_classes: Dict = {}):
     ex_device = torch.device("cpu")
     
@@ -51,6 +51,7 @@ def train_one_epoch(args, epo, model: torch.nn.Module, criterion: torch.nn.Modul
     set_tm = time.time()
     sum_loss = 0.0
     count = 0
+    label_dict = {} #* 하나의 에포크에서 계속해서 Class Check을 위한 딕셔너리 생성
     for idx in tqdm(range(len(data_loader))): #targets 
         samples, targets, origin_samples, origin_targets = prefetcher.next()
             
@@ -79,7 +80,7 @@ def train_one_epoch(args, epo, model: torch.nn.Module, criterion: torch.nn.Modul
         
     if utils.is_main_process():
         print("Total Time : ", time.time() - set_tm)
-    return rehearsal_classes, label_dict
+    return rehearsal_classes
 
 @torch.no_grad()
 def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, output_dir):

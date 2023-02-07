@@ -117,29 +117,28 @@ def get_args_parser():
     parser.add_argument('--file_name', default='./saved_rehearsal', type=str)
     parser.add_argument('--coco_panoptic_path', type=str)
     parser.add_argument('--remove_difficult', action='store_true')
-
-    parser.add_argument('--output_dir', default='CL_TEST',
-                        help='path where to save, empty for no saving')
-    parser.add_argument('--device', default='cuda',
-                        help='device to use for training / testing')
+    parser.add_argument('--output_dir', default='CL_TEST', help='path where to save, empty for no saving')
+    parser.add_argument('--device', default='cuda',help='device to use for training / testing')
     parser.add_argument('--seed', default=42, type=int)
+    
+    #* CL Setting 
     parser.add_argument('--pretrained_model', default=None, help='resume from checkpoint')
-    parser.add_argument('--start_epoch', default=0, type=int, metavar='N',
-                        help='start epoch')
+    parser.add_argument('--start_epoch', default=0, type=int, metavar='N',help='start epoch')
+    parser.add_argument('--start_task', default=0, type=int, metavar='N',help='start task')
     parser.add_argument('--eval', action='store_true')
     parser.add_argument('--num_workers', default=8, type=int)
     parser.add_argument('--cache_mode', default=False, action='store_true', help='whether to cache images on memory')
 
     #* Continual Learning 
-    parser.add_argument('--Task', default=5, type=int, help=r'TASK is the number that divides the entire dataset.Like Domain') #if Task is 1, so then you could use it for normal training.
-    parser.add_argument('--Task_Epochs', default=10, type=int, help='each Task epoch. like 1 task is 5 of 10 epoch training.. ')
-    parser.add_argument('--Total_Classes', default=59, type=int, help='classes counts in custom COCODataset')
-    parser.add_argument('--Total_Classes_Names', default=False, action='store_true', help="division classes through class names (DID,PZ,VE). This option present for LG Dataset")
-    parser.add_argument('--CL_Limited', default=1000, type=int, help='Use Limited Training in CL')#IF you choose False, you should meet data imbalancing in training.
+    parser.add_argument('--Task', default=5, type=int, help='The task is the number that divides the entire dataset, like a domain.') #if Task is 1, so then you could use it for normal training.
+    parser.add_argument('--Task_Epochs', default=10, type=int, help='each Task epoch, e.g. 1 task is 5 of 10 epoch training.. ')
+    parser.add_argument('--Total_Classes', default=59, type=int, help='number of classes in custom COCODataset')
+    parser.add_argument('--Total_Classes_Names', default=False, action='store_true', help="division of classes through class names (DID, PZ, VE). This option is available for LG Dataset")
+    parser.add_argument('--CL_Limited', default=1000, type=int, help='Use Limited Training in CL. If you choose False, you may encounter data imbalance in training.')
 
     #* Rehearsal method
-    parser.add_argument('--Rehearsal', default=False, action='store_true', help="use Rehearsal starategy in diverse CL method")
-    parser.add_argument('--Mosaic', default=False, action='store_true', help="use Ours Mosaic Rehearsal starategy in diverse CL method")
+    parser.add_argument('--Rehearsal', default=False, action='store_true', help="use Rehearsal strategy in diverse CL method")
+    parser.add_argument('--Mosaic', default=False, action='store_true', help="use Our CCM strategy in diverse CL method")
     parser.add_argument('--Memory', default=500, type=int, help='memory capacity for rehearsal training')
     parser.add_argument('--Continual_Batch_size', default=3, type=int, help='continual batch training method')
     return parser
@@ -223,9 +222,17 @@ def main(args):
         rehearsal_classes = {}
         if args.Total_Classes_Names == True :
             args.Task = len(Divided_Classes)    
-
+    start_epoch = 0
+    start_task = 0
+    
+    if args.start_epoch != 0:
+        start_epoch = args.start_epoch
+    
+    if args.start_task != 0:
+        start_task = args.start_task
+    
     #TODO : TASK 마다 훈련된 모델이 저장되게 설정해두기
-    for task_idx in range(args.Task):
+    for task_idx in range(start_task, args.Task):
         #New task dataset
         dataset_train, data_loader_train, sampler_train, list_CC = Incre_Dataset(task_idx, args, Divided_Classes)
         #rehearsal + New task dataset (rehearsal Dataset은 유지하도록 설정)
@@ -239,8 +246,8 @@ def main(args):
         else:
             print(f"no use rehearsal training method")
         
-        label_dict = {}
-        for epoch in range(args.Task_Epochs): #어차피 Task마다 훈련을 진행해야 하고, 중간점음 없을 것이므로 TASK마다 훈련이 되도록 만들어도 상관이 없음
+        
+        for epoch in range(start_epoch, args.Task_Epochs): #어차피 Task마다 훈련을 진행해야 하고, 중간점음 없을 것이므로 TASK마다 훈련이 되도록 만들어도 상관이 없음
         #for epoch in range(3):
             if args.distributed:
                 sampler_train.set_epoch(epoch)#TODO: 추후에 epoch를 기준으로 batch sampler를 추출하는 행위 자체가 오류를 일으킬 가능성이 있음 Incremental Learning에서                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
@@ -249,11 +256,12 @@ def main(args):
 
             #original training
             #TODO: 매 에포크 마다 생성되는 save 파일과 지워지는 rehearsal 없도록 정리.
-            rehearsal_classes, label_dict = train_one_epoch( #save the rehearsal dataset. this method necessary need to clear dataset
-                args, epoch, model, criterion, data_loader_train, optimizer, device, MosaicBatch, label_dict, list_CC, rehearsal_classes)
+            rehearsal_classes = train_one_epoch( #save the rehearsal dataset. this method necessary need to clear dataset
+                args, epoch, model, criterion, data_loader_train, optimizer, device, MosaicBatch, list_CC, rehearsal_classes)
             lr_scheduler.step()
-        
-        save_model_params(model_without_ddp, optimizer, lr_scheduler, args, args.output_dir, task_idx, int(args.Task))
+            if epoch % 2 == 0:
+                save_model_params(model_without_ddp, optimizer, lr_scheduler, args, args.output_dir, task_idx, int(args.Task), epoch) 
+        save_model_params(model_without_ddp, optimizer, lr_scheduler, args, args.output_dir, task_idx, int(args.Task), -1)
         rehearsal_classes = rearrange_rehearsal(rehearsal_classes, list_CC)
         check_rehearsal_components(rehearsal_classes=rehearsal_classes, output_dir=args.output_dir, print_stat=False, save=False)
         

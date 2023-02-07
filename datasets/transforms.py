@@ -327,7 +327,13 @@ class ToTensor(object):
     def __call__(self, img, target):
         return F.to_tensor(img), target
 
-
+class ToPIL(object):
+    def __init__(self, ):
+        self.ToPILImage = T.ToPILImage()
+        
+    def __call__(self, img, target):
+        return self.ToPILImage(img), target
+    
 class RandomErasing(object):
 
     def __init__(self, *args, **kwargs):

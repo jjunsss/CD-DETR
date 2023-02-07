@@ -48,8 +48,8 @@ class DistributedSampler(Sampler): # FOR DDP Training, we control total Dataset
     def __iter__(self):
         if self.shuffle:
             # deterministically shuffle based on epoch
-            g = torch.Generator()
-            g.manual_seed(self.epoch)
+            g = torch.Generator() #난수 생성 Generator
+            g.manual_seed(self.epoch) #epoch마다 새로운 난수가 생성되어짐
             indices = torch.randperm(len(self.dataset), generator=g).tolist() #batch를 섞는 행위
         else:
             indices = torch.arange(len(self.dataset)).tolist()  # 140000
