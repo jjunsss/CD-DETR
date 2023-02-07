@@ -66,8 +66,12 @@ def Memory_checker():
     print(f"max allocated Memory : {torch.cuda.max_memory_cached()}")
     print(f"*" * 50)
     
+<<<<<<< HEAD
 def over_label_checker(check_list:List , check_list2:List = [], check_list3:List = [], check_list4:List = []):
     
+=======
+def over_label_checker(check_list:List , check_list2:List, check_list3:List, check_list4:List):
+>>>>>>> 56b3449de661dd43d7750f4d31d07be72c144861
     print("overlist: ", check_list, check_list2, check_list3, check_list4)
     
     

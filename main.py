@@ -222,6 +222,7 @@ def main(args):
         rehearsal_classes = {}
         if args.Total_Classes_Names == True :
             args.Task = len(Divided_Classes)    
+<<<<<<< HEAD
     start_epoch = 0
     start_task = 0
     
@@ -230,6 +231,10 @@ def main(args):
     
     if args.start_task != 0:
         start_task = args.start_task
+=======
+    if args.start_epoch != 0:
+        start = args.start_epoch
+>>>>>>> 56b3449de661dd43d7750f4d31d07be72c144861
     
     #TODO : TASK 마다 훈련된 모델이 저장되게 설정해두기
     for task_idx in range(start_task, args.Task):
@@ -247,7 +252,11 @@ def main(args):
             print(f"no use rehearsal training method")
         
         
+<<<<<<< HEAD
         for epoch in range(start_epoch, args.Task_Epochs): #어차피 Task마다 훈련을 진행해야 하고, 중간점음 없을 것이므로 TASK마다 훈련이 되도록 만들어도 상관이 없음
+=======
+        for epoch in range(start, args.Task_Epochs): #어차피 Task마다 훈련을 진행해야 하고, 중간점음 없을 것이므로 TASK마다 훈련이 되도록 만들어도 상관이 없음
+>>>>>>> 56b3449de661dd43d7750f4d31d07be72c144861
         #for epoch in range(3):
             if args.distributed:
                 sampler_train.set_epoch(epoch)#TODO: 추후에 epoch를 기준으로 batch sampler를 추출하는 행위 자체가 오류를 일으킬 가능성이 있음 Incremental Learning에서                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
