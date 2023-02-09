@@ -268,7 +268,7 @@ class BatchMosaicAug(torch.utils.data.Dataset):
                 temp_bbox[:, 3] = (temp_bbox[:, 3] / 2) + 0.5
                 mosaic_bboxes = torch.vstack((temp_bbox, mosaic_bboxes))
         
-        visualize_bboxes(np.clip(mosaic_aug_img.permute(1, 2, 0).numpy(), 0, 1).copy(), mosaic_bboxes, self.img_size)
+        #visualize_bboxes(np.clip(mosaic_aug_img.permute(1, 2, 0).numpy(), 0, 1).copy(), mosaic_bboxes, self.img_size)
         return mosaic_aug_img, mosaic_bboxes
         
     def load_mosaic(self, Current_mosaic_index:List[int], Diff_mosaic_index:List[int], original_id:int ):

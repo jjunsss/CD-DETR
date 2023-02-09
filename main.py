@@ -220,15 +220,6 @@ def main(args):
     file_name = args.file_name + "_" + str(0)
     if args.Task != 1:
         Divided_Classes = DivideTask_for_incre(args.Task, args.Total_Classes, args.Total_Classes_Names)
-        if not os.path.exists(args.Rehearsal_file):#TODO change directory. now, we don't use load rehearsal file.
-            os.mkdir(dir)
-            print(f"Directroy created")
-        # load_dir = args.Rehearsal_file + str(dist.get_rank()) + "gpu_rehearsal"
-        # if os.path.isfile(load_dir): 
-        # #     with open(load_dir, 'rb') as f :
-        # #         rehearsal_classes = pickle.load(f)
-        # else:
-        rehearsal_classes = {}
         if args.Total_Classes_Names == True :
             args.Task = len(Divided_Classes)    
     start_epoch = 0
@@ -242,11 +233,22 @@ def main(args):
     
     #TODO : TASK 마다 훈련된 모델이 저장되게 설정해두기
     for task_idx in range(start_task, args.Task):
+        if not os.path.exists(args.Rehearsal_file):#TODO change directory. now, we don't use load rehearsal file.
+            os.mkdir(dir)
+            print(f"Directroy created")
+        load_dir = args.Rehearsal_file + str(dist.get_rank()) + "_gpu_rehearsal" + "_task_" + str(task_idx)
+        if os.path.isfile(load_dir): 
+            with open(load_dir, 'rb') as f :
+                rehearsal_classes = pickle.load(f)
+                print(f"rehearsal data load done")
+        else:
+            rehearsal_classes = {}
         #New task dataset
         dataset_train, data_loader_train, sampler_train, list_CC = Incre_Dataset(task_idx, args, Divided_Classes)
         #rehearsal + New task dataset (rehearsal Dataset은 유지하도록 설정)
         MosaicBatch = False
         if task_idx >= 1 and len(rehearsal_classes) > 0 :
+            old_classes = Divided_Classes[task_idx-1]
             if len(rehearsal_classes.keys()) < 5:
                 raise Exception("Too small rehearsal Dataset. Can't MosaicBatch Augmentation")
             dataset_train, data_loader_train = CombineDataset(args, rehearsal_classes, dataset_train, args.num_workers, args.Continual_Batch_size, old_classes=old_classes)#Rehearsal을 사용하는 Task 1 부터는 train_data_loader의 이름 자체를 변경

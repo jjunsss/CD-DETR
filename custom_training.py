@@ -127,8 +127,6 @@ def Mosaic_training(args, epo, idx, count, sum_loss, samples, targets,
     
     if utils.is_main_process(): #sum_loss가 GPU의 개수에 맞춰서 더해주고 있으니,
         check_losses(epo, idx, losses_reduced_scaled, sum_loss, count, current_classes, None, data_type)
-
-        print(f"epoch : {epo}, data_type : {data_type}, losses : {losses_reduced_scaled:05f}, epoch_total_loss : {(sum_loss / count):05f}, count : {count}")
         if idx % 10 == 0:
             print(f"current classes is {current_classes}")
 
