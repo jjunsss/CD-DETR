@@ -175,3 +175,5 @@ poetry.toml
 #pretrained dataset file
 *.pth
 *.png
+Rehearsal_dict/
+.gitignore

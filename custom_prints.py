@@ -5,7 +5,7 @@ import os
 import sys
 import torch
 
-def check_rehearsal_components(rehearsal_classes: Dict, output_dir: str, print_stat: bool=True, save: bool=False):
+def check_rehearsal_components(task_number: int, rehearsal_classes: Dict, current_classes: List, output_dir: str, print_stat: bool=True, save: bool=False):
     '''
         1. check each instance usage capacity
         2. print each classes counts
@@ -14,43 +14,19 @@ def check_rehearsal_components(rehearsal_classes: Dict, output_dir: str, print_s
     '''
     if print_stat == True:
         # check each instance usage capacity
-        print("check instance memory capacity")
-        for dict_key in rehearsal_classes.keys():
-            instances_bytes = asizeof.asizeof(rehearsal_classes[dict_key])
-            memory_usage_MB = instances_bytes * 0.00000095367432
-            print(f"instance memory capacity {dict_key} : {memory_usage_MB} MB")
-            
-        # print each clas s's counts
-        current_class_sort = sorted(list(rehearsal_classes.keys()))
-        for idx in current_class_sort:
-            print(f"key : {idx}, counts : {len(rehearsal_classes[idx])}")
-            
-        print("check rehearsal dictionary memory capacity")
-        print(summary.print_(summary.summarize(rehearsal_classes)))
+        check_list = [len(list(filter(lambda x: current in x, list(rehearsal_classes.values())[1]))) for current in current_classes]
+        for current, check in zip(current_classes, check_list):
+            print(f"current classes : {current} memory size : {check}")
         
     if save == True:
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
             
         # redirect the output of the print() function to a file
-        output_file = os.path.join(output_dir, 'output.txt')
+        output_file = os.path.join(output_dir, (task_number+1) +'_output.txt')
         sys.stdout = open(output_file, 'w')
-
-        # check each instance usage capacity
-        print("check instance memory capacity")
-        for dict_key in rehearsal_classes.keys():
-            instances_bytes = asizeof.asizeof(rehearsal_classes[dict_key])
-            memory_usage_MB = instances_bytes * 0.00000095367432
-            print(f"instance memory capacity {dict_key} : {memory_usage_MB} MB")
-
-        # print each class's counts
-        current_class_sort = sorted(list(rehearsal_classes.keys()))
-        for idx in current_class_sort:
-            print(f"key : {idx}, counts : {len(rehearsal_classes[idx])}")
-
-        print("check rehearsal dictionary memory capacity")
-        print(summary.print_(summary.summarize(rehearsal_classes)))
-
+        for current, check in zip(current_classes, check_list):
+            print(f"current classes : {current} memory size : {check}")
         sys.stdout.close()
 
 def Memory_checker():
@@ -66,14 +42,8 @@ def Memory_checker():
     print(f"max allocated Memory : {torch.cuda.max_memory_cached()}")
     print(f"*" * 50)
     
-<<<<<<< HEAD
 def over_label_checker(check_list:List , check_list2:List = [], check_list3:List = [], check_list4:List = []):
-    
-=======
-def over_label_checker(check_list:List , check_list2:List, check_list3:List, check_list4:List):
->>>>>>> 56b3449de661dd43d7750f4d31d07be72c144861
     print("overlist: ", check_list, check_list2, check_list3, check_list4)
-    
     
 def check_losses(epoch, index, losses, epoch_loss, count, training_class, rehearsal=None, dtype=None):
     '''
@@ -88,7 +58,7 @@ def check_losses(epoch, index, losses, epoch_loss, count, training_class, rehear
     if index % 10 == 0: 
         print(f"epoch : {epoch}, losses : {losses:05f}, epoch_total_loss : {epoch_total_loss:05f}, count : {count}")
         if rehearsal is not None:
-            print(f"total examplar counts : {sum([len(contents) for contents in list(rehearsal.values())])}")
+            print(f"total examplar counts : {len(list(rehearsal.keys()))}")
         if dtype is not None:
             print(f"Now, CBB is {dtype}")    
     

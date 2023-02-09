@@ -47,6 +47,7 @@ def Original_training(args, epo, idx, count, sum_loss, samples, targets, origin_
         Only Training Original Data or (Transformed image, Transformed Target).
         This is not Mosaic Data.
     '''
+    torch.cuda.empty_cache()
     if train_check :
         model.train()
     else:
@@ -57,7 +58,6 @@ def Original_training(args, epo, idx, count, sum_loss, samples, targets, origin_
     criterion.train()
     samples = samples.to(device)
     targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
-    
     outputs = model(samples)
     loss_dict = criterion(outputs, targets)
     weight_dict = criterion.weight_dict
@@ -65,10 +65,10 @@ def Original_training(args, epo, idx, count, sum_loss, samples, targets, origin_
     losses_value = losses.item()
     
     with torch.no_grad():
-        if train_check == True and args.Rehearsal == True: #* I will use this code line. No delete.
+     if train_check == True and args.Rehearsal == True: #* I will use this code line. No delete.
             targets = [{k: v.to(ex_device) for k, v in t.items()} for t in targets]
-            rehearsal_classes = contruct_rehearsal(losses_value=losses_value, lower_limit=0.1, upper_limit=100, samples=samples, targets=targets, 
-                                    origin_samples=origin_sam, origin_targets=origin_tar, rehearsal_classes=rehearsal_classes, Current_Classes=current_classes, Rehearsal_Memory=args.Memory)
+            rehearsal_classes = contruct_rehearsal(losses_value=losses_value, lower_limit=0.1, upper_limit=100, targets=targets, #rehearsal[image_id] = [loss, [unique_index]]
+                                    rehearsal_classes=rehearsal_classes, Current_Classes=current_classes, Rehearsal_Memory=args.Memory)
     del samples, targets
     
     loss_dict_reduced = utils.reduce_dict(loss_dict, train_check)
@@ -103,7 +103,7 @@ def Original_training(args, epo, idx, count, sum_loss, samples, targets, origin_
 
 def Mosaic_training(args, epo, idx, count, sum_loss, samples, targets,
                     model: torch.nn.Module, criterion: torch.nn.Module, optimizer: torch.optim.Optimizer, current_classes, data_type):
-
+    torch.cuda.empty_cache()
     device = torch.device("cuda")
     ex_device = torch.device("cpu")
     model.train()

@@ -51,11 +51,7 @@ def train_one_epoch(args, epo, model: torch.nn.Module, criterion: torch.nn.Modul
     set_tm = time.time()
     sum_loss = 0.0
     count = 0
-<<<<<<< HEAD
     label_dict = {} #* 하나의 에포크에서 계속해서 Class Check을 위한 딕셔너리 생성
-=======
-    label_dict = {}
->>>>>>> 56b3449de661dd43d7750f4d31d07be72c144861
     for idx in tqdm(range(len(data_loader))): #targets 
         samples, targets, origin_samples, origin_targets = prefetcher.next()
             
@@ -64,21 +60,23 @@ def train_one_epoch(args, epo, model: torch.nn.Module, criterion: torch.nn.Modul
         targets = [{k: v.to(ex_device) for k, v in t.items()} for t in targets]
         
         #TODO : one samples no over / one samples over solve this ! 
-        if idx < 1000000:
+        if idx < 100000:
             #* because MosaicAugmentation Data has not original data
             no_use, yes_use, label_dict = check_class(True, targets, label_dict, CL_Limited=args.CL_Limited) #! Original에 한해서만 Limited Training(현재 Task의 데이터에 대해서만 가정)
             samples, targets, origin_samples, origin_targets, train_check = decompose_dataset(no_use_count=len(no_use), samples= samples, targets = targets, origin_samples=origin_samples, origin_targets= origin_targets ,used_number= yes_use)
-            
+
             #contruct rehearsal buffer in main training
             rehearsal_classes, sum_loss, count = Original_training(args, epo, idx, count, sum_loss, samples, targets, origin_samples, origin_targets, 
                                                   model, criterion, optimizer, rehearsal_classes, train_check, current_classes)
-            
+
             #* For Mosaic Training method
             if MosaicBatch == True:
                 samples, targets, _, _ = prefetcher.next() #* Different
                 Mosaic_training(args, epo, idx, count, sum_loss, samples, targets, model, criterion, optimizer, current_classes, "currentmosaic")
                 samples, targets, _, _ = prefetcher.next() #* Next samples
                 Mosaic_training(args, epo, idx, count, sum_loss, samples, targets, model, criterion, optimizer, current_classes, "differentmosaic")
+            
+            del samples, targets, origin_samples, origin_targets, train_check
         else:
             break
         

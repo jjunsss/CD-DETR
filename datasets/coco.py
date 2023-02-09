@@ -128,7 +128,7 @@ def _origin_transform(image_set):
 
     normalize = T.Compose([
         T.ToTensor(),
-        #T.Normalize([0.312, 0.315, 0.294], [0.120, 0.122, 0.131]) # third (11.14 ~ )
+        T.Normalize([0.312, 0.315, 0.294], [0.120, 0.122, 0.131]) # third (11.14 ~ )
     ])
 
     if image_set == 'train':
@@ -137,7 +137,7 @@ def _origin_transform(image_set):
             normalize,
         ])
 
-def mosaic_transform():
+def mosaic_transform(image_set):
     '''
         Augmentation for CBB.
         CBB is combined four images combination
@@ -145,27 +145,27 @@ def mosaic_transform():
         Mosaic images is composed torch.tensor.
         but my all of augmentations request PIL image input. so I'm going to change image type.
     '''
-    scales = [480, 512, 544, 576, 608, 640, 672, 704, 736, 768, 800]
+    scales = [608, 640, 672, 704, 736, 768, 800]
     normalize = T.Compose([
         T.ToTensor(),
-        T.Normalize([0.312, 0.315, 0.294], [0.120, 0.122, 0.131]) # third (11.14 ~ )
+        #T.Normalize([0.312, 0.315, 0.294], [0.120, 0.122, 0.131]) # third (11.14 ~ )
     ])
-    
-    return T.Compose([
-        T.ToPIL(),
-        T.RandomHorizontalFlip(),
-        T.RandomAdjustSharpness(), # Random apply ( p = 0.5 )
-        T.ColorJitter(),
-        T.RandomAugmetation(),
-        T.RandomSelect(   
-            T.RandomResize(scales, max_size=1333),
-            T.Compose([
-                T.RandomResize([400, 500, 600]),
-                T.RandomSizeCrop(384, 600),
-                T.RandomResize(scales, max_size=1333),
-            ])),
-        normalize, #ToTensor and Normalize()
-    ])
+    if image_set == 'train':
+        return T.Compose([
+            T.ToPIL(),
+            # T.RandomHorizontalFlip(),
+            T.RandomAdjustSharpness(), # Random apply ( p = 0.5 )
+            T.ColorJitter(),
+            #T.RandomAugmetation(),
+            # T.RandomSelect(   
+            #     T.RandomResize(scales, max_size=1333),
+            #     T.Compose([
+            #         T.RandomResize([400, 500, 600]),
+            #         T.RandomSizeCrop(384, 600),
+            #         T.RandomResize(scales, max_size=1333),
+            #     ])),
+            normalize, #ToTensor and Normalize()
+        ])
         
 def make_coco_transforms(image_set):
 

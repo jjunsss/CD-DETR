@@ -1,0 +1,5 @@
+check instance memory capacity
+check rehearsal dictionary memory capacity
+  types |   # objects |   total size
+======= | =========== | ============
+None

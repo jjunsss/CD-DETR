@@ -1,4 +1,4 @@
-# ------------------------------------------------------------------------
+#------------------------------------------------------------------------
 # Deformable DETR
 # Copyright (c) 2020 SenseTime. All Rights Reserved.
 # Licensed under the Apache License, Version 2.0 [see LICENSE for details]
@@ -131,7 +131,7 @@ def get_args_parser():
 
     #* Continual Learning 
     parser.add_argument('--Task', default=5, type=int, help='The task is the number that divides the entire dataset, like a domain.') #if Task is 1, so then you could use it for normal training.
-    parser.add_argument('--Task_Epochs', default=10, type=int, help='each Task epoch, e.g. 1 task is 5 of 10 epoch training.. ')
+    parser.add_argument('--Task_Epochs', default=3, type=int, help='each Task epoch, e.g. 1 task is 5 of 10 epoch training.. ')
     parser.add_argument('--Total_Classes', default=59, type=int, help='number of classes in custom COCODataset')
     parser.add_argument('--Total_Classes_Names', default=False, action='store_true', help="division of classes through class names (DID, PZ, VE). This option is available for LG Dataset")
     parser.add_argument('--CL_Limited', default=1000, type=int, help='Use Limited Training in CL. If you choose False, you may encounter data imbalance in training.')
@@ -139,8 +139,9 @@ def get_args_parser():
     #* Rehearsal method
     parser.add_argument('--Rehearsal', default=False, action='store_true', help="use Rehearsal strategy in diverse CL method")
     parser.add_argument('--Mosaic', default=False, action='store_true', help="use Our CCM strategy in diverse CL method")
-    parser.add_argument('--Memory', default=500, type=int, help='memory capacity for rehearsal training')
+    parser.add_argument('--Memory', default=5, type=int, help='memory capacity for rehearsal training')
     parser.add_argument('--Continual_Batch_size', default=3, type=int, help='continual batch training method')
+    parser.add_argument('--Rehearsal_file', default='./', type=str)
     return parser
 
 def main(args):
@@ -218,11 +219,18 @@ def main(args):
     start_time = time.time()
     file_name = args.file_name + "_" + str(0)
     if args.Task != 1:
-        Divided_Classes = DivideTask_for_incre(args.Task, args.Total_Classes, args.Total_Classes_Names) 
+        Divided_Classes = DivideTask_for_incre(args.Task, args.Total_Classes, args.Total_Classes_Names)
+        if not os.path.exists(args.Rehearsal_file):#TODO change directory. now, we don't use load rehearsal file.
+            os.mkdir(dir)
+            print(f"Directroy created")
+        # load_dir = args.Rehearsal_file + str(dist.get_rank()) + "gpu_rehearsal"
+        # if os.path.isfile(load_dir): 
+        # #     with open(load_dir, 'rb') as f :
+        # #         rehearsal_classes = pickle.load(f)
+        # else:
         rehearsal_classes = {}
         if args.Total_Classes_Names == True :
             args.Task = len(Divided_Classes)    
-<<<<<<< HEAD
     start_epoch = 0
     start_task = 0
     
@@ -231,10 +239,6 @@ def main(args):
     
     if args.start_task != 0:
         start_task = args.start_task
-=======
-    if args.start_epoch != 0:
-        start = args.start_epoch
->>>>>>> 56b3449de661dd43d7750f4d31d07be72c144861
     
     #TODO : TASK 마다 훈련된 모델이 저장되게 설정해두기
     for task_idx in range(start_task, args.Task):
@@ -243,20 +247,16 @@ def main(args):
         #rehearsal + New task dataset (rehearsal Dataset은 유지하도록 설정)
         MosaicBatch = False
         if task_idx >= 1 and len(rehearsal_classes) > 0 :
-            if len(rehearsal_classes.values()) < 5:
+            if len(rehearsal_classes.keys()) < 5:
                 raise Exception("Too small rehearsal Dataset. Can't MosaicBatch Augmentation")
-            dataset_train, data_loader_train = CombineDataset(args, rehearsal_classes, dataset_train, args.num_workers, args.Continual_Batch_size)#Rehearsal을 사용하는 Task 1 부터는 train_data_loader의 이름 자체를 변경
+            dataset_train, data_loader_train = CombineDataset(args, rehearsal_classes, dataset_train, args.num_workers, args.Continual_Batch_size, old_classes=old_classes)#Rehearsal을 사용하는 Task 1 부터는 train_data_loader의 이름 자체를 변경
             if args.Mosaic == True:
                 MosaicBatch = True
         else:
             print(f"no use rehearsal training method")
         
         
-<<<<<<< HEAD
         for epoch in range(start_epoch, args.Task_Epochs): #어차피 Task마다 훈련을 진행해야 하고, 중간점음 없을 것이므로 TASK마다 훈련이 되도록 만들어도 상관이 없음
-=======
-        for epoch in range(start, args.Task_Epochs): #어차피 Task마다 훈련을 진행해야 하고, 중간점음 없을 것이므로 TASK마다 훈련이 되도록 만들어도 상관이 없음
->>>>>>> 56b3449de661dd43d7750f4d31d07be72c144861
         #for epoch in range(3):
             if args.distributed:
                 sampler_train.set_epoch(epoch)#TODO: 추후에 epoch를 기준으로 batch sampler를 추출하는 행위 자체가 오류를 일으킬 가능성이 있음 Incremental Learning에서                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
@@ -269,16 +269,18 @@ def main(args):
                 args, epoch, model, criterion, data_loader_train, optimizer, device, MosaicBatch, list_CC, rehearsal_classes)
             lr_scheduler.step()
             if epoch % 2 == 0:
-                save_model_params(model_without_ddp, optimizer, lr_scheduler, args, args.output_dir, task_idx, int(args.Task), epoch) 
+                save_model_params(model_without_ddp, optimizer, lr_scheduler, args, args.output_dir, task_idx, int(args.Task), epoch)
+                save_rehearsal(task_idx, args.Rehearsal_file, rehearsal_classes)
+                
         save_model_params(model_without_ddp, optimizer, lr_scheduler, args, args.output_dir, task_idx, int(args.Task), -1)
-        rehearsal_classes = rearrange_rehearsal(rehearsal_classes, list_CC)
-        check_rehearsal_components(rehearsal_classes=rehearsal_classes, output_dir=args.output_dir, print_stat=False, save=False)
-        
+        check_rehearsal_components(task_number=task_idx, rehearsal_classes=rehearsal_classes,current_classes=list_CC, output_dir=args.output_dir, print_stat=False, save=False)
+        old_classes = list_CC
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
     print('Training time {}'.format(total_time_str))
 
-    check_rehearsal_components(rehearsal_classes=rehearsal_classes, output_dir=args.output_dir, print_stat=False, save=True)
+    check_rehearsal_components(task_number=task_idx, rehearsal_classes=rehearsal_classes, output_dir=args.output_dir, print_stat=False, save=True)
+    
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('Deformable DETR training and evaluation script', parents=[get_args_parser()])
     args = parser.parse_args()

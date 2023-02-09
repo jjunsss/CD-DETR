@@ -291,11 +291,14 @@ def new_dataLoader(saved_dict, args):
 
 
 def _dataset_for_memory_check(*args):
-
-    check_sample = args[2]
-    check_target = args[3]
     
-    return check_sample, check_target
+    check_sample = memory_usage_check(args[2])
+    check_target = memory_usage_check(args[3])
+    total_memory = check_target + check_sample
+
+        
+    
+    return total_memory
 
 def _divide_targetset(target: Dict, index: int)-> Dict:
     
@@ -316,60 +319,68 @@ def _rearrange_targets(no_use_count: int, samples: utils.NestedTensor, targets: 
     return (batch_size, no_use_count, samples, targets, origin_samples, origin_targets, used_number)
 
 from pympler import asizeof, summary
-def contruct_rehearsal(losses_value: float, lower_limit: float, upper_limit: float, samples, targets,
-                       origin_samples: torch.Tensor, origin_targets: Dict, rehearsal_classes: Dict, Current_Classes: List[int], Rehearsal_Memory: int = 300) \
-                           -> Dict:
+def contruct_rehearsal(losses_value: float, lower_limit: float, upper_limit: float, targets,
+                       rehearsal_classes: List, Current_Classes: List[int], Rehearsal_Memory: int = 300) -> Dict:
     # Check if losses_value is within the specified range
     if losses_value > lower_limit and losses_value < upper_limit : 
         ex_device = torch.device("cpu")
         
-        for enum, target in enumerate(targets):
+        for enum, target in enumerate(targets): #! 배치 개수 ex) 4개 
             # Get the unique labels and the count of each label
             label_tensor = target['labels']
+            image_id = target['image_id'].item()
             label_tensor_unique = torch.unique(label_tensor)
             if set(label_tensor_unique.tolist()).issubset(Current_Classes) is False: #if unique tensor composed by Old Dataset, So then Continue iteration
                 continue
             
             label_tensor_count = label_tensor.numpy()
             bin = np.bincount(label_tensor_count)
+            if image_id in rehearsal_classes.keys():
+                continue
+            label_tensor_unique_list = label_tensor_unique.tolist()
             
-            # Get origin sample and target that devided to each instance
-            _, _, new_sample, new_target, _ = _rearrange_targets(no_use_count=None, samples=samples, targets=targets, origin_samples= origin_samples, origin_targets= origin_targets,
-                               used_number=[enum])
-
-            #Rehearsal. 오름차순 정렬하고, Loss가 큰 값들부터 제거 -> Loss가 크면 대표성이 떨어짐.
-            for index, unique_idx in enumerate(label_tensor_unique):
-                unique_idx = unique_idx.item()
-                divided_target = _divide_targetset(new_target[0], int(unique_idx))
-                if divided_target['boxes'].shape[-1] < 4:
+            if _check_rehearsal_size(Rehearsal_Memory, rehearsal_classes, *label_tensor_unique_list) == True:
+                rehearsal_classes[image_id] = [losses_value, label_tensor_unique_list]
+            else:
+                print(f"**** Memory over ****")
+                high_loss_rehearsal = _change_rehearsal_size(Rehearsal_Memory, rehearsal_classes, *label_tensor_unique_list)
+                if high_loss_rehearsal == False: #!얘를들어 unique index를 모두 포함하고 있는 rehearsal 데이터 애들이 존재하지 않는 경우에 해당 상황이 발생할 수 있다.
                     continue
                 
-                if unique_idx in rehearsal_classes.keys():  # Check if the unique label already exists in the rehearsal_classes dictionary
-                    rehearsal_classes[unique_idx] = sorted(rehearsal_classes[unique_idx], key = lambda x : x[1]) # ASC by loss 
-                    for_usage_check_list = [(_dataset_for_memory_check(*values)) for values in rehearsal_classes[unique_idx] if _dataset_for_memory_check(*values) is not None]
-                    # check unique_idx samples capacity
-                    instances_bytes = asizeof.asizeof(for_usage_check_list) 
-                    memory_usage_MB = instances_bytes * 0.00000095367432
-                    
-                    if index == 0:
-                        if memory_usage_MB <= Rehearsal_Memory: # construct based on capacity / # If the memory usage is greater than 500MB, replace the sample with the highest loss value with the new sample
-                            rehearsal_classes[unique_idx].append([bin[unique_idx], losses_value, new_sample, divided_target, True])
-                        else :
-                            if rehearsal_classes[unique_idx][-1][1] > losses_value:
-                                rehearsal_classes[unique_idx][-1] = [bin[unique_idx], losses_value, new_sample, divided_target, True]
-                    else:
-                        if memory_usage_MB <= Rehearsal_Memory: # construct based on capacity / # If the memory usage is greater than 500MB, replace the sample with the highest loss value with the new sample
-                            rehearsal_classes[unique_idx].append([bin[unique_idx], losses_value, new_sample, divided_target, False])
-                        else :
-                            if rehearsal_classes[unique_idx][-1][1] > losses_value:
-                                rehearsal_classes[unique_idx][-1] = [bin[unique_idx], losses_value, new_sample, divided_target, False]
-                else :
-                    if index == 0:
-                        rehearsal_classes[unique_idx] = [[bin[unique_idx], losses_value, new_sample, divided_target, True]]
-                    else:
-                        rehearsal_classes[unique_idx] = [[bin[unique_idx], losses_value, new_sample, divided_target, False]]
-
+                if high_loss_rehearsal[0] > losses_value:
+                    print(f"chagne rehearsal value")
+                    del rehearsal_classes[high_loss_rehearsal[0]]
+                    rehearsal_classes[image_id] = [losses_value, label_tensor_unique_list]
+    
     return rehearsal_classes
+
+def _check_rehearsal_size(limit_memory_size, rehearsal_classes, *args, ):
+    if len(rehearsal_classes.keys()) == 0:
+        return True
+    
+    check_list = [len(list(filter(lambda x: index in x[1], list(rehearsal_classes.values())))) for index in args]
+    
+    check = all([value < limit_memory_size for value in check_list])
+    return check
+
+def _change_rehearsal_size(limit_memory_size, rehearsal_classes, *args, ): 
+    check_list = [len(list(filter(lambda x: index in x[1], list(rehearsal_classes.values())))) for index in args]
+    temp_array = np.array(check_list)
+    temp_array = temp_array < limit_memory_size 
+    
+    over_list = []
+    for t, arg in zip(temp_array, args):
+        if t == False:
+            over_list.append(arg)
+            
+    check_list = list(filter(lambda x: all(item in x[1][1] for item in over_list), list(rehearsal_classes.items())))
+    sorted_result = sorted(check_list, key = lambda x : x[1][0])
+    if len(sorted_result) == 0 :
+        return False
+    
+    sorted_result = sorted_result[-1]
+
+    return sorted_result
 
 def rearrange_rehearsal(rehearsal_classes: dict, current_classes: list) -> dict:
     '''
@@ -409,7 +420,6 @@ def load_model_params(model: model,
             
     return model
 
-
 def save_model_params(model_without_ddp:model, optimizer:torch.optim, lr_scheduler:scheduler,
                      args:arg, output_dir: str, task_index:int, task_total:int, epoch):
     '''
@@ -429,4 +439,47 @@ def save_model_params(model_without_ddp:model, optimizer:torch.optim, lr_schedul
         'lr_scheduler': lr_scheduler.state_dict(),
         'args': args,
     }, checkpoint_paths)
+
+import pickle
+def save_rehearsal(task, dir, rehearsal):
+    #* save the capsulated dataset(Boolean, image_id:int)
+    if not os.path.exists(dir):
+        os.mkdir(dir)
+        print(f"Directroy created")
+        
+    dir = dir + str(dist.get_rank()) + "_gpu_rehearsal" + "_task_" + str(task+1)
+    with open(dir, 'wb') as f:
+        pickle.dump(rehearsal, f)
+        
+import torch.distributed as dist
+def check_training_gpu(train_check):
+    world_size = utils.get_world_size()
+
+    if world_size < 2:
+        return True
     
+    if train_check == False:
+        gpu_control_value = torch.tensor(1.0, device=torch.device("cuda"))
+        temp_list = [torch.tensor(0.0, device=torch.device("cuda")) for _ in range(4)]
+    
+        gpu_control_value = torch.tensor(0.0, device=torch.device("cuda"))
+            
+        dist.all_gather(temp_list, gpu_control_value)
+        gpu_control_value = sum([ten_idx.item() for ten_idx in temp_list])
+        print(f"used gpu counts : {int(gpu_control_value)}")
+        if int(gpu_control_value) == 0:
+            print("current using GPU counts is 0, so it's not traing")
+            return False
+    else:
+        return True
+    
+    
+def memory_usage_check(byte_usage):
+    """
+        for checking memory usage in instace. 
+        output : x.xx MB usage
+    """
+    instances_bytes = asizeof.asizeof(byte_usage) 
+    memory_usage_MB = instances_bytes * 0.00000095367432
+    
+    return memory_usage_MB

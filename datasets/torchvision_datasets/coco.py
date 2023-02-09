@@ -37,7 +37,7 @@ class CocoDetection(VisionDataset):
         self.ids = list(sorted(self.coco.imgs.keys())) if ids_list == None else sorted(ids_list)
         self.class_ids = class_ids
         
-        if class_ids is not None:
+        if class_ids is not None and ids_list == None:
             self.ids = []
             for c_idx in self.class_ids:
                 img_ids = self.coco.getImgIds(catIds= c_idx)
