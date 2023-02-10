@@ -213,7 +213,8 @@ def check_class(LG_Dataset: bool, targets: Dict, label_dict: Dict,
     
     if LG_Dataset :
         limit2 = [28, 32, 35, 41, 56] #photozone
-        limit3 = [22, 23, 24, 25, 26, 27, 29, 31, 33, 37, 39, 40, 45, 46, 48, 49, 51, 52, 58, 59] #VE 
+        limit3 = [22, 23, 24, 25, 26, 27, 29, 30,  31, 33, 34, 36, 37,38, 39, 40,42,43,44, 45, 46,47, 48, 49,50, 51, 52,53,\
+                    54, 55, 57, 58, 59] #VE 
             
         for enum, target in enumerate(targets):
             
@@ -394,7 +395,7 @@ def rearrange_rehearsal(rehearsal_classes: dict, current_classes: list) -> dict:
     return rehearsal_classes
 
 def load_model_params(model: model,
-                      dir: str = "/data/LG/real_dataset/total_dataset/test_dir/Deformable-DETR/loss_2_3/checkpoint0327.pth"):
+                      dir: str = "/data/LG/real_dataset/total_dataset/test_dir/Continaul_DETR/baseline_ddetr.pth"):
     new_model_dict = model.state_dict()
     #temp dir
     checkpoint = torch.load(dir)
@@ -450,7 +451,8 @@ def save_rehearsal(task, dir, rehearsal):
     dir = dir + str(dist.get_rank()) + "_gpu_rehearsal" + "_task_" + str(task+1)
     with open(dir, 'wb') as f:
         pickle.dump(rehearsal, f)
-        
+
+
 import torch.distributed as dist
 def check_training_gpu(train_check):
     world_size = utils.get_world_size()
@@ -483,3 +485,48 @@ def memory_usage_check(byte_usage):
     memory_usage_MB = instances_bytes * 0.00000095367432
     
     return memory_usage_MB
+
+import pickle
+import os
+def multigpu_rehearsal(dir, limit_memory_size, gpu_counts, task_num,*args):
+    '''
+        limit_memory_size : args.memory
+        rehearsal_classes: Rehearsal classes
+        args : old classes (Not Now classes)
+    '''
+    limit_memory_size = limit_memory_size * gpu_counts
+    
+    dir_list = [dir + str(num) +"_gpu_rehearsal_task_" + str(task_num) for num in gpu_counts]
+    for each_dir in dir_list:
+        if os.path.isfile(each_dir) == False:
+            raise Exception("No rehearsal file")
+        
+    merge_dict = {}
+    for idx, dictionary_dir in enumerate(dir_list):
+        with open(dictionary_dir, 'rb') as f :
+            temp = pickle.load(f)
+            merge_dict = {**merge_dict, **temp}
+    
+    while True:
+        check_list = [len(list(filter(lambda x: index in x[1], list(merge_dict.values())))) for index in args]
+        #print(check_list)
+        temp_array = np.array(check_list)
+        temp_array = temp_array < limit_memory_size
+        #print(temp_array)
+        if all(temp_array) == True:
+            return merge_dict
+        
+        over_list = []
+        for t, arg in zip(temp_array, args):
+            if t == False:
+                over_list.append(arg)
+                
+        check_list = list(filter(lambda x: all(item in x[1][1] for item in over_list), list(merge_dict.items())))
+        sorted_result = sorted(check_list, key = lambda x : x[1][0])
+        if len(sorted_result) == 0 :
+            check_list = list(filter(lambda x: any(item in x[1][1] for item in over_list), list(merge_dict.items())))
+            sorted_result = sorted(check_list, key = lambda x : x[1][0])
+            del merge_dict[sorted_result[-1][0]]
+            continue
+        
+        del merge_dict[sorted_result[-1][0]]

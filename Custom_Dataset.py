@@ -80,8 +80,7 @@ def DivideTask_for_incre(Task_Counts: int, Total_Classes: int, DivisionOfNames: 
         Divided_Classes = []
         Divided_Classes.append([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21]) #DID
         Divided_Classes.append([28, 32, 35, 41, 56]) #photozone
-        Divided_Classes.append([22, 23, 24, 25, 26, 27, 29, 30, 31, 33,34,36, 37, 38, 39, 40,42,43,44,
-          45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 57, 58, 59]) #VE
+        Divided_Classes.append([22, 23, 24, 25, 26, 27, 29, 30, 31, 33,34,36, 37, 38, 39, 40,42,43,44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 57, 58, 59]) #VE
         return Divided_Classes
     
     classes = [idx+1 for idx in range(Total_Classes)]
@@ -317,11 +316,11 @@ def CombineDataset(args, RehearsalData, CurrentDataset, Worker, Batch_size, old_
     
     if args.distributed:
         if args.cache_mode:
-            sampler_train = samplers.NodeDistributedSampler(CombinedDataset)
+            sampler_train = samplers.NodeDistributedSampler(MosaicBatchDataset)
         else:
-            sampler_train = samplers.DistributedSampler(CombinedDataset)
+            sampler_train = samplers.DistributedSampler(MosaicBatchDataset)
     else:
-        sampler_train = torch.utils.data.RandomSampler(CombinedDataset)
+        sampler_train = torch.utils.data.RandomSampler(MosaicBatchDataset)
         
     batch_sampler_train = torch.utils.data.BatchSampler(sampler_train, Batch_size, drop_last=True)
     CombinedLoader = DataLoader(MosaicBatchDataset, batch_sampler=batch_sampler_train,
