@@ -39,7 +39,25 @@ def decompose_dataset(no_use_count: int, samples: utils.NestedTensor, targets: D
     batch_size = len(targets)
     return (batch_size, no_use_count, samples, targets, origin_samples, origin_targets, used_number)
 
-
+def fake_training(args, epo, idx, count, sum_loss, samples, targets, origin_sam, origin_tar, 
+                      model: torch.nn.Module, criterion: torch.nn.Module, optimizer: torch.optim.Optimizer,
+                      rehearsal_classes, train_check, current_classes):
+    model.eval()
+    criterion.eval()
+    device = torch.device("cuda")
+    ex_device = torch.device("cpu")
+    criterion.train()
+    samples = samples.to(device)
+    targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
+    outputs = model(samples)
+    loss_dict = criterion(outputs, targets)
+    weight_dict = criterion.weight_dict
+    losses = sum(loss_dict[k] * weight_dict[k] for k in loss_dict.keys() if k in weight_dict)
+    
+    optimizer.zero_grad()
+    losses.backward()
+    optimizer.step()
+        
 def Original_training(args, epo, idx, count, sum_loss, samples, targets, origin_sam, origin_tar, 
                       model: torch.nn.Module, criterion: torch.nn.Module, optimizer: torch.optim.Optimizer,
                       rehearsal_classes, train_check, current_classes): 

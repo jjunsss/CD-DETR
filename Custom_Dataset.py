@@ -15,7 +15,7 @@ import copy
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from util.box_ops import box_cxcywh_to_xyxy_resize, box_cxcywh_to_xyxy, box_xyxy_to_cxcywh
-from datasets.coco import mosaic_transform
+from datasets.coco import CBB_transform
 
 def visualize_bboxes(img, bboxes, img_size = 0):
     min_or = img.min()
@@ -117,9 +117,9 @@ class CustomDataset(torch.utils.data.Dataset):
         print(f"Data key presented in buffer : {self.old_classes}")    
 
     def __getitem__(self, idx):
-        _, _, new_samples, new_targets = self.datasets[idx]
+        samples, targets, new_samples, new_targets = self.datasets[idx]
 
-        return new_samples, new_targets, new_samples, new_targets
+        return samples, targets, new_samples, new_targets
 
 def _Resize_for_batchmosaic(img:torch.Tensor, height_resized, width_resized, bboxes): #* Checking
     """
@@ -170,6 +170,7 @@ class BatchMosaicAug(torch.utils.data.Dataset):
             Cur_img, Cur_lab, Dif_img, Dif_lab = self.load_mosaic(Current_mosaic_index, Diff_mosaic_index, original_index)
             Cur_img, Cur_lab = self._transform(Cur_img, Cur_lab)
             Dif_img, Dif_lab = self._transform(Dif_img, Dif_lab)
+            
             return img, target, origin_img, origin_target, Cur_img, Cur_lab, Dif_img, Dif_lab
         else:
             return img, target, origin_img, origin_target, None, None, None, None
@@ -180,8 +181,8 @@ class BatchMosaicAug(torch.utils.data.Dataset):
         '''
         bboxes = []
         if diff == True and index != original_id:
-            boxes = self.Rehearsal_dataset[index][1]["boxes"]
-            classes = self.Rehearsal_dataset[index][1]["labels"]
+            boxes = self.Rehearsal_dataset[index][3]["boxes"]
+            classes = self.Rehearsal_dataset[index][3]["labels"]
         else:
             _, _, _, origin_target = self.Datasets[index]
             boxes = origin_target["boxes"] #* Torch tensor
@@ -308,7 +309,7 @@ def CombineDataset(args, RehearsalData, CurrentDataset, Worker, Batch_size, old_
     OldDataset = CustomDataset(args, RehearsalData, old_classes) #oldDatset[idx]:
     class_ids = CurrentDataset.class_ids
     CombinedDataset = ConcatDataset([OldDataset, CurrentDataset]) #Old : previous, Current : Now
-    MosaicBatchDataset = BatchMosaicAug(CombinedDataset, class_ids, mosaic_transform("train"), args.Mosaic) #* if Mosaic == True -> 1 batch(divided three batch/ False -> 3 batch (only original)
+    MosaicBatchDataset = BatchMosaicAug(CombinedDataset, class_ids, CBB_transform("mosaic"), args.Mosaic) #* if Mosaic == True -> 1 batch(divided three batch/ False -> 3 batch (only original)
     
     print(MosaicBatchDataset[0])
 

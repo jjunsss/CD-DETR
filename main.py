@@ -126,7 +126,7 @@ def get_args_parser():
     parser.add_argument('--start_epoch', default=0, type=int, metavar='N',help='start epoch')
     parser.add_argument('--start_task', default=0, type=int, metavar='N',help='start task')
     parser.add_argument('--eval', action='store_true')
-    parser.add_argument('--num_workers', default=8, type=int)
+    parser.add_argument('--num_workers', default=24, type=int)
     parser.add_argument('--cache_mode', default=False, action='store_true', help='whether to cache images on memory')
 
     #* Continual Learning 
@@ -140,7 +140,7 @@ def get_args_parser():
     parser.add_argument('--Rehearsal', default=False, action='store_true', help="use Rehearsal strategy in diverse CL method")
     parser.add_argument('--Mosaic', default=False, action='store_true', help="use Our CCM strategy in diverse CL method")
     parser.add_argument('--Memory', default=500, type=int, help='memory capacity for rehearsal training')
-    parser.add_argument('--Continual_Batch_size', default=3, type=int, help='continual batch training method')
+    parser.add_argument('--Continual_Batch_size', default=4, type=int, help='continual batch training method')
     parser.add_argument('--Rehearsal_file', default='./', type=str)
     return parser
 
@@ -236,9 +236,11 @@ def main(args):
         dataset_train, data_loader_train, sampler_train, list_CC = Incre_Dataset(task_idx, args, Divided_Classes) #rehearsal + New task dataset (rehearsal Dataset은 유지하도록 설정)
         MosaicBatch = False
         
-        if task_idx >= 1 and len(rehearsal_classes) > 0 :
+        if task_idx >= 1 and args.Rehearsal :
             rehearsal_classes = multigpu_rehearsal(args.Rehearsal_file, args.Memory, 4, task_idx)
-
+            if len(rehearsal_classes)  == 0:
+                print(f"No rehearsal file")
+                
             old_classes.extend(Divided_Classes[task_idx-1])
             if len(rehearsal_classes.keys()) < 5:
                 raise Exception("Too small rehearsal Dataset. Can't MosaicBatch Augmentation")

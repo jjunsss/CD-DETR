@@ -189,9 +189,9 @@ def reduce_dict(input_dict, train_check, average=True):
             
         dist.all_gather(temp_list, gpu_control_value)
         gpu_control_value = sum([ten_idx.item() for ten_idx in temp_list])
-        print(f"used gpu counts : {int(gpu_control_value)}")
+        #print(f"used gpu counts : {int(gpu_control_value)}")
         if int(gpu_control_value) == 0:
-            print("current using GPU counts is 0, so it's not traing")
+            #print("current using GPU counts is 0, so it's not traing")
             return False
         
         names = []

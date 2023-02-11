@@ -460,20 +460,20 @@ def check_training_gpu(train_check):
     if world_size < 2:
         return True
     
-    if train_check == False:
-        gpu_control_value = torch.tensor(1.0, device=torch.device("cuda"))
-        temp_list = [torch.tensor(0.0, device=torch.device("cuda")) for _ in range(4)]
+    gpu_control_value = torch.tensor(1.0, device=torch.device("cuda"))
+    temp_list = [torch.tensor(0.0, device=torch.device("cuda")) for _ in range(4)]
     
+    if train_check == False:
         gpu_control_value = torch.tensor(0.0, device=torch.device("cuda"))
-            
-        dist.all_gather(temp_list, gpu_control_value)
-        gpu_control_value = sum([ten_idx.item() for ten_idx in temp_list])
-        print(f"used gpu counts : {int(gpu_control_value)}")
-        if int(gpu_control_value) == 0:
-            print("current using GPU counts is 0, so it's not traing")
-            return False
-    else:
-        return True
+        
+    dist.all_gather(temp_list, gpu_control_value)
+    gpu_control_value = sum([ten_idx.item() for ten_idx in temp_list])
+    print(f"used gpu counts : {int(gpu_control_value)}")
+    if int(gpu_control_value) == 0:
+        print("current using GPU counts is 0, so it's not traing")
+        return False
+
+    return True
     
     
 def memory_usage_check(byte_usage):
@@ -496,7 +496,7 @@ def multigpu_rehearsal(dir, limit_memory_size, gpu_counts, task_num,*args):
     '''
     limit_memory_size = limit_memory_size * gpu_counts
     
-    dir_list = [dir + str(num) +"_gpu_rehearsal_task_" + str(task_num) for num in gpu_counts]
+    dir_list = [dir + str(num) +"_gpu_rehearsal_task_" + str(task_num) for num in range(gpu_counts)]
     for each_dir in dir_list:
         if os.path.isfile(each_dir) == False:
             raise Exception("No rehearsal file")
@@ -514,6 +514,7 @@ def multigpu_rehearsal(dir, limit_memory_size, gpu_counts, task_num,*args):
         temp_array = temp_array < limit_memory_size
         #print(temp_array)
         if all(temp_array) == True:
+            print(f"********** Done Combined dataset ***********")
             return merge_dict
         
         over_list = []
