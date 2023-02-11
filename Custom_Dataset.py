@@ -127,22 +127,15 @@ def _Resize_for_batchmosaic(img:torch.Tensor, height_resized, width_resized, bbo
         resized : size for resizing
         BBoxes : resize image to (height, width) in a image
     """
-
-    #이미지 변환 + Box Label 변환
-    img = copy.deepcopy(img.permute(1, 2, 0).numpy())
-
     transform = A.Compose([
         A.Resize(height_resized, width_resized)
     ], bbox_params=A.BboxParams(format='albumentations'))
 
     #Annoation change
-    transformed = transform(image = img, bboxes = bboxes)
-    transformed_bboxes = transformed['bboxes']
-    transformed_img = transformed["image"]
+    transformed = transform(image=img.permute(1, 2, 0).numpy(), bboxes=bboxes)
+    transformed_bboxes = torch.tensor(transformed['bboxes'])
+    transformed_img = torch.tensor(transformed["image"], dtype=torch.float32).permute(2, 0, 1)
     #visualize_bboxes(transformed_img, transformed_bboxes)
-    
-    transformed_bboxes = torch.tensor(transformed_bboxes)
-    transformed_img = torch.tensor(transformed_img, dtype=torch.float32).permute(2, 0, 1)
     
     return  transformed_img, transformed_bboxes 
     
@@ -206,9 +199,9 @@ class BatchMosaicAug(torch.utils.data.Dataset):
         Mosaic_index = random.sample(range(len(self.Rehearsal_dataset)), 3)
         Rehearsal_index = random.sample(range(len(self.Rehearsal_dataset)), 3)
         
-        for now, old in zip(Mosaic_index, Rehearsal_index):
-            if self.Rehearsal_dataset[old][1]["boxes"].shape[-1] < 1 and self.Datasets[now][1]["boxes"] < 1:
-                raise Exception("Error: NOT correct Dataset")
+        # for now, old in zip(Mosaic_index, Rehearsal_index):
+        #     if self.Rehearsal_dataset[old][1]["boxes"].shape[-1] < 1 and self.Datasets[now][1]["boxes"] < 1:
+        #         raise Exception("Error: NOT correct Dataset")
             
         Mosaic_index.insert(0, index)
         Rehearsal_index.insert(0, index)

@@ -50,17 +50,18 @@ def check_losses(epoch, index, losses, epoch_loss, count, training_class, rehear
         protect to division zero Error.
         print (epoch, losses, losses of epoch, training count, training classes now, rehearsal check, CBB format check)
     '''
+
     try :
         epoch_total_loss = epoch_loss / count
     except ZeroDivisionError:
         epoch_total_loss = 0
-        
+            
     if index % 10 == 0: 
         print(f"epoch : {epoch}, losses : {losses:05f}, epoch_total_loss : {epoch_total_loss:05f}, count : {count}")
         if rehearsal is not None:
             print(f"total examplar counts : {len(list(rehearsal.keys()))}")
         if dtype is not None:
             print(f"Now, CBB is {dtype}")    
-    
+        
     if index % 30 == 0:
         print(f"current classes is {training_class}")

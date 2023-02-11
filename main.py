@@ -126,6 +126,7 @@ def get_args_parser():
     parser.add_argument('--start_epoch', default=0, type=int, metavar='N',help='start epoch')
     parser.add_argument('--start_task', default=0, type=int, metavar='N',help='start task')
     parser.add_argument('--eval', action='store_true')
+    parser.add_argument('--verbose', default=False, action='store_true')
     parser.add_argument('--num_workers', default=24, type=int)
     parser.add_argument('--cache_mode', default=False, action='store_true', help='whether to cache images on memory')
 

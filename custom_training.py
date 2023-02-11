@@ -89,21 +89,21 @@ def Original_training(args, epo, idx, count, sum_loss, samples, targets, origin_
                                     rehearsal_classes=rehearsal_classes, Current_Classes=current_classes, Rehearsal_Memory=args.Memory)
     del samples, targets
     
-    loss_dict_reduced = utils.reduce_dict(loss_dict, train_check)
-    if loss_dict_reduced == False:
-        losses_reduced_scaled = 0
-        loss_dict_reduced_scaled = 0
+    # loss_dict_reduced = utils.reduce_dict(loss_dict, train_check)
+    # if loss_dict_reduced == False:
+    #     losses_reduced_scaled = 0
+    #     loss_dict_reduced_scaled = 0
         
         
-    if loss_dict_reduced != False:
-        count += 1
-        loss_dict_reduced_scaled = {v * weight_dict[k] for k, v in loss_dict_reduced.items() if k in weight_dict}
-        losses_reduced_scaled = sum(loss_dict_reduced_scaled)
+    # if loss_dict_reduced != False:
+    #     count += 1
+    #     loss_dict_reduced_scaled = {v * weight_dict[k] for k, v in loss_dict_reduced.items() if k in weight_dict}
+    #     losses_reduced_scaled = sum(loss_dict_reduced_scaled)
         
-    sum_loss += losses_reduced_scaled
+    sum_loss += losses_value
     
     if utils.is_main_process(): #sum_loss가 GPU의 개수에 맞춰서 더해주고 있으니,
-        check_losses(epo, idx, losses_reduced_scaled, sum_loss, count, current_classes, rehearsal_classes)
+        check_losses(args.verbose, epo, idx, losses_value, sum_loss, count, current_classes, rehearsal_classes)
 
     optimizer.zero_grad()
     losses.backward()
@@ -114,7 +114,7 @@ def Original_training(args, epo, idx, count, sum_loss, samples, targets, origin_
         grad_total_norm = utils.get_total_grad_norm(model.parameters(), args.clip_max_norm)
     optimizer.step()
         
-    del origin_sam, origin_tar, losses_reduced_scaled, loss_dict_reduced_scaled, loss_dict, outputs, loss_dict_reduced, losses#무조건 마지막까지 함께훈련이 되도록 유도
+    del origin_sam, origin_tar, loss_dict, outputs, losses#무조건 마지막까지 함께훈련이 되도록 유도
     torch.cuda.empty_cache()
     
     return rehearsal_classes, sum_loss, count
@@ -134,17 +134,17 @@ def Mosaic_training(args, epo, idx, count, sum_loss, samples, targets,
     losses = sum(loss_dict[k] * weight_dict[k] for k in loss_dict.keys() if k in weight_dict)
     
     del samples, targets, 
-    loss_dict_reduced = utils.reduce_dict(loss_dict, True)
+    # loss_dict_reduced = utils.reduce_dict(loss_dict, True)
     
-    if loss_dict_reduced != False:
-        count += 1
-        loss_dict_reduced_scaled = {k: v * weight_dict[k]
-                                    for k, v in loss_dict_reduced.items() if k in weight_dict}
-        losses_reduced_scaled = sum(loss_dict_reduced_scaled.values())
-    sum_loss += losses_reduced_scaled
+    # if loss_dict_reduced != False:
+    #     count += 1
+    #     loss_dict_reduced_scaled = {k: v * weight_dict[k]
+    #                                 for k, v in loss_dict_reduced.items() if k in weight_dict}
+    #     losses_reduced_scaled = sum(loss_dict_reduced_scaled.values())
+    # sum_loss += losses_reduced_scaled
     
     if utils.is_main_process(): #sum_loss가 GPU의 개수에 맞춰서 더해주고 있으니,
-        check_losses(epo, idx, losses_reduced_scaled, sum_loss, count, current_classes, None, data_type)
+        check_losses(epo, idx, losses, sum_loss, count, current_classes, None, data_type)
         if idx % 10 == 0:
             print(f"current classes is {current_classes}")
 

@@ -22,7 +22,7 @@ class data_prefetcher():
             self.stream = torch.cuda.Stream()
             self.preload()
 
-    def preload(self):
+    def preload(self, new = False):
         try:
             if self.Mosaic == True:
                 if self.data_gen is None:
@@ -33,7 +33,7 @@ class data_prefetcher():
                 elif self.data_gen is not None:
                     self.next_samples, self.next_targets, self.next_origin_samples, self.next_origin_targets = next(self.data_gen, (None, None, None, None))
                     
-                    if self.next_samples is None:
+                    if self.next_samples is None or new == True:
                         self.next_samples, self.next_targets, self.next_origin_samples, self.next_origin_targets, self.next_Current_samples, self.next_Current_target, self.next_Diff_samples, self.next_Diff_targets= next(self.loader)
                         temp = [[self.next_samples, self.next_targets ,self.next_origin_samples, self.next_origin_targets], [self.next_Current_samples, self.next_Current_target, None, None], [self.next_Diff_samples, self.next_Diff_targets, None, None]]
                         self.data_gen = self._split_gpu_preload(temp)
@@ -76,7 +76,7 @@ class data_prefetcher():
             else :
                 yield samples, targets, None, None #* for Mosaic augmentation Dataset(Current Mosaic, Different Mosaic)
                 
-    def next(self):
+    def next(self, new = False):
         if self.prefetch:
             torch.cuda.current_stream().wait_stream(self.stream)
             samples = self.next_samples
@@ -90,7 +90,7 @@ class data_prefetcher():
                 for t in targets:
                     for k, v in t.items():
                         v.record_stream(torch.cuda.current_stream())
-            self.preload()
+            self.preload(new)
         else:
             try:
                 samples, targets, origin_samples, origin_targets, current_samples, current_targets, Diff_samples, Diff_targets = next(self.loader)
@@ -101,3 +101,5 @@ class data_prefetcher():
                 
         return samples, targets, origin_samples, origin_targets
 
+    def new(self):
+        

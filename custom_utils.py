@@ -205,7 +205,7 @@ def decompose(func):
     return wrapper
 
 # how many classes in targets for couning each isntances 
-def check_class(LG_Dataset: bool, targets: Dict, label_dict: Dict, 
+def check_class(verbose, LG_Dataset: bool, targets: Dict, label_dict: Dict, current_classes,
                 DID_COUNT: int =4000, VE_COUNT: int=7000, PZ_COUNT: int=4000, CL_Limited: int = 0):
     no_use = []
     yes_use = []
@@ -238,7 +238,8 @@ def check_class(LG_Dataset: bool, targets: Dict, label_dict: Dict,
             #TODO : before checking overlist Process outputdim and continue iter
             
             if len(check_list) > 0 or len(check_list2) > 0 or len(check_list3) > 0 or len(check_list4) > 0:
-                over_label_checker(check_list, check_list2, check_list3, check_list4)           
+                if verbose == True:
+                    over_label_checker(check_list, check_list2, check_list3, check_list4)           
                 no_use.append(enum)
             else:
                 yes_use.append(enum)
@@ -259,7 +260,7 @@ def check_class(LG_Dataset: bool, targets: Dict, label_dict: Dict,
             label_tensor = label_tensor.cpu()
             label_tensor_unique = torch.unique(label_tensor)
             
-            check_list = [idx.item() for idx in label_tensor_unique if idx.item() in label_dict  if idx.item() <= 21 and label_dict[idx.item()] > CL_Limited] #* 데이터가 몇 개로 나눠져도 상관 없도록 구성해야함
+            check_list = [idx.item() for idx in label_tensor_unique if idx.item() in label_dict  if idx.item() in current_classes and label_dict[idx.item()] > CL_Limited] #* 데이터가 몇 개로 나눠져도 상관 없도록 구성해야함
             if len(check_list) > 0 :
                 over_label_checker(check_list)           
                 no_use.append(enum)
