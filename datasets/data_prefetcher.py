@@ -100,6 +100,3 @@ class data_prefetcher():
                 targets = None
                 
         return samples, targets, origin_samples, origin_targets
-
-    def new(self):
-        

@@ -68,19 +68,22 @@ def crop(image, target, region):
 
 def hflip(image, target):
     flipped_image = F.hflip(image)
+    
+    if not isinstance(image, torch.Tensor):
+        w, h = image.size
 
-    w, h = image.size
+        target = target.copy()
+        if "boxes" in target:
+            boxes = target["boxes"]
+            boxes = boxes[:, [2, 1, 0, 3]] * torch.as_tensor([-1, 1, -1, 1]) + torch.as_tensor([w, 0, w, 0])
+            target["boxes"] = boxes
 
-    target = target.copy()
-    if "boxes" in target:
-        boxes = target["boxes"]
-        boxes = boxes[:, [2, 1, 0, 3]] * torch.as_tensor([-1, 1, -1, 1]) + torch.as_tensor([w, 0, w, 0])
-        target["boxes"] = boxes
+        if "masks" in target:
+            target['masks'] = target['masks'].flip(-1)
 
-    if "masks" in target:
-        target['masks'] = target['masks'].flip(-1)
-
-    return flipped_image, target
+        return flipped_image, target
+    else:
+        c, h, w = image.size()
 
 
 def resize(image, target, size, max_size=None):
@@ -360,7 +363,7 @@ class Normalize(object):
             boxes = boxes / torch.tensor([w, h, w, h], dtype=torch.float32)
             target["boxes"] = boxes
         return image, target
-
+    
 
 class Compose(object):
     def __init__(self, transforms):

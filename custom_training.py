@@ -31,7 +31,7 @@ import numpy as np
 from typing import Tuple, Dict, List, Optional
 from tqdm import tqdm
 from GPUtil import showUtilization as gpu_usage
-
+from torch.cuda.amp import autocast, GradScaler
 
 @decompose
 def decompose_dataset(no_use_count: int, samples: utils.NestedTensor, targets: Dict, origin_samples: utils.NestedTensor, 
@@ -39,25 +39,7 @@ def decompose_dataset(no_use_count: int, samples: utils.NestedTensor, targets: D
     batch_size = len(targets)
     return (batch_size, no_use_count, samples, targets, origin_samples, origin_targets, used_number)
 
-def fake_training(args, epo, idx, count, sum_loss, samples, targets, origin_sam, origin_tar, 
-                      model: torch.nn.Module, criterion: torch.nn.Module, optimizer: torch.optim.Optimizer,
-                      rehearsal_classes, train_check, current_classes):
-    model.eval()
-    criterion.eval()
-    device = torch.device("cuda")
-    ex_device = torch.device("cpu")
-    criterion.train()
-    samples = samples.to(device)
-    targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
-    outputs = model(samples)
-    loss_dict = criterion(outputs, targets)
-    weight_dict = criterion.weight_dict
-    losses = sum(loss_dict[k] * weight_dict[k] for k in loss_dict.keys() if k in weight_dict)
-    
-    optimizer.zero_grad()
-    losses.backward()
-    optimizer.step()
-        
+
 def Original_training(args, epo, idx, count, sum_loss, samples, targets, origin_sam, origin_tar, 
                       model: torch.nn.Module, criterion: torch.nn.Module, optimizer: torch.optim.Optimizer,
                       rehearsal_classes, train_check, current_classes): 
@@ -70,53 +52,60 @@ def Original_training(args, epo, idx, count, sum_loss, samples, targets, origin_
         model.train()
     else:
         model.eval()
-                
+    
     device = torch.device("cuda")
     ex_device = torch.device("cpu")
     criterion.train()
-    samples = samples.to(device)
-    targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
-    outputs = model(samples)
-    loss_dict = criterion(outputs, targets)
-    weight_dict = criterion.weight_dict
-    losses = sum(loss_dict[k] * weight_dict[k] for k in loss_dict.keys() if k in weight_dict)
-    losses_value = losses.item()
+    model.to(device)
+    scaler = GradScaler()
     
-    with torch.no_grad():
-     if train_check == True and args.Rehearsal == True: #* I will use this code line. No delete.
-            targets = [{k: v.to(ex_device) for k, v in t.items()} for t in targets]
-            rehearsal_classes = contruct_rehearsal(losses_value=losses_value, lower_limit=0.1, upper_limit=100, targets=targets, #rehearsal[image_id] = [loss, [unique_index]]
-                                    rehearsal_classes=rehearsal_classes, Current_Classes=current_classes, Rehearsal_Memory=args.Memory)
-    del samples, targets
-    
-    # loss_dict_reduced = utils.reduce_dict(loss_dict, train_check)
-    # if loss_dict_reduced == False:
-    #     losses_reduced_scaled = 0
-    #     loss_dict_reduced_scaled = 0
+    with autocast():
+        samples = samples.to(device)
+        targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
+        #with autocast(False):
+        outputs = model(samples)
+        loss_dict = criterion(outputs, targets)
+        weight_dict = criterion.weight_dict
+        losses = sum(loss_dict[k] * weight_dict[k] for k in loss_dict.keys() if k in weight_dict)
+        losses_value = losses.item()
+               
+        with torch.no_grad():
+            if train_check == True and args.Rehearsal == True: #* I will use this code line. No delete.
+                targets = [{k: v.to(ex_device) for k, v in t.items()} for t in targets]
+                rehearsal_classes = contruct_rehearsal(losses_value=losses_value, lower_limit=0.1, upper_limit=100, 
+                                                    targets=targets,
+                                                    rehearsal_classes=rehearsal_classes, 
+                                                    Current_Classes=current_classes, 
+                                                    Rehearsal_Memory=args.Memory)
+                
+            del samples, targets
+            loss_dict_reduced = utils.reduce_dict(loss_dict, train_check)
+            if loss_dict_reduced == False:
+                losses_reduced_scaled = 0
+                loss_dict_reduced_scaled = 0
+                
+            if loss_dict_reduced != False:
+                count += 1
+                loss_dict_reduced_scaled = {v * weight_dict[k] for k, v in loss_dict_reduced.items() if k in weight_dict}
+                losses_reduced_scaled = sum(loss_dict_reduced_scaled)
         
+            sum_loss += losses_reduced_scaled
+            if utils.is_main_process(): #sum_loss가 GPU의 개수에 맞춰서 더해주고 있으니,
+                check_losses(epo, idx, losses_reduced_scaled, sum_loss, count, current_classes, rehearsal_classes)
+        if args.clip_max_norm > 0:
+            grad_total_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip_max_norm)
+        else:
+            grad_total_norm = utils.get_total_grad_norm(model.parameters(), args.clip_max_norm)
         
-    # if loss_dict_reduced != False:
-    #     count += 1
-    #     loss_dict_reduced_scaled = {v * weight_dict[k] for k, v in loss_dict_reduced.items() if k in weight_dict}
-    #     losses_reduced_scaled = sum(loss_dict_reduced_scaled)
+        scaler.scale(losses).backward()
         
-    sum_loss += losses_value
-    
-    if utils.is_main_process(): #sum_loss가 GPU의 개수에 맞춰서 더해주고 있으니,
-        check_losses(args.verbose, epo, idx, losses_value, sum_loss, count, current_classes, rehearsal_classes)
 
     optimizer.zero_grad()
-    losses.backward()
+    scaler.step(optimizer)
+    scaler.update()
+    dist.barrier()
     
-    if args.clip_max_norm > 0:
-        grad_total_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip_max_norm)
-    else:
-        grad_total_norm = utils.get_total_grad_norm(model.parameters(), args.clip_max_norm)
-    optimizer.step()
-        
-    del origin_sam, origin_tar, loss_dict, outputs, losses#무조건 마지막까지 함께훈련이 되도록 유도
-    torch.cuda.empty_cache()
-    
+    del origin_sam, origin_tar, losses_reduced_scaled, loss_dict_reduced_scaled, loss_dict, outputs, loss_dict_reduced, losses
     return rehearsal_classes, sum_loss, count
 
 def Mosaic_training(args, epo, idx, count, sum_loss, samples, targets,
@@ -124,40 +113,43 @@ def Mosaic_training(args, epo, idx, count, sum_loss, samples, targets,
     torch.cuda.empty_cache()
     device = torch.device("cuda")
     ex_device = torch.device("cpu")
+    
     model.train()
     criterion.train()
-    samples = samples.to(device)
-    targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
-    outputs = model(samples)
-    loss_dict = criterion(outputs, targets)
-    weight_dict = criterion.weight_dict
-    losses = sum(loss_dict[k] * weight_dict[k] for k in loss_dict.keys() if k in weight_dict)
+    scaler = GradScaler()
+    with autocast():
+        
+        samples = samples.to(device)
+        targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
+        outputs = model(samples)
+        loss_dict = criterion(outputs, targets)
+        weight_dict = criterion.weight_dict
+        losses = sum(loss_dict[k] * weight_dict[k] for k in loss_dict.keys() if k in weight_dict)
+        losses_value = losses.item()
+        count += 1
+        del samples, targets
+        
+        loss_dict_reduced = utils.reduce_dict(loss_dict, True)
+            
+        count += 1
+        loss_dict_reduced_scaled = {v * weight_dict[k] for k, v in loss_dict_reduced.items() if k in weight_dict}
+        losses_reduced_scaled = sum(loss_dict_reduced_scaled)
     
-    del samples, targets, 
-    # loss_dict_reduced = utils.reduce_dict(loss_dict, True)
-    
-    # if loss_dict_reduced != False:
-    #     count += 1
-    #     loss_dict_reduced_scaled = {k: v * weight_dict[k]
-    #                                 for k, v in loss_dict_reduced.items() if k in weight_dict}
-    #     losses_reduced_scaled = sum(loss_dict_reduced_scaled.values())
-    # sum_loss += losses_reduced_scaled
-    
-    if utils.is_main_process(): #sum_loss가 GPU의 개수에 맞춰서 더해주고 있으니,
-        check_losses(epo, idx, losses, sum_loss, count, current_classes, None, data_type)
-        if idx % 10 == 0:
-            print(f"current classes is {current_classes}")
+        sum_loss += losses_reduced_scaled
+        if args.clip_max_norm > 0:
+            grad_total_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip_max_norm)
+        else:
+            grad_total_norm = utils.get_total_grad_norm(model.parameters(), args.clip_max_norm) #* inplace format 
 
+        if utils.is_main_process(): #sum_loss가 GPU의 개수에 맞춰서 더해주고 있으니,
+            check_losses(epo, idx, losses_reduced_scaled, sum_loss, count, current_classes, None, data_type)
+            if idx % 10 == 0:
+                print(f"current classes is {current_classes}")
+        scaler.scale(losses).backward()
     optimizer.zero_grad()
-    losses.backward()
-    
-    if args.clip_max_norm > 0:
-        grad_total_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip_max_norm)
-    else:
-        grad_total_norm = utils.get_total_grad_norm(model.parameters(), args.clip_max_norm) #* inplace format 
-    optimizer.step()
-
-    del losses_reduced_scaled, loss_dict_reduced_scaled, loss_dict, outputs, loss_dict_reduced
-    torch.cuda.empty_cache()
+    scaler.step(optimizer)
+    scaler.update()
+    dist.barrier()
+    del loss_dict, outputs, losses
     
     return count, sum_loss

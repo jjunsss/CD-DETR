@@ -332,14 +332,16 @@ def contruct_rehearsal(losses_value: float, lower_limit: float, upper_limit: flo
             label_tensor = target['labels']
             image_id = target['image_id'].item()
             label_tensor_unique = torch.unique(label_tensor)
-            if set(label_tensor_unique.tolist()).issubset(Current_Classes) is False: #if unique tensor composed by Old Dataset, So then Continue iteration
+            label_tensor_unique_list = label_tensor_unique.tolist()
+            if set(label_tensor_unique_list).issubset(Current_Classes) is False: #if unique tensor composed by Old Dataset, So then Continue iteration
                 continue
             
             label_tensor_count = label_tensor.numpy()
             bin = np.bincount(label_tensor_count)
             if image_id in rehearsal_classes.keys():
+                rehearsal_classes[image_id][-1].extend(label_tensor_unique_list)
                 continue
-            label_tensor_unique_list = label_tensor_unique.tolist()
+            
             
             if _check_rehearsal_size(Rehearsal_Memory, rehearsal_classes, *label_tensor_unique_list) == True:
                 rehearsal_classes[image_id] = [losses_value, label_tensor_unique_list]
@@ -443,13 +445,13 @@ def save_model_params(model_without_ddp:model, optimizer:torch.optim, lr_schedul
     }, checkpoint_paths)
 
 import pickle
-def save_rehearsal(task, dir, rehearsal):
+def save_rehearsal(task, dir, rehearsal, epoch):
     #* save the capsulated dataset(Boolean, image_id:int)
     if not os.path.exists(dir):
         os.mkdir(dir)
         print(f"Directroy created")
         
-    dir = dir + str(dist.get_rank()) + "_gpu_rehearsal" + "_task_" + str(task+1)
+    dir = dir + str(dist.get_rank()) + "_gpu_rehearsal" + "_task_" + str(task+1) + "_ep_" + str(epoch)
     with open(dir, 'wb') as f:
         pickle.dump(rehearsal, f)
 
@@ -457,7 +459,8 @@ def save_rehearsal(task, dir, rehearsal):
 import torch.distributed as dist
 def check_training_gpu(train_check):
     world_size = utils.get_world_size()
-
+    
+    
     if world_size < 2:
         return True
     
@@ -516,6 +519,7 @@ def multigpu_rehearsal(dir, limit_memory_size, gpu_counts, task_num,*args):
         #print(temp_array)
         if all(temp_array) == True:
             print(f"********** Done Combined dataset ***********")
+            dist.barrier()
             return merge_dict
         
         over_list = []
@@ -532,3 +536,24 @@ def multigpu_rehearsal(dir, limit_memory_size, gpu_counts, task_num,*args):
             continue
         
         del merge_dict[sorted_result[-1][0]]
+        
+        
+def frozen_backbone(model):
+        #No parameter update
+    #frozen_list = list(filter(lambda x: "backbone" in x, temp))
+    for name, params in model.named_parameters():
+        if "backbone" in name:
+            params.requires_grad = False #if you wanna set frozen the pre parameters for specific Neuron update, so then you could set False
+        else:
+            params.requires_grad = True
+            
+    return model
+
+def melt_backbone(model):
+    for name, params in model.named_parameters():
+        if "backbone" in name:
+            params.requires_grad = True #if you wanna set frozen the pre parameters for specific Neuron update, so then you could set False
+        else:
+            params.requires_grad = True
+            
+    return model
