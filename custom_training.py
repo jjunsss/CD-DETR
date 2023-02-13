@@ -125,13 +125,12 @@ def Mosaic_training(args, epo, idx, count, sum_loss, samples, targets,
         loss_dict = criterion(outputs, targets)
         weight_dict = criterion.weight_dict
         losses = sum(loss_dict[k] * weight_dict[k] for k in loss_dict.keys() if k in weight_dict)
-        losses_value = losses.item()
+        
         count += 1
         del samples, targets
         
         loss_dict_reduced = utils.reduce_dict(loss_dict, True)
             
-        count += 1
         loss_dict_reduced_scaled = {v * weight_dict[k] for k, v in loss_dict_reduced.items() if k in weight_dict}
         losses_reduced_scaled = sum(loss_dict_reduced_scaled)
     

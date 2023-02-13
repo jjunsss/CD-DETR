@@ -91,10 +91,10 @@ def train_one_epoch(args, epo, model: torch.nn.Module, criterion: torch.nn.Modul
         #* For Mosaic Training method
         if MosaicBatch == True and trainable == True:
             samples, targets, _, _ = prefetcher.next() #* Different
-            Mosaic_training(args, epo, idx, count, sum_loss, samples, targets, model, criterion, optimizer, current_classes, "currentmosaic")
+            count, sum_loss = Mosaic_training(args, epo, idx, count, sum_loss, samples, targets, model, criterion, optimizer, current_classes, "currentmosaic")
             
             samples, targets, _, _ = prefetcher.next() #* Next samples
-            Mosaic_training(args, epo, idx, count, sum_loss, samples, targets, model, criterion, optimizer, current_classes, "differentmosaic")
+            count, sum_loss = Mosaic_training(args, epo, idx, count, sum_loss, samples, targets, model, criterion, optimizer, current_classes, "differentmosaic")
         
     if utils.is_main_process():
         print("Total Time : ", time.time() - set_tm)

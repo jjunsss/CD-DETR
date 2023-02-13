@@ -420,7 +420,8 @@ def load_model_params(model: model,
             params.requires_grad = True #if you wanna set frozen the pre parameters for specific Neuron update, so then you could set False
         else:
             params.requires_grad = True
-            
+    
+    print(f"$$$$$$$ Done every model params $$$$$$$$$$")
             
     return model
 
@@ -451,7 +452,7 @@ def save_rehearsal(task, dir, rehearsal, epoch):
         os.mkdir(dir)
         print(f"Directroy created")
         
-    dir = dir + str(dist.get_rank()) + "_gpu_rehearsal" + "_task_" + str(task+1) + "_ep_" + str(epoch)
+    dir = dir + str(dist.get_rank()) + "_gpu_rehearsal" + "_task_" + str(task) + "_ep_" + str(epoch)
     with open(dir, 'wb') as f:
         pickle.dump(rehearsal, f)
 
