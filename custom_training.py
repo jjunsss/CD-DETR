@@ -70,7 +70,7 @@ def Original_training(args, epo, idx, count, sum_loss, samples, targets, origin_
         losses_value = losses.item()
                
         with torch.no_grad():
-            if train_check == True and args.Rehearsal == True: #* I will use this code line. No delete.
+            if train_check and args.Rehearsal: #* I will use this code line. No delete.
                 targets = [{k: v.to(ex_device) for k, v in t.items()} for t in targets]
                 rehearsal_classes = contruct_rehearsal(losses_value=losses_value, lower_limit=0.1, upper_limit=100, 
                                                     targets=targets,
@@ -89,9 +89,10 @@ def Original_training(args, epo, idx, count, sum_loss, samples, targets, origin_
                 loss_dict_reduced_scaled = {v * weight_dict[k] for k, v in loss_dict_reduced.items() if k in weight_dict}
                 losses_reduced_scaled = sum(loss_dict_reduced_scaled)
         
-            sum_loss += losses_reduced_scaled
-            if utils.is_main_process(): #sum_loss가 GPU의 개수에 맞춰서 더해주고 있으니,
-                check_losses(epo, idx, losses_reduced_scaled, sum_loss, count, current_classes, rehearsal_classes)
+                sum_loss += losses_reduced_scaled
+                if utils.is_main_process(): #sum_loss가 GPU의 개수에 맞춰서 더해주고 있으니,
+                    check_losses(epo, idx, losses_reduced_scaled, sum_loss, count, current_classes, rehearsal_classes)
+                    
         if args.clip_max_norm > 0:
             grad_total_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip_max_norm)
         else:
