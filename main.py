@@ -113,11 +113,11 @@ def get_args_parser():
 
     # dataset parameters
     parser.add_argument('--dataset_file', default='coco')
-    parser.add_argument('--coco_path', default='/data/LG/real_dataset/total_dataset/didvepz/', type=str)
+    parser.add_argument('--coco_path', default='/home/user/Desktop/jjunsss/dataset/', type=str)
     parser.add_argument('--file_name', default='./saved_rehearsal', type=str)
     parser.add_argument('--coco_panoptic_path', type=str)
     parser.add_argument('--remove_difficult', action='store_true')
-    parser.add_argument('--output_dir', default='CL_TEST', help='path where to save, empty for no saving')
+    parser.add_argument('--output_dir', default='./', help='path where to save, empty for no saving')
     parser.add_argument('--device', default='cuda',help='device to use for training / testing')
     parser.add_argument('--seed', default=42, type=int)
     

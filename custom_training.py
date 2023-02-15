@@ -57,51 +57,46 @@ def Original_training(args, epo, idx, count, sum_loss, samples, targets, origin_
     ex_device = torch.device("cpu")
     criterion.train()
     model.to(device)
-    scaler = GradScaler()
     torch.cuda.empty_cache()
-    if args.verbose :
-        print(f"target : {[ t['labels']  for t in targets ]} ")
+    # if args.verbose :
+    #     print(f"target : {[ t['labels']  for t in targets ]} ")
     
-    #optimizer = control_lr_backbone(args, optimizer=optimizer, frozen=False)
-    optimizer.zero_grad()
-    with autocast():
-        samples = samples.to(device)
-        targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
-        outputs = model(samples)
-        loss_dict = criterion(outputs, targets)
-        weight_dict = criterion.weight_dict
-        losses = sum(loss_dict[k] * weight_dict[k] for k in loss_dict.keys() if k in weight_dict)
-        losses_value = losses.item()
+
+    samples = samples.to(device)
+    targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
+    outputs = model(samples)
+    loss_dict = criterion(outputs, targets)
+    weight_dict = criterion.weight_dict
+    losses = sum(loss_dict[k] * weight_dict[k] for k in loss_dict.keys() if k in weight_dict)
+    losses_value = losses.item()
                
-        with torch.no_grad():
-            if train_check and args.Rehearsal: #* I will use this code line. No delete.
-                targets = [{k: v.to(ex_device) for k, v in t.items()} for t in targets]
-                rehearsal_classes = contruct_rehearsal(losses_value=losses_value, lower_limit=0.1, upper_limit=100, 
-                                                    targets=targets,
-                                                    rehearsal_classes=rehearsal_classes, 
-                                                    Current_Classes=current_classes, 
-                                                    Rehearsal_Memory=args.Memory)
-                
-            del samples, targets
-            loss_dict_reduced = utils.reduce_dict(loss_dict, train_check)
+    with torch.no_grad():
+        if train_check and args.Rehearsal: #* I will use this code line. No delete.
+            targets = [{k: v.to(ex_device) for k, v in t.items()} for t in targets]
+            rehearsal_classes = contruct_rehearsal(losses_value=losses_value, lower_limit=0.1, upper_limit=100, 
+                                                targets=targets,
+                                                rehearsal_classes=rehearsal_classes, 
+                                                Current_Classes=current_classes, 
+                                                Rehearsal_Memory=args.Memory)
             
-            if loss_dict_reduced != False:
-                count += 1
-                loss_dict_reduced_scaled = {v * weight_dict[k] for k, v in loss_dict_reduced.items() if k in weight_dict}
-                losses_reduced_scaled = sum(loss_dict_reduced_scaled)
+        del samples, targets
+        loss_dict_reduced = utils.reduce_dict(loss_dict, train_check)
         
-                sum_loss += losses_reduced_scaled
-                if utils.is_main_process(): #sum_loss가 GPU의 개수에 맞춰서 더해주고 있으니,
-                    check_losses(epo, idx, losses_reduced_scaled, sum_loss, count, current_classes, rehearsal_classes)
-                    
-        if args.clip_max_norm > 0:
-            grad_total_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip_max_norm)
-        else:
-            grad_total_norm = utils.get_total_grad_norm(model.parameters(), args.clip_max_norm)
+        if loss_dict_reduced != False:
+            count += 1
+            loss_dict_reduced_scaled = {v * weight_dict[k] for k, v in loss_dict_reduced.items() if k in weight_dict}
+            losses_reduced_scaled = sum(loss_dict_reduced_scaled)
+    
+            sum_loss += losses_reduced_scaled
+            if utils.is_main_process(): #sum_loss가 GPU의 개수에 맞춰서 더해주고 있으니,
+                check_losses(epo, idx, losses_reduced_scaled, sum_loss, count, current_classes, rehearsal_classes)
+
         
-    scaler.scale(losses).backward()
-    scaler.step(optimizer)
-    scaler.update()
+    optimizer = control_lr_backbone(args, optimizer=optimizer, frozen=False)
+    optimizer.zero_grad()
+    losses.backward()
+    torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip_max_norm)
+    optimizer.step()
     dist.barrier()
     
     del origin_sam, origin_tar, losses_reduced_scaled, loss_dict_reduced_scaled, loss_dict, outputs, loss_dict_reduced, losses
@@ -118,21 +113,14 @@ def Mosaic_training(args, epo, idx, count, sum_loss, samples, targets,
     model.train()
     criterion.train()
     scaler = GradScaler()
-    optimizer.zero_grad()
-    #optimizer = control_lr_backbone(args, optimizer=optimizer, frozen=True)
-    with autocast():
         
-        samples = samples.to(device)
-        targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
-        outputs = model(samples)
-        loss_dict = criterion(outputs, targets)
-        weight_dict = criterion.weight_dict
-        losses = sum(loss_dict[k] * weight_dict[k] for k in loss_dict.keys() if k in weight_dict)
-        if args.clip_max_norm > 0:
-            grad_total_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip_max_norm)
-        else:
-            grad_total_norm = utils.get_total_grad_norm(model.parameters(), args.clip_max_norm) #* inplace format 
-        
+    samples = samples.to(device)
+    targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
+    outputs = model(samples)
+    loss_dict = criterion(outputs, targets)
+    weight_dict = criterion.weight_dict
+    losses = sum(loss_dict[k] * weight_dict[k] for k in loss_dict.keys() if k in weight_dict)
+
     count += 1
         
     loss_dict_reduced = utils.reduce_dict(loss_dict, True)
@@ -146,10 +134,13 @@ def Mosaic_training(args, epo, idx, count, sum_loss, samples, targets,
         if idx % 10 == 0:
             print(f"current classes is {current_classes}")
                 
-    scaler.scale(losses).backward()
-    scaler.step(optimizer)
-    scaler.update()
+    optimizer = control_lr_backbone(args, optimizer=optimizer, frozen=True)
+    optimizer.zero_grad()
+    losses.backward()
+    torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip_max_norm)
+    optimizer.step()
     dist.barrier()
+
     del samples, targets, loss_dict, outputs, losses,  losses_reduced_scaled, loss_dict_reduced_scaled,  loss_dict_reduced 
     torch.cuda.empty_cache()
     

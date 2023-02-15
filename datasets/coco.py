@@ -144,7 +144,7 @@ def make_coco_transforms(image_set):
         T.Normalize([0.312, 0.315, 0.294], [0.120, 0.122, 0.131]) # third (11.14 ~ )
     ])
 
-    scales = [480, 512, 544, 576, 608, 640, 672, 704, 736, 768, 800]
+    scales = [480, 512, 544, 576, 608, 640, 672, 704, 736]
 
 
     if image_set == 'train':
@@ -178,8 +178,8 @@ def build(image_set, args, img_ids = None, class_ids = None):
     assert root.exists(), f'provided COCO path {root} does not exist'
     mode = 'instances'
     PATHS = {
-        "train": (root / "plustotal/images", root / 'plustotal/output_json' / 'train.json'),
-        "val": (root / 'test' /"images", root / "test" / 'output_json' / 'test.json'),
+        "train": (root / "images", root / 'output_json' / 'train.json'),
+        "val": (root / "images", root / 'output_json' / 'train.json'),
     }
 
     img_folder, ann_file = PATHS[image_set]

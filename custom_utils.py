@@ -398,7 +398,7 @@ def rearrange_rehearsal(rehearsal_classes: dict, current_classes: list) -> dict:
     return rehearsal_classes
 
 def load_model_params(model: model,
-                      dir: str = "/data/LG/real_dataset/total_dataset/test_dir/Continaul_DETR/baseline_ddetr.pth"):
+                      dir: str = "/home/user/Desktop/jjunsss/CL_DDETR/baseline_ddetr.pth"):
     new_model_dict = model.state_dict()
     #temp dir
     checkpoint = torch.load(dir)
