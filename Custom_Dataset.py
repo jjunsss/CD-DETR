@@ -88,7 +88,7 @@ class CustomDataset(torch.utils.data.Dataset):
         self.re_dict = re_dict
         self.keys = list(self.re_dict.keys()) #image_id
         self.old_classes = old_classes
-        self.datasets = build_dataset(image_set='train', args=args, class_ids=old_classes, img_ids=self.keys) 
+        self.datasets = build_dataset(image_set='train', args=args, class_ids=self.old_classes, img_ids=self.keys)
     
     def __len__(self):
         return len(self.datasets)

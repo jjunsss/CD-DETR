@@ -256,7 +256,8 @@ def main(args):
                 raise Exception("Too small rehearsal Dataset. Can't MosaicBatch Augmentation")
             
             check_rehearsal_components(rehearsal_classes, args.verbose)
-            dataset_train, data_loader_train, sampler_train, list_CC = Incre_Dataset(task_idx, args, Divided_Classes) #rehearsal + New task dataset (rehearsal Dataset은 유지하도록 설정)
+            dataset_train, data_loader_train, sampler_train = CombineDataset(args, rehearsal_classes, dataset_train, args.num_workers, 
+                                                                             args.Continual_Batch_size, old_classes=load_replay)  #rehearsal + New task dataset (rehearsal Dataset은 유지하도록 설정)
             if args.Mosaic == True:
                 MosaicBatch = True
         else:
