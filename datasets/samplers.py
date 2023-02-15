@@ -28,7 +28,7 @@ class DistributedSampler(Sampler): # FOR DDP Training, we control total Dataset
         rank (optional): Rank of the current process within num_replicas.
     """
 
-    def __init__(self, dataset, num_replicas=None, rank=None, local_rank=None, local_size=None, shuffle=False):
+    def __init__(self, dataset, num_replicas=None, rank=None, local_rank=None, local_size=None, shuffle=True):
         if num_replicas is None:
             if not dist.is_available():
                 raise RuntimeError("Requires distributed package to be available")

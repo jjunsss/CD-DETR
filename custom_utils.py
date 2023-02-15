@@ -493,7 +493,7 @@ def memory_usage_check(byte_usage):
 
 import pickle
 import os
-def multigpu_rehearsal(dir, limit_memory_size, gpu_counts, task_num,*args):
+def multigpu_rehearsal(dir, limit_memory_size, gpu_counts, task_num, epoch=0, *args):
     '''
         limit_memory_size : args.memory
         rehearsal_classes: Rehearsal classes
@@ -501,7 +501,7 @@ def multigpu_rehearsal(dir, limit_memory_size, gpu_counts, task_num,*args):
     '''
     limit_memory_size = limit_memory_size * gpu_counts
     
-    dir_list = [dir + str(num) +"_gpu_rehearsal_task_" + str(task_num) for num in range(gpu_counts)]
+    dir_list = [dir + str(num) +"_gpu_rehearsal_task_" + str(task_num) + "_ep_" + str(epoch) for num in range(gpu_counts)]
     for each_dir in dir_list:
         if os.path.isfile(each_dir) == False:
             raise Exception("No rehearsal file")
@@ -520,7 +520,7 @@ def multigpu_rehearsal(dir, limit_memory_size, gpu_counts, task_num,*args):
         #print(temp_array)
         if all(temp_array) == True:
             print(f"********** Done Combined dataset ***********")
-            dist.barrier()
+            #dist.barrier()
             return merge_dict
         
         over_list = []
@@ -539,22 +539,12 @@ def multigpu_rehearsal(dir, limit_memory_size, gpu_counts, task_num,*args):
         del merge_dict[sorted_result[-1][0]]
         
         
-def frozen_backbone(model):
-        #No parameter update
-    #frozen_list = list(filter(lambda x: "backbone" in x, temp))
-    for name, params in model.named_parameters():
-        if "backbone" in name:
-            params.requires_grad = False #if you wanna set frozen the pre parameters for specific Neuron update, so then you could set False
-        else:
-            params.requires_grad = True
+def control_lr_backbone(args, optimizer, frozen):
+    if frozen is True:
+        lr = 0.0
+    else:
+        lr = args.lr_backbone
+        
+    optimizer.param_groups[-1]['lr'] = lr
             
-    return model
-
-def melt_backbone(model):
-    for name, params in model.named_parameters():
-        if "backbone" in name:
-            params.requires_grad = True #if you wanna set frozen the pre parameters for specific Neuron update, so then you could set False
-        else:
-            params.requires_grad = True
-            
-    return model
+    return optimizer

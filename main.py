@@ -38,7 +38,7 @@ def get_args_parser():
     parser.add_argument('--lr_backbone', default=2e-5, type=float)
     parser.add_argument('--lr_linear_proj_names', default=['reference_points', 'sampling_offsets'], type=str, nargs='+')
     parser.add_argument('--lr_linear_proj_mult', default=0.1, type=float)
-    parser.add_argument('--batch_size', default=3, type=int)
+    parser.add_argument('--batch_size', default=4, type=int)
     parser.add_argument('--weight_decay', default=1e-4, type=float)
     parser.add_argument('--epochs', default=600, type=int)
     parser.add_argument('--lr_drop', default=10, type=int)
@@ -106,9 +106,9 @@ def get_args_parser():
     # * Loss coefficients
     parser.add_argument('--mask_loss_coef', default=1, type=float)
     parser.add_argument('--dice_loss_coef', default=1, type=float)
-    parser.add_argument('--cls_loss_coef', default=3, type=float)
+    parser.add_argument('--cls_loss_coef', default=2, type=float)
     parser.add_argument('--bbox_loss_coef', default=5, type=float)
-    parser.add_argument('--giou_loss_coef', default=3, type=float)
+    parser.add_argument('--giou_loss_coef', default=2, type=float)
     parser.add_argument('--focal_alpha', default=0.25, type=float)
 
     # dataset parameters
@@ -123,24 +123,23 @@ def get_args_parser():
     
     #* CL Setting 
     parser.add_argument('--pretrained_model', default=None, help='resume from checkpoint')
-    parser.add_argument('--start_epoch', default=1, type=int, metavar='N',help='start epoch')
+    parser.add_argument('--start_epoch', default=0, type=int, metavar='N',help='start epoch')
     parser.add_argument('--start_task', default=1, type=int, metavar='N',help='start task')
     parser.add_argument('--eval', action='store_true')
     parser.add_argument('--verbose', default=False, action='store_true')
     parser.add_argument('--num_workers', default=16, type=int)
     parser.add_argument('--cache_mode', default=False, action='store_true', help='whether to cache images on memory')
-    parser.add_argument('--resume_train', default=False, action='store_true')
 
     #* Continual Learning 
     parser.add_argument('--Task', default=5, type=int, help='The task is the number that divides the entire dataset, like a domain.') #if Task is 1, so then you could use it for normal training.
     parser.add_argument('--Task_Epochs', default=3, type=int, help='each Task epoch, e.g. 1 task is 5 of 10 epoch training.. ')
     parser.add_argument('--Total_Classes', default=59, type=int, help='number of classes in custom COCODataset')
-    parser.add_argument('--Total_Classes_Names', default=True, action='store_true', help="division of classes through class names (DID, PZ, VE). This option is available for LG Dataset")
-    parser.add_argument('--CL_Limited', default=1000, type=int, help='Use Limited Training in CL. If you choose True, you may encounter data imbalance in training.')
+    parser.add_argument('--Total_Classes_Names', default=False, action='store_true', help="division of classes through class names (DID, PZ, VE). This option is available for LG Dataset")
+    parser.add_argument('--CL_Limited', default=1000, type=int, help='Use Limited Training in CL. If you choose False, you may encounter data imbalance in training.')
 
     #* Rehearsal method
-    parser.add_argument('--Rehearsal', default=True, action='store_true', help="use Rehearsal strategy in diverse CL method")
-    parser.add_argument('--Mosaic', default=True, action='store_true', help="use Our CCM strategy in diverse CL method")
+    parser.add_argument('--Rehearsal', default=False, action='store_true', help="use Rehearsal strategy in diverse CL method")
+    parser.add_argument('--Mosaic', default=False, action='store_true', help="use Our CCM strategy in diverse CL method")
     parser.add_argument('--Memory', default=500, type=int, help='memory capacity for rehearsal training')
     parser.add_argument('--Continual_Batch_size', default=4, type=int, help='continual batch training method')
     parser.add_argument('--Rehearsal_file', default='/data/LG/real_dataset/total_dataset/test_dir/Continaul_DETR/Rehearsal_dict/', type=str)
@@ -180,6 +179,8 @@ def main(args):
                 out = True
                 break
         return out
+    
+
     param_dicts = [
         {
             "params":
@@ -188,13 +189,13 @@ def main(args):
             "lr": args.lr,
         },
         {
+            "params": [p for n, p in model_without_ddp.named_parameters() if match_name_keywords(n, args.lr_linear_proj_names) and p.requires_grad],
+            "lr": args.lr * args.lr_linear_proj_mult,
+        },
+        {
             "params": [p for n, p in model_without_ddp.named_parameters() if match_name_keywords(n, args.lr_backbone_names) and p.requires_grad],
             "lr": args.lr_backbone,
         },
-        {
-            "params": [p for n, p in model_without_ddp.named_parameters() if match_name_keywords(n, args.lr_linear_proj_names) and p.requires_grad],
-            "lr": args.lr * args.lr_linear_proj_mult,
-        }
     ]
     if args.sgd:
         optimizer = torch.optim.SGD(param_dicts, lr=args.lr, momentum=0.9,
@@ -228,28 +229,34 @@ def main(args):
     
     if args.start_task != 0:
         start_task = args.start_task
+        
+    load_replay = []
+    for idx in range(start_task):
+        load_replay.extend(Divided_Classes[idx])
     
-    rehearsal_classes = {}
-    old_classes = []
-    task_index = 0
+    #* Load for Replay
+    if args.Rehearsal and (start_task >= 1):
+        rehearsal_classes = multigpu_rehearsal(args.Rehearsal_file, args.Memory, 4, 0, 2, *load_replay) #TODO : 여기 설정 되는 거 변화하는 것도 중요할 듯
+        if len(rehearsal_classes)  == 0:
+            print(f"No rehearsal file")
+            rehearsal_classes = dict()
+    else:
+        rehearsal_classes = dict()
+                
     #TODO : TASK 마다 훈련된 모델이 저장되게 설정해두기
     for task_idx in range(start_task, args.Task):
-
+        print(f"old class list : {load_replay}")
+        
         #New task dataset
         dataset_train, data_loader_train, sampler_train, list_CC = Incre_Dataset(task_idx, args, Divided_Classes) #rehearsal + New task dataset (rehearsal Dataset은 유지하도록 설정)
         MosaicBatch = False
         
-        if task_idx >= 1 and args.Rehearsal and args.resume_train == False:
-            rehearsal_classes = multigpu_rehearsal(args.Rehearsal_file, args.Memory, 4, task_idx)
-            if len(rehearsal_classes)  == 0:
-                print(f"No rehearsal file")
-                
-            old_classes.extend(Divided_Classes[task_idx-1])
-            print(f"old class list : {old_classes}")
+        if task_idx >= 1 and args.Rehearsal:
             if len(rehearsal_classes.keys()) < 5:
                 raise Exception("Too small rehearsal Dataset. Can't MosaicBatch Augmentation")
             
-            dataset_train, data_loader_train = CombineDataset(args, rehearsal_classes, dataset_train, args.num_workers, args.Continual_Batch_size, old_classes=old_classes)#Rehearsal을 사용하는 Task 1 부터는 train_data_loader의 이름 자체를 변경
+            check_rehearsal_components(rehearsal_classes, args.verbose)
+            dataset_train, data_loader_train, sampler_train, list_CC = Incre_Dataset(task_idx, args, Divided_Classes) #rehearsal + New task dataset (rehearsal Dataset은 유지하도록 설정)
             if args.Mosaic == True:
                 MosaicBatch = True
         else:
@@ -271,14 +278,16 @@ def main(args):
             save_model_params(model_without_ddp, optimizer, lr_scheduler, args, args.output_dir, task_idx, int(args.Task), epoch)
             save_rehearsal(task_idx, args.Rehearsal_file, rehearsal_classes, epoch)
             dist.barrier()
+            rehearsal_classes = multigpu_rehearsal(args.Rehearsal_file, args.Memory, 4, task_idx, epoch, *list_CC)
             
         save_model_params(model_without_ddp, optimizer, lr_scheduler, args, args.output_dir, task_idx, int(args.Task), -1)
-        check_rehearsal_components(task_number=task_idx, rehearsal_classes=rehearsal_classes,current_classes=list_CC, output_dir=args.output_dir, print_stat=False, save=False)
+        load_replay.extend(Divided_Classes[task_idx])
+        
+        
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
     print('Training time {}'.format(total_time_str))
 
-    check_rehearsal_components(task_number=task_idx, rehearsal_classes=rehearsal_classes, output_dir=args.output_dir, print_stat=False, save=True)
     
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('Deformable DETR training and evaluation script', parents=[get_args_parser()])

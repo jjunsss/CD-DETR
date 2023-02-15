@@ -29,7 +29,7 @@ def Incre_Dataset(Task_Num, args, Incre_Classes):
             sampler_val = samplers.NodeDistributedSampler(dataset_val, shuffle=False)
         else:
             sampler_train = samplers.DistributedSampler(dataset_train)
-            sampler_val = samplers.DistributedSampler(dataset_val, shuffle=False)
+            sampler_val = samplers.DistributedSampler(dataset_val, shuffle=True)
     else:
         sampler_train = torch.utils.data.RandomSampler(dataset_train)
         sampler_val = torch.utils.data.SequentialSampler(dataset_val)
@@ -112,16 +112,14 @@ class BatchMosaicAug(torch.utils.data.Dataset):
         self.Rehearsal_dataset = datasets.datasets[0] #* Old Data1set
         self.Current_dataset = datasets.datasets[1] #* New Dataset
         
-        self._CCB = CCB_augmentation(self.Datasets,  self.Rehearsal_dataset, self.Current_dataset, self.img_size)
-        self.check = 0
+        if self.Mosaic == True: 
+            self._CCB = CCB_augmentation(self.Datasets,  self.Rehearsal_dataset, self.Current_dataset, self.img_size)
         
     def __len__(self):
             return len(self.Datasets)    
         
     def __getitem__(self, index):
         img, target, origin_img, origin_target = self.Datasets[index]
-        if random.random() > self.Confidence: #! For Randomness
-            self.Mosaic = True
 
         if self.Mosaic == True :
             self.check += 1
@@ -129,7 +127,7 @@ class BatchMosaicAug(torch.utils.data.Dataset):
                         
             return img, target, origin_img, origin_target, Cur_img, Cur_lab, Dif_img, Dif_lab
         else:
-            return img, target, origin_img, origin_target, None, None, None, None
+            return img, target, origin_img, origin_target
 
 
 #For Rehearsal
@@ -147,9 +145,9 @@ def CombineDataset(args, RehearsalData, CurrentDataset, Worker, Batch_size, old_
         if args.cache_mode:
             sampler_train = samplers.NodeDistributedSampler(MosaicBatchDataset)
         else:
-            sampler_train = samplers.DistributedSampler(MosaicBatchDataset)
+            sampler_train = samplers.DistributedSampler(MosaicBatchDataset, shuffle=True)
     else:
-        sampler_train = torch.utils.data.RandomSampler(MosaicBatchDataset)
+        sampler_train = torch.utils.data.RandomSampler(MosaicBatchDataset, shuffle=True)
         
     batch_sampler_train = torch.utils.data.BatchSampler(sampler_train, Batch_size, drop_last=True)
     CombinedLoader = DataLoader(MosaicBatchDataset, batch_sampler=batch_sampler_train,
@@ -157,4 +155,4 @@ def CombineDataset(args, RehearsalData, CurrentDataset, Worker, Batch_size, old_
                         pin_memory=True)
     
     
-    return MosaicBatchDataset, CombinedLoader
+    return MosaicBatchDataset, CombinedLoader, sampler_train

@@ -5,30 +5,31 @@ import os
 import sys
 import torch
 
-def check_rehearsal_components(task_number: int, rehearsal_classes: Dict, current_classes: List, output_dir: str, print_stat: bool=True, save: bool=False):
+def check_rehearsal_components(rehearsal_classes: Dict,print_stat: bool=False):
     '''
         1. check each instance usage capacity
         2. print each classes counts
         3. Instance Summary 
         4. Save information
     '''
+    if len(rehearsal_classes) == 0:
+        raise Exception("No replay classes")
+        return
+    
+    temp_list = [index for _, index in list(rehearsal_classes.values())]
+    replay_classes = set()
+    for value in temp_list:
+        replay_classes.update(value)
+    list(replay_classes).sort()
+    
     if print_stat == True:
         # check each instance usage capacity
-        check_list = [len(list(filter(lambda x: current in x, list(rehearsal_classes.values())[1]))) for current in current_classes]
-        for current, check in zip(current_classes, check_list):
-            print(f"current classes : {current} memory size : {check}")
+        print(rehearsal_classes)
+        check_list = [len(list(filter(lambda x: index in x[1], list(rehearsal_classes.values())))) for index in replay_classes]
         
-    if save == True:
-        if not os.path.exists(output_dir):
-            os.makedirs(output_dir)
+        for i, c in enumerate(replay_classes):
+            print(f"**** class num : {c}, counts : {check_list[i]} ****")
             
-        # redirect the output of the print() function to a file
-        output_file = os.path.join(output_dir, (task_number+1) +'_output.txt')
-        sys.stdout = open(output_file, 'w')
-        for current, check in zip(current_classes, check_list):
-            print(f"current classes : {current} memory size : {check}")
-        sys.stdout.close()
-
 def Memory_checker():
     '''
         To check memory capacity

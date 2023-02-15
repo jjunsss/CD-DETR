@@ -144,7 +144,7 @@ def make_coco_transforms(image_set):
         T.Normalize([0.312, 0.315, 0.294], [0.120, 0.122, 0.131]) # third (11.14 ~ )
     ])
 
-    scales = [480, 512, 544, 576, 608, 640, 672, 704, 736, 768]
+    scales = [480, 512, 544, 576, 608, 640, 672, 704, 736, 768, 800]
 
 
     if image_set == 'train':
@@ -154,11 +154,11 @@ def make_coco_transforms(image_set):
             # T.ColorJitter(),
             # #T.RandomAugmetation(),
             T.RandomSelect(   
-                T.RandomResize(scales, max_size=1333),
+                T.RandomResize(scales, max_size=1200),
                 T.Compose([
                     T.RandomResize([400, 500, 600]),
                     T.RandomSizeCrop(384, 600),
-                    T.RandomResize(scales, max_size=1333),
+                    T.RandomResize(scales, max_size=1200),
                 ])
             ),
             normalize,
