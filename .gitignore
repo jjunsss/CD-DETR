@@ -177,3 +177,5 @@ poetry.toml
 *.png
 Rehearsal_dict/
 .gitignore
+*.txt
+Loss_check.txt

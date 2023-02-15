@@ -26,8 +26,12 @@ def check_components(filesort:str, rehearsal_classes: Dict, print_stat: bool=Fal
     '''
     if len(rehearsal_classes) == 0:
         raise Exception("No replay classes")
-        return
+        
     
+    if filesort == "Limited":
+        print(rehearsal_classes)
+        return
+        
     temp_list = [index for _, index in list(rehearsal_classes.values())]
     replay_classes = set()
     for value in temp_list:
