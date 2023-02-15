@@ -28,6 +28,7 @@ import numpy as np
 from typing import Tuple, Dict, List, Optional
 from tqdm import tqdm
 from custom_training import *
+from custom_prints import check_components
 
 @decompose
 def decompose_dataset(no_use_count: int, samples: utils.NestedTensor, targets: Dict, origin_samples: utils.NestedTensor, origin_targets: Dict, 
@@ -72,7 +73,7 @@ def train_one_epoch(args, epo, model: torch.nn.Module, criterion: torch.nn.Modul
             #TODO : one samples no over / one samples over solve this ! 
             
             #* because MosaicAugmentation Data has not original data
-            no_use, yes_use, label_dict = check_class(args.verbose, True, targets, label_dict, current_classes, CL_Limited=args.CL_Limited) #! Original에 한해서만 Limited Training(현재 Task의 데이터에 대해서만 가정)
+            no_use, yes_use, label_dict = check_class(args.verbose, args.LG , targets, label_dict, current_classes, CL_Limited=args.CL_Limited) #! Original에 한해서만 Limited Training(현재 Task의 데이터에 대해서만 가정)
             samples, targets, origin_samples, origin_targets, train_check = decompose_dataset(no_use_count=len(no_use), samples= samples, targets = targets, origin_samples=origin_samples, origin_targets= origin_targets ,used_number= yes_use)
             trainable = check_training_gpu(train_check=train_check)
             if trainable == False :
@@ -101,6 +102,9 @@ def train_one_epoch(args, epo, model: torch.nn.Module, criterion: torch.nn.Modul
             
         del samples, targets, trainable, train_check
         torch.cuda.empty_cache()
+        
+    #for checking limited Classes Learning
+    check_components("Limited", label_dict, args.verbose)
     if utils.is_main_process():
         print("Total Time : ", time.time() - set_tm)
     return rehearsal_classes

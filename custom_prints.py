@@ -5,7 +5,19 @@ import os
 import sys
 import torch
 
-def check_rehearsal_components(rehearsal_classes: Dict,print_stat: bool=False):
+def write_to_addfile(filename):
+    def decorator(func):
+        def wrapper(*args, **kwargs):
+            original_stdout = sys.stdout
+            with open(filename, "a") as f:
+                sys.stdout = f
+                func(*args, **kwargs)
+                sys.stdout = original_stdout
+        return wrapper
+    return decorator
+
+@write_to_addfile("check_replay_limited.txt")
+def check_components(filesort:str, rehearsal_classes: Dict, print_stat: bool=False):
     '''
         1. check each instance usage capacity
         2. print each classes counts
@@ -24,7 +36,7 @@ def check_rehearsal_components(rehearsal_classes: Dict,print_stat: bool=False):
     
     if print_stat == True:
         # check each instance usage capacity
-        print(rehearsal_classes)
+        print(filesort + "\n")
         check_list = [len(list(filter(lambda x: index in x[1], list(rehearsal_classes.values())))) for index in replay_classes]
         
         for i, c in enumerate(replay_classes):
@@ -43,9 +55,13 @@ def Memory_checker():
     print(f"max allocated Memory : {torch.cuda.max_memory_cached()}")
     print(f"*" * 50)
     
-def over_label_checker(check_list:List , check_list2:List = [], check_list3:List = [], check_list4:List = []):
-    print("overlist: ", check_list, check_list2, check_list3, check_list4)
-    
+def over_label_checker(check_list:List , check_list2:List = None, check_list3:List = None, check_list4:List = None):
+    if check_list2 is None:
+        print("Only one overlist: ", check_list)    
+    else :
+        print("overlist: ", check_list, check_list2, check_list3, check_list4)
+
+@write_to_addfile("Loss_check.txt")
 def check_losses(epoch, index, losses, epoch_loss, count, training_class, rehearsal=None, dtype=None):
     '''
         protect to division zero Error.
@@ -57,7 +73,7 @@ def check_losses(epoch, index, losses, epoch_loss, count, training_class, rehear
     except ZeroDivisionError:
         epoch_total_loss = 0
             
-    if index % 10 == 0: 
+    if index % 30 == 0: 
         print(f"epoch : {epoch}, losses : {losses:05f}, epoch_total_loss : {epoch_total_loss:05f}, count : {count}")
         if rehearsal is not None:
             print(f"total examplar counts : {len(list(rehearsal.keys()))}")

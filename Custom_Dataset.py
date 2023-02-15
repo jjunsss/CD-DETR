@@ -104,11 +104,11 @@ class CustomDataset(torch.utils.data.Dataset):
 
     
 class BatchMosaicAug(torch.utils.data.Dataset):
-    def __init__(self, datasets, CurrentClasses, CCB_augmentation, Mosaic=False ):
+    def __init__(self, datasets, CCB_augmentation, Mosaic=False ):
         self.Datasets = datasets
         self.Confidence = 0
         self.Mosaic = Mosaic
-        self.img_size = (1024, 1024) #변경될 크기(이미지 변경을 위함)
+        self.img_size = (960, 1280) #Height, Width
         self.Rehearsal_dataset = datasets.datasets[0] #* Old Data1set
         self.Current_dataset = datasets.datasets[1] #* New Dataset
         
@@ -122,7 +122,6 @@ class BatchMosaicAug(torch.utils.data.Dataset):
         img, target, origin_img, origin_target = self.Datasets[index]
 
         if self.Mosaic == True :
-            self.check += 1
             Cur_img, Cur_lab, Dif_img, Dif_lab = self._CCB(index)
                         
             return img, target, origin_img, origin_target, Cur_img, Cur_lab, Dif_img, Dif_lab
@@ -133,12 +132,8 @@ class BatchMosaicAug(torch.utils.data.Dataset):
 #For Rehearsal
 def CombineDataset(args, RehearsalData, CurrentDataset, Worker, Batch_size, old_classes):
     OldDataset = CustomDataset(args, RehearsalData, old_classes) #oldDatset[idx]:
-    class_ids = CurrentDataset.class_ids
     CombinedDataset = ConcatDataset([OldDataset, CurrentDataset]) #Old : previous, Current : Now
-    MosaicBatchDataset = BatchMosaicAug(CombinedDataset, class_ids, CCB, args.Mosaic) #* if Mosaic == True -> 1 batch(divided three batch/ False -> 3 batch (only original)
-    
-    print(MosaicBatchDataset[0])
-
+    MosaicBatchDataset = BatchMosaicAug(CombinedDataset, CCB, args.Mosaic) #* if Mosaic == True -> 1 batch(divided three batch/ False -> 3 batch (only original)
     print(f"current Dataset length : {len(CurrentDataset)} -> Rehearsal + Current length : {len(MosaicBatchDataset)}")
     
     if args.distributed:

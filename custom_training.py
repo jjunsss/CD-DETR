@@ -60,6 +60,7 @@ def Original_training(args, epo, idx, count, sum_loss, samples, targets, origin_
     torch.cuda.empty_cache()
     # if args.verbose :
     #     print(f"target : {[ t['labels']  for t in targets ]} ")
+    #     print(f"target : {[ t['size']  for t in targets ]} ")
     
 
     samples = samples.to(device)
@@ -73,7 +74,7 @@ def Original_training(args, epo, idx, count, sum_loss, samples, targets, origin_
     with torch.no_grad():
         if train_check and args.Rehearsal: #* I will use this code line. No delete.
             targets = [{k: v.to(ex_device) for k, v in t.items()} for t in targets]
-            rehearsal_classes = contruct_rehearsal(losses_value=losses_value, lower_limit=0.1, upper_limit=100, 
+            rehearsal_classes = contruct_rehearsal(losses_value=losses_value, lower_limit=0.1, upper_limit=10, 
                                                 targets=targets,
                                                 rehearsal_classes=rehearsal_classes, 
                                                 Current_Classes=current_classes, 

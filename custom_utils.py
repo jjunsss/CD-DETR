@@ -452,7 +452,7 @@ def save_rehearsal(task, dir, rehearsal, epoch):
         os.mkdir(dir)
         print(f"Directroy created")
         
-    dir = dir + str(dist.get_rank()) + "_gpu_rehearsal" + "_task_" + str(task) + "_ep_" + str(epoch)
+    dir = dir + str(dist.get_rank()) + "_gpu_rehearsal_task_" + str(task) + "_ep_" + str(epoch)
     with open(dir, 'wb') as f:
         pickle.dump(rehearsal, f)
 
@@ -493,15 +493,18 @@ def memory_usage_check(byte_usage):
 
 import pickle
 import os
-def multigpu_rehearsal(dir, limit_memory_size, gpu_counts, task_num, epoch=0, *args):
+def multigpu_rehearsal(dir, limit_memory_size, gpu_counts, task, epoch=0, *args):
     '''
         limit_memory_size : args.memory
         rehearsal_classes: Rehearsal classes
-        args : old classes (Not Now classes)
+        gpu_counts : the number of all GPUs
+        args : old classes or current classes 
+        epoch : now epoch
+        task : now task
     '''
     limit_memory_size = limit_memory_size * gpu_counts
     
-    dir_list = [dir + str(num) +"_gpu_rehearsal_task_" + str(task_num) + "_ep_" + str(epoch) for num in range(gpu_counts)]
+    dir_list = [dir + str(num) +"_gpu_rehearsal_task_" + str(task) + "_ep_" + str(epoch) for num in range(gpu_counts)]
     for each_dir in dir_list:
         if os.path.isfile(each_dir) == False:
             raise Exception("No rehearsal file")
@@ -514,13 +517,10 @@ def multigpu_rehearsal(dir, limit_memory_size, gpu_counts, task_num, epoch=0, *a
     
     while True:
         check_list = [len(list(filter(lambda x: index in x[1], list(merge_dict.values())))) for index in args]
-        #print(check_list)
         temp_array = np.array(check_list)
         temp_array = temp_array < limit_memory_size
-        #print(temp_array)
         if all(temp_array) == True:
             print(f"********** Done Combined dataset ***********")
-            #dist.barrier()
             return merge_dict
         
         over_list = []

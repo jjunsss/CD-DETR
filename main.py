@@ -113,13 +113,15 @@ def get_args_parser():
 
     # dataset parameters
     parser.add_argument('--dataset_file', default='coco')
-    parser.add_argument('--coco_path', default='/home/user/Desktop/jjunsss/dataset/', type=str)
+    #parser.add_argument('--coco_path', default='/data/LG/real_dataset/total_dataset/didvepz/', type=str)
+    parser.add_argument('--coco_path', default='/data/COCODIR/', type=str)
     parser.add_argument('--file_name', default='./saved_rehearsal', type=str)
     parser.add_argument('--coco_panoptic_path', type=str)
     parser.add_argument('--remove_difficult', action='store_true')
-    parser.add_argument('--output_dir', default='./', help='path where to save, empty for no saving')
+    parser.add_argument('--output_dir', default='CL_TEST', help='path where to save, empty for no saving')
     parser.add_argument('--device', default='cuda',help='device to use for training / testing')
     parser.add_argument('--seed', default=42, type=int)
+    parser.add_argument('--LG', default=False, action='store_true', help="for LG Dataset process")
     
     #* CL Setting 
     parser.add_argument('--pretrained_model', default=None, help='resume from checkpoint')
@@ -133,7 +135,7 @@ def get_args_parser():
     #* Continual Learning 
     parser.add_argument('--Task', default=5, type=int, help='The task is the number that divides the entire dataset, like a domain.') #if Task is 1, so then you could use it for normal training.
     parser.add_argument('--Task_Epochs', default=3, type=int, help='each Task epoch, e.g. 1 task is 5 of 10 epoch training.. ')
-    parser.add_argument('--Total_Classes', default=59, type=int, help='number of classes in custom COCODataset')
+    parser.add_argument('--Total_Classes', default=80, type=int, help='number of classes in custom COCODataset. e.g. COCO : 80 / LG : 59')
     parser.add_argument('--Total_Classes_Names', default=False, action='store_true', help="division of classes through class names (DID, PZ, VE). This option is available for LG Dataset")
     parser.add_argument('--CL_Limited', default=1000, type=int, help='Use Limited Training in CL. If you choose False, you may encounter data imbalance in training.')
 
@@ -142,7 +144,7 @@ def get_args_parser():
     parser.add_argument('--Mosaic', default=False, action='store_true', help="use Our CCM strategy in diverse CL method")
     parser.add_argument('--Memory', default=500, type=int, help='memory capacity for rehearsal training')
     parser.add_argument('--Continual_Batch_size', default=4, type=int, help='continual batch training method')
-    parser.add_argument('--Rehearsal_file', default='/data/LG/real_dataset/total_dataset/test_dir/Continaul_DETR/Rehearsal_dict/', type=str)
+    parser.add_argument('--Rehearsal_file', default='./Rehearsal_dict/', type=str)
     return parser
 
 def main(args):
@@ -165,8 +167,6 @@ def main(args):
     model.to(device)
     if args.pretrained_model is not None:
         model = load_model_params(model, args.pretrained_model)
-    else:
-        model = load_model_params(model,)
     
     model_without_ddp = model
 
@@ -255,9 +255,9 @@ def main(args):
             if len(rehearsal_classes.keys()) < 5:
                 raise Exception("Too small rehearsal Dataset. Can't MosaicBatch Augmentation")
             
-            check_rehearsal_components(rehearsal_classes, args.verbose)
+            check_components("replay", rehearsal_classes, args.verbose)
             dataset_train, data_loader_train, sampler_train = CombineDataset(args, rehearsal_classes, dataset_train, args.num_workers, 
-                                                                             args.Continual_Batch_size, old_classes=load_replay)  #rehearsal + New task dataset (rehearsal Dataset은 유지하도록 설정)
+                                                                             args.batch_size, old_classes=load_replay) #rehearsal + New task dataset (rehearsal Dataset은 유지하도록 설정)
             if args.Mosaic == True:
                 MosaicBatch = True
         else:
