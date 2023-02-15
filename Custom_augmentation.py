@@ -129,7 +129,7 @@ class CCB(object):
             classes = origin_target["labels"]
         boxes = box_cxcywh_to_xyxy_resize(boxes)
         x1, y1, x2, y2 = boxes.unbind(-1)
-        bboxes = torch.stack([x1, y1, x2, y2, classes.long()], dim=-1).tolist()
+        bboxes = torch.stack([x1, y1, x2, y2, classes.long()], dim=-1)
         #bboxes = torch.stack([x1, y1, x2, y2, classes.long()], dim=-1).tolist()
 
         img, _, _ = self._load_image(index, diff, original_id)
@@ -157,7 +157,9 @@ class CCB(object):
         """
         #이미지 변환 + Box Label 변환
         img = copy.deepcopy(img.permute(1, 2, 0).numpy())
-
+        bboxes[:, :].clamp_(min = 0.0, max=1.0)
+        bboxes.tolist()
+        
         transform = A.Compose([
             A.Resize(height_resized, width_resized)
         ], bbox_params=A.BboxParams(format='albumentations'))
