@@ -123,7 +123,8 @@ class ConvertCocoPolysToMask(object):
         target["size"] = torch.as_tensor([int(h), int(w)])
 
         return image, target
-
+    
+    
 def _origin_transform(image_set):
 
     normalize = T.Compose([
@@ -173,7 +174,7 @@ def make_coco_transforms(image_set):
             # T.ColorJitter(),
             # #T.RandomAugmetation(),
             T.RandomSelect(   
-                T.RandomResize((640, 480), max_size=1333),
+                T.RandomResize(scales, max_size=1333),
                 T.Compose([
                     T.RandomResize([400, 500, 600]),
                     T.RandomSizeCrop(384, 600),

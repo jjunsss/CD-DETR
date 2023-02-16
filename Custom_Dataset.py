@@ -9,6 +9,7 @@ import random
 import albumentations as A
 from util.box_ops import box_cxcywh_to_xyxy_resize, box_cxcywh_to_xyxy, box_xyxy_to_cxcywh
 from Custom_augmentation import CCB
+from torch.utils.data.sampler import SubsetRandomSampler
 
 def Incre_Dataset(Task_Num, args, Incre_Classes):    
     current_classes = Incre_Classes[Task_Num]
@@ -104,16 +105,15 @@ class CustomDataset(torch.utils.data.Dataset):
 
     
 class BatchMosaicAug(torch.utils.data.Dataset):
-    def __init__(self, datasets, CCB_augmentation, Mosaic=False ):
+    def __init__(self, datasets, CCB_augmentation, old_length, Mosaic=False ):
         self.Datasets = datasets
         self.Confidence = 0
         self.Mosaic = Mosaic
         self.img_size = (960, 1280) #Height, Width
-        self.Rehearsal_dataset = datasets.datasets[0] #* Old Data1set
-        self.Current_dataset = datasets.datasets[1] #* New Dataset
-        
+        self.old_length = old_length
         if self.Mosaic == True: 
-            self._CCB = CCB_augmentation(self.Datasets,  self.Rehearsal_dataset, self.Current_dataset, self.img_size)
+            #self._CCB = CCB_augmentation(self.Datasets,  self.Rehearsal_dataset, self.Current_dataset, self.img_size)
+            self._CCB = CCB_augmentation(self.img_size)
         
     def __len__(self):
             return len(self.Datasets)    
@@ -122,20 +122,44 @@ class BatchMosaicAug(torch.utils.data.Dataset):
         img, target, origin_img, origin_target = self.Datasets[index]
 
         if self.Mosaic == True :
-            Cur_img, Cur_lab, Dif_img, Dif_lab = self._CCB(index)
+            Current_mosaic_index = self._Mosaic_index(index,)
+            image_list = []
+            target_list = []
+            for index in Current_mosaic_index:
+                _, _ , o_img, otarget = self.Datasets[index]
+                image_list.append(o_img)
+                target_list.append(otarget)
+                
+            Cur_img, Cur_lab, Dif_img, Dif_lab = self._CCB(image_list, target_list)
                         
             return img, target, origin_img, origin_target, Cur_img, Cur_lab, Dif_img, Dif_lab
         else:
             return img, target, origin_img, origin_target
+    
+    def _Mosaic_index(self, index): #* Done
+        '''
+            Only Mosaic index printed 
+            index : index in dataset (total dataset = old + new )
+            #TODO : count class variables need !! 
+        '''
+        #self.current_id.add(index)
+        #*Curretn Class augmentation / Other class AUgmentation
+        #Mosaic_index = random.sample(range(len(self.Current_dataset)), 3)
+        #Mosaic_index = random.sample(range(len(self.old)), 3)
+        Rehearsal_index = random.sample(range(self.old_length), 3)
+            
+        #Mosaic_index.insert(0, index)
+        Rehearsal_index.insert(0, index)
 
-
+        return random.sample(Rehearsal_index, len(Rehearsal_index))
 #For Rehearsal
 def CombineDataset(args, RehearsalData, CurrentDataset, Worker, Batch_size, old_classes):
     OldDataset = CustomDataset(args, RehearsalData, old_classes) #oldDatset[idx]:
+    old_length = len(OldDataset)
     CombinedDataset = ConcatDataset([OldDataset, CurrentDataset]) #Old : previous, Current : Now
-    MosaicBatchDataset = BatchMosaicAug(CombinedDataset, CCB, args.Mosaic) #* if Mosaic == True -> 1 batch(divided three batch/ False -> 3 batch (only original)
+    MosaicBatchDataset = BatchMosaicAug(CombinedDataset, CCB, old_length, args.Mosaic) #* if Mosaic == True -> 1 batch(divided three batch/ False -> 3 batch (only original)
     print(f"current Dataset length : {len(CurrentDataset)} -> Rehearsal + Current length : {len(MosaicBatchDataset)}")
-    
+    print(f"********** sucess combined Dataset ***********")
     if args.distributed:
         if args.cache_mode:
             sampler_train = samplers.NodeDistributedSampler(MosaicBatchDataset)
@@ -147,7 +171,7 @@ def CombineDataset(args, RehearsalData, CurrentDataset, Worker, Batch_size, old_
     batch_sampler_train = torch.utils.data.BatchSampler(sampler_train, Batch_size, drop_last=True)
     CombinedLoader = DataLoader(MosaicBatchDataset, batch_sampler=batch_sampler_train,
                         collate_fn=utils.collate_fn, num_workers=Worker,
-                        pin_memory=True)
+                        pin_memory=True, prefetch_factor=4)
     
     
     return MosaicBatchDataset, CombinedLoader, sampler_train

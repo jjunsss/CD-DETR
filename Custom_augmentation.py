@@ -36,37 +36,16 @@ def visualize_bboxes(img, bboxes, img_size = (1024, 1024), vertical = False):
         cv2.imwrite("./vertical_"+str(bboxes[0][-1])+".png",img_uint)
     
 class CCB(object):
-    def __init__(self, dataset, old_dataset, new_dataset, image_size):
-        self.dataset = dataset
-        self.old = old_dataset
-        self.new = new_dataset
+    def __init__(self, image_size):
         self.img_size = image_size
-        self.current_id = {}
         
-    def __call__(self, index):
-        Current_mosaic_index, original_index = self._Mosaic_index(index,)
-        Cur_img, Cur_lab, Dif_img, Dif_lab = self._load_mosaic(Current_mosaic_index, original_index)
+    def __call__(self, image_list, target_list):
+        Cur_img, Cur_lab, Dif_img, Dif_lab = self._load_mosaic(image_list, target_list)
         #visualize_bboxes(np.clip(Dif_img.permute(1, 2, 0).numpy(), 0, 1).copy(), Dif_lab['boxes'], self.img_size, True)
         return Cur_img, Cur_lab, Dif_img, Dif_lab
     
-    def _Mosaic_index(self, index): #* Done
-        '''
-            Only Mosaic index printed 
-            index : index in dataset (total dataset = old + new )
-            #TODO : count class variables need !! 
-        '''
-        #self.current_id.add(index)
-        #*Curretn Class augmentation / Other class AUgmentation
-        #Mosaic_index = random.sample(range(len(self.Current_dataset)), 3)
-        #Mosaic_index = random.sample(range(len(self.old)), 3)
-        Rehearsal_index = random.sample(range(len(self.old)), 3)
-            
-        #Mosaic_index.insert(0, index)
-        Rehearsal_index.insert(0, index)
-
-        return random.sample(Rehearsal_index, len(Rehearsal_index)), index
-    
-    def _load_mosaic(self, Current_mosaic_index:List[int], original_id:int):
+   
+    def _load_mosaic(self, image_list, target_list):
         '''
             Current_mosaic_index : For constructing masaic about current classes
             Diff_mosaic_index : For constructing mosaic abhout differenct classes (Not Now classes)
@@ -76,7 +55,7 @@ class CCB(object):
         # loads images in a mosaic
         Mosaic_size = self.img_size #1024, im_w, im_h : 1024
             
-        Current_mosaic_img, Current_mosaic_labels = self._make_batch_mosaic(Current_mosaic_index, Mosaic_size, True, original_id)
+        Current_mosaic_img, Current_mosaic_labels = self._make_batch_mosaic(image_list, target_list, Mosaic_size)
         Current_mosaic_labels = self._make_resized_targets(Current_mosaic_labels)
         
         Diff_mosaic_labels = copy.deepcopy(Current_mosaic_labels)
@@ -84,11 +63,11 @@ class CCB(object):
         Diff_mosaic_labels = self._make_resized_targets(Diff_bbox, Diff_labels)
         return Current_mosaic_img, Current_mosaic_labels, Diff_mosaic_img, Diff_mosaic_labels
 
-    def _make_batch_mosaic(self, mosaic_index, mosaic_size, diff, original_id):
+    def _make_batch_mosaic(self, image_list, target_list, mosaic_size ):
         mosaic_aug_labels = []
-        for i, index in enumerate(mosaic_index):
+        for i, (img, target) in enumerate(zip(image_list, target_list)):
             # Load image
-            transposed_img, transposed_bboxes = self._augment_bboxes(index, diff, original_id) #! cv2.imread 통해서 불러옴. 나는 coco 사용하기에 변경해야 함.
+            transposed_img, transposed_bboxes = self._augment_bboxes(img, target) #! cv2.imread 통해서 불러옴. 나는 coco 사용하기에 변경해야 함.
             channel, height, width = transposed_img.shape
             temp_bbox = transposed_bboxes.clone().detach()
             temp_bbox[:, :-1] /= 2
@@ -115,39 +94,23 @@ class CCB(object):
         #visualize_bboxes(np.clip(mosaic_aug_img.permute(1, 2, 0).numpy(), 0, 1).copy(), mosaic_bboxes, self.img_size)
         return mosaic_aug_img, mosaic_bboxes
     
-    def _augment_bboxes(self, index, diff, original_id): #* Checking
+    def _augment_bboxes(self, img, target): #* Checking
         '''
             maybe index_list is constant shape in clockwise(1:origin / 2:Current Img / 3: Currnt image / 4: Current img)
         '''
         #bboxes = []
-        if diff == True and index != original_id:
-            boxes = self.old[index][3]["boxes"]
-            classes = self.old[index][3]["labels"]
-        else:
-            _, _, _, origin_target = self.dataset[index]
-            boxes = origin_target["boxes"] #* Torch tensor
-            classes = origin_target["labels"]
+        
+        boxes = target["boxes"] #* Torch tensor
+        classes = target["labels"]
+        
         boxes = box_cxcywh_to_xyxy_resize(boxes)
         x1, y1, x2, y2 = boxes.unbind(-1)
         bboxes = torch.stack([x1, y1, x2, y2, classes.long()], dim=-1)
         #bboxes = torch.stack([x1, y1, x2, y2, classes.long()], dim=-1).tolist()
 
-        img, _, _ = self._load_image(index, diff, original_id)
         transposed_img, transposed_bboxesd = self._Resize_for_batchmosaic(img, int(self.img_size[0]/2), int(self.img_size[1]/2), bboxes)
         
         return transposed_img, transposed_bboxesd
-    
-    def _load_image(self, index, diff, original_id:int):#* Done
-        if (diff == True) and (index != original_id):
-            img = self.old[index][2]
-            h0, w0 = self.old[index][3]["orig_size"].tolist()
-        else:
-            # loads 1 image from dataset, returns img, original hw, resized hw
-            img = self.dataset[index][2] #* Original Image
-            h0, w0 = self.dataset[index][3]["orig_size"].tolist()
-
-        #h0, w0 = origin_shape[0].item(), origin_shape[1].item()  # orig hw
-        return img.squeeze(), (h0, w0), img.shape[1:]  # img, hw_original, hw_resized(height, Width)
     
     def _Resize_for_batchmosaic(self, img:torch.Tensor, height_resized, width_resized, bboxes): #* Checking
         """

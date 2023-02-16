@@ -520,7 +520,7 @@ def multigpu_rehearsal(dir, limit_memory_size, gpu_counts, task, epoch=0, *args)
         temp_array = np.array(check_list)
         temp_array = temp_array < limit_memory_size
         if all(temp_array) == True:
-            print(f"********** Done Combined dataset ***********")
+            print(f"********** Done Combined replay data ***********")
             return merge_dict
         
         over_list = []

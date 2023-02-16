@@ -65,10 +65,11 @@ def Original_training(args, epo, idx, count, sum_loss, samples, targets, origin_
 
     samples = samples.to(device)
     targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
-    outputs = model(samples)
-    loss_dict = criterion(outputs, targets)
-    weight_dict = criterion.weight_dict
-    losses = sum(loss_dict[k] * weight_dict[k] for k in loss_dict.keys() if k in weight_dict)
+    with autocast():
+        outputs = model(samples)
+        loss_dict = criterion(outputs, targets)
+        weight_dict = criterion.weight_dict
+        losses = sum(loss_dict[k] * weight_dict[k] for k in loss_dict.keys() if k in weight_dict)
     losses_value = losses.item()
                
     with torch.no_grad():
@@ -117,10 +118,11 @@ def Mosaic_training(args, epo, idx, count, sum_loss, samples, targets,
         
     samples = samples.to(device)
     targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
-    outputs = model(samples)
-    loss_dict = criterion(outputs, targets)
-    weight_dict = criterion.weight_dict
-    losses = sum(loss_dict[k] * weight_dict[k] for k in loss_dict.keys() if k in weight_dict)
+    with autocast():
+        outputs = model(samples)
+        loss_dict = criterion(outputs, targets)
+        weight_dict = criterion.weight_dict
+        losses = sum(loss_dict[k] * weight_dict[k] for k in loss_dict.keys() if k in weight_dict)
 
     count += 1
         
