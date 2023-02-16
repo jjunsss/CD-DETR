@@ -503,14 +503,15 @@ def multigpu_rehearsal(dir, limit_memory_size, gpu_counts, task, epoch=0, *args)
         task : now task
     '''
     limit_memory_size = limit_memory_size * gpu_counts
-    if os.path.exists(dir  + "ALL_gpu_rehearsal_task_" + str(task)) :
-        with open(dir + "ALL_gpu_rehearsal_task_" + str(task), 'rb') as f :
+    all_dir = dir  + "ALL_gpu_rehearsal_task_" + str(task)
+    if os.path.exists(all_dir) :
+        with open(all_dir, 'rb') as f :
             temp = pickle.load(f)
             return temp
         
     dir_list = [dir + str(num) +"_gpu_rehearsal_task_" + str(task) + "_ep_" + str(epoch) for num in range(gpu_counts)]
     for each_dir in dir_list:
-        if os.path.isfile(each_dir) == False:
+        if os.path.exists(each_dir) == False:
             raise Exception("No rehearsal file")
         
     merge_dict = {}
@@ -533,8 +534,7 @@ def multigpu_rehearsal(dir, limit_memory_size, gpu_counts, task, epoch=0, *args)
                 os.mkdir(dir)
                 print(f"Directroy created")
         
-            dir = dir + "ALL_gpu_rehearsal_task_" + str(task)
-            with open(dir, 'wb') as f:
+            with open(all_dir, 'wb') as f:
                 if utils.is_main_process():
                     pickle.dump(merge_dict, f)
 

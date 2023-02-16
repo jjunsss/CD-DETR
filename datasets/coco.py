@@ -147,7 +147,7 @@ def make_coco_transforms(image_set):
         T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])# third (11.14 ~ )
     ])
 
-    scales = [480, 512, 544, 576, 608, 640, 672, 704, 736, 768, 800]
+    scales = [480, 512, 544, 576, 608, 640, 672, 704, 736, ]
 
 
     if image_set == 'LG':
@@ -174,11 +174,11 @@ def make_coco_transforms(image_set):
             # T.ColorJitter(),
             # #T.RandomAugmetation(),
             T.RandomSelect(   
-                T.RandomResize(scales, max_size=1333),
+                T.RandomResize(scales, max_size=1200),
                 T.Compose([
                     T.RandomResize([400, 500, 600]),
                     T.RandomSizeCrop(384, 600),
-                    T.RandomResize(scales, max_size=1333),
+                    T.RandomResize(scales, max_size=1200),
                 ])
             ),
             normalize,

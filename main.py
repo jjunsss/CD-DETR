@@ -236,7 +236,7 @@ def main(args):
     
     #* Load for Replay
     if args.Rehearsal and (start_task >= 1):
-        rehearsal_classes = multigpu_rehearsal(args.Rehearsal_file, args.Memory, 4, 1, 1, *load_replay) #TODO : 여기 설정 되는 거 변화하는 것도 중요할 듯
+        rehearsal_classes = multigpu_rehearsal(args.Rehearsal_file, args.Memory, 4, 0, 4, *load_replay) #TODO : 여기 설정 되는 거 변화하는 것도 중요할 듯
         if len(rehearsal_classes)  == 0:
             print(f"No rehearsal file")
             rehearsal_classes = dict()
