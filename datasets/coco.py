@@ -138,7 +138,12 @@ def _origin_transform(image_set):
             #T.RandomResize([800], max_size=1333),
             normalize,
         ])
-
+        
+    if image_set == 'val':
+            return T.Compose([
+            T.RandomResize([608], max_size=1333),
+            normalize,
+        ])
 def make_coco_transforms(image_set):
 
     normalize = T.Compose([

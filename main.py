@@ -135,7 +135,7 @@ def get_args_parser():
     #* Continual Learning 
     parser.add_argument('--Task', default=5, type=int, help='The task is the number that divides the entire dataset, like a domain.') #if Task is 1, so then you could use it for normal training.
     parser.add_argument('--Task_Epochs', default=3, type=int, help='each Task epoch, e.g. 1 task is 5 of 10 epoch training.. ')
-    parser.add_argument('--Total_Classes', default=80, type=int, help='number of classes in custom COCODataset. e.g. COCO : 80 / LG : 59')
+    parser.add_argument('--Total_Classes', default=90, type=int, help='number of classes in custom COCODataset. e.g. COCO : 80 / LG : 59')
     parser.add_argument('--Total_Classes_Names', default=False, action='store_true', help="division of classes through class names (DID, PZ, VE). This option is available for LG Dataset")
     parser.add_argument('--CL_Limited', default=1000, type=int, help='Use Limited Training in CL. If you choose False, you may encounter data imbalance in training.')
 
@@ -223,6 +223,21 @@ def main(args):
             args.Task = len(Divided_Classes)    
     start_epoch = 0
     start_task = 0
+    
+    DIR = './mAP_TEST.txt'
+    if args.eval:
+        expand_classes = []
+        for task_idx in range(int(args.Task)):
+            expand_classes.extend(Divided_Classes[task_idx])
+            print(f"trained task classes: {Divided_Classes[task_idx]}\t  we check all classes {expand_classes}")
+            dataset_val, data_loader_val, sampler_val, current_classes  = Incre_Dataset(task_idx, args, expand_classes, False)
+            base_ds = get_coco_api_from_dataset(dataset_val)
+            with open(DIR, 'a') as f:
+                f.write(f"NOW TASK num : {task_idx}, checked classes : {expand_classes} \t file_name : {str(os.path.basename(args.pretrained_model))} \n")
+            test_stats, coco_evaluator = evaluate(model, criterion, postprocessors,
+                                            data_loader_val, base_ds, device, args.output_dir, DIR)
+
+        return
     
     if args.start_epoch != 0:
         start_epoch = args.start_epoch
