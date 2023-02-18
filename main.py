@@ -251,15 +251,20 @@ def main(args):
     
     #* Load for Replay
     if args.Rehearsal and (start_task >= 1):
-        rehearsal_classes = multigpu_rehearsal(args.Rehearsal_file, args.Memory, 4, 0, 4, *load_replay) #TODO : 여기 설정 되는 거 변화하는 것도 중요할 듯
+        #rehearsal_classes = load_replay(args.Rehearsal_file, start_task) #TODO : 여기 설정 되는 거 변화하는 것도 중요할 듯
+    
+        rehearsal_classes = multigpu_rehearsal(args.Rehearsal_file, args.Memory, 4, 0, 9, *load_replay) #TODO : 여기 설정 되는 거 변화하는 것도 중요할 듯
         if len(rehearsal_classes)  == 0:
             print(f"No rehearsal file")
             rehearsal_classes = dict()
     else:
         rehearsal_classes = dict()
-                
+    
+    last_task = False        
     #TODO : TASK 마다 훈련된 모델이 저장되게 설정해두기
     for task_idx in range(start_task, args.Task):
+        if task_idx+1 == args.Task:
+            last_task = True
         print(f"old class list : {load_replay}")
         
         #New task dataset
@@ -288,13 +293,14 @@ def main(args):
             #original training
             #TODO: 매 에포크 마다 생성되는 save 파일과 지워지는 rehearsal 없도록 정리.
             rehearsal_classes = train_one_epoch( #save the rehearsal dataset. this method necessary need to clear dataset
-                args, epoch, model, criterion, data_loader_train, optimizer, device, MosaicBatch, list_CC, rehearsal_classes)
+                args, last_task, epoch, model, criterion, data_loader_train, optimizer, device, MosaicBatch, list_CC, rehearsal_classes)
             lr_scheduler.step()
             #if epoch % 2 == 0:
             save_model_params(model_without_ddp, optimizer, lr_scheduler, args, args.output_dir, task_idx, int(args.Task), epoch)
-            save_rehearsal(task_idx, args.Rehearsal_file, rehearsal_classes, epoch)
+            save_rehearsal_for_combine(task_idx, args.Rehearsal_file, rehearsal_classes, epoch)
             dist.barrier()
             rehearsal_classes = multigpu_rehearsal(args.Rehearsal_file, args.Memory, 4, task_idx, epoch, *list_CC)
+            save_replay(rehearsal_classes, args.Rehearsal_file, task_idx)
             
         save_model_params(model_without_ddp, optimizer, lr_scheduler, args, args.output_dir, task_idx, int(args.Task), -1)
         load_replay.extend(Divided_Classes[task_idx])

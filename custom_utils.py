@@ -446,7 +446,7 @@ def save_model_params(model_without_ddp:model, optimizer:torch.optim, lr_schedul
     }, checkpoint_paths)
 
 import pickle
-def save_rehearsal(task, dir, rehearsal, epoch):
+def save_rehearsal_for_combine(task, dir, rehearsal, epoch):
     #* save the capsulated dataset(Boolean, image_id:int)
     if not os.path.exists(dir):
         os.mkdir(dir)
@@ -493,6 +493,23 @@ def memory_usage_check(byte_usage):
 
 import pickle
 import os
+def save_replay(rehearsal, dir, task):    
+    all_dir = dir  + "ALL_gpu_rehearsal_task_" + str(task)
+    if not os.path.exists(dir):
+        os.mkdir(dir)
+        print(f"Directroy created")
+
+    with open(all_dir, 'wb') as f:
+        if utils.is_main_process():
+            pickle.dump(rehearsal, f)
+            
+def load_replay(dir, task):
+    all_dir = dir  + "ALL_gpu_rehearsal_task_" + str(task)
+    if os.path.exists(all_dir) :
+        with open(all_dir, 'rb') as f :
+            temp = pickle.load(f)
+            return temp
+        
 def multigpu_rehearsal(dir, limit_memory_size, gpu_counts, task, epoch=0, *args):
     '''
         limit_memory_size : args.memory
@@ -503,11 +520,7 @@ def multigpu_rehearsal(dir, limit_memory_size, gpu_counts, task, epoch=0, *args)
         task : now task
     '''
     limit_memory_size = limit_memory_size * gpu_counts
-    all_dir = dir  + "ALL_gpu_rehearsal_task_" + str(task)
-    if os.path.exists(all_dir) :
-        with open(all_dir, 'rb') as f :
-            temp = pickle.load(f)
-            return temp
+
         
     dir_list = [dir + str(num) +"_gpu_rehearsal_task_" + str(task) + "_ep_" + str(epoch) for num in range(gpu_counts)]
     for each_dir in dir_list:
@@ -520,24 +533,12 @@ def multigpu_rehearsal(dir, limit_memory_size, gpu_counts, task, epoch=0, *args)
             temp = pickle.load(f)
             merge_dict = {**merge_dict, **temp}
     
-
-    
     while True:
         check_list = [len(list(filter(lambda x: index in x[1], list(merge_dict.values())))) for index in args]
         temp_array = np.array(check_list)
         temp_array = temp_array < limit_memory_size
         if all(temp_array) == True:
             print(f"********** Done Combined replay data ***********")
-
-            #* save the capsulated dataset(Boolean, image_id:int)
-            if not os.path.exists(dir):
-                os.mkdir(dir)
-                print(f"Directroy created")
-        
-            with open(all_dir, 'wb') as f:
-                if utils.is_main_process():
-                    pickle.dump(merge_dict, f)
-
             return merge_dict
 
         over_list = []

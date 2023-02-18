@@ -37,7 +37,7 @@ def decompose_dataset(no_use_count: int, samples: utils.NestedTensor, targets: D
     return (batch_size, no_use_count, samples, targets, origin_samples, origin_targets, used_number)
 
 
-def train_one_epoch(args, epo, model: torch.nn.Module, criterion: torch.nn.Module,
+def train_one_epoch(args, last_task, epo, model: torch.nn.Module, criterion: torch.nn.Module,
                     data_loader: Iterable, optimizer: torch.optim.Optimizer, 
                     device: torch.device, MosaicBatch: Boolean,  
                     current_classes: List = [], rehearsal_classes: Dict = {}):
@@ -88,7 +88,7 @@ def train_one_epoch(args, epo, model: torch.nn.Module, criterion: torch.nn.Modul
     
         if trainable == True:
         #contruct rehearsal buffer in main training
-            rehearsal_classes, sum_loss, count = Original_training(args, epo, idx, count, sum_loss, samples, targets, origin_samples, origin_targets, 
+            rehearsal_classes, sum_loss, count = Original_training(args, last_task, epo, idx, count, sum_loss, samples, targets, origin_samples, origin_targets, 
                                                 model, criterion, optimizer, rehearsal_classes, train_check, current_classes)
 
         early_stopping_count = 0

@@ -40,7 +40,7 @@ def decompose_dataset(no_use_count: int, samples: utils.NestedTensor, targets: D
     return (batch_size, no_use_count, samples, targets, origin_samples, origin_targets, used_number)
 
 
-def Original_training(args, epo, idx, count, sum_loss, samples, targets, origin_sam, origin_tar, 
+def Original_training(args, last_task, epo, idx, count, sum_loss, samples, targets, origin_sam, origin_tar, 
                       model: torch.nn.Module, criterion: torch.nn.Module, optimizer: torch.optim.Optimizer,  
                       rehearsal_classes, train_check, current_classes): 
     '''
@@ -73,7 +73,7 @@ def Original_training(args, epo, idx, count, sum_loss, samples, targets, origin_
     losses_value = losses.item()
                
     with torch.no_grad():
-        if train_check and args.Rehearsal: #* I will use this code line. No delete.
+        if train_check and args.Rehearsal and last_task == False: #* I will use this code line. No delete.
             targets = [{k: v.to(ex_device) for k, v in t.items()} for t in targets]
             rehearsal_classes = contruct_rehearsal(losses_value=losses_value, lower_limit=0.1, upper_limit=10, 
                                                 targets=targets,
