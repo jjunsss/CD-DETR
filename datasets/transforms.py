@@ -360,7 +360,24 @@ class Normalize(object):
             target["boxes"] = boxes
         return image, target
     
-
+class Origin_Normalize(object):
+    def __init__(self, ):
+        pass
+    
+    def __call__(self, image, target=None):
+        image = np.array(image)
+        
+        if target is None:
+            return image, None
+        target = target.copy()
+        h, w = image.shape[:-1]
+        if "boxes" in target:
+            boxes = target["boxes"]
+            boxes = box_xyxy_to_cxcywh(boxes)
+            boxes = boxes / torch.tensor([w, h, w, h], dtype=torch.float32)
+            target["boxes"] = boxes
+        return image, target
+    
 class Compose(object):
     def __init__(self, transforms):
         self.transforms = transforms

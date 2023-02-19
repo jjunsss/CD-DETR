@@ -328,6 +328,7 @@ def collate_fn(batch): #img, target, origin_img, origin_target, Cur_img, Cur_lab
         if isinstance(batch[4][0], NestedTensor) == False:
             batch[4] = nested_tensor_from_tensor_list(batch[4]) #for OldClasses(Original)
         
+    if len(batch) > 6:
         if isinstance(batch[6][0], NestedTensor) == False:
             batch[6] = nested_tensor_from_tensor_list(batch[6]) #for OldClasses(Original)
     return tuple(batch)

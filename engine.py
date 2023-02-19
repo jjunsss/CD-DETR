@@ -45,7 +45,7 @@ def train_one_epoch(args, last_task, epo, model: torch.nn.Module, criterion: tor
     if MosaicBatch == False:    
         prefetcher = data_prefetcher(data_loader, device, prefetch=True, Mosaic=False)
     else:
-        prefetcher = data_prefetcher(data_loader, device, prefetch=True, Mosaic=True)
+        prefetcher = data_prefetcher(data_loader, device, prefetch=True, Mosaic=True, Continual_Batch=args.Continual_Batch_size)
 
 
     set_tm = time.time()
@@ -97,8 +97,9 @@ def train_one_epoch(args, last_task, epo, model: torch.nn.Module, criterion: tor
             samples, targets, _, _ = prefetcher.next() #* Different
             count, sum_loss = Mosaic_training(args, epo, idx, count, sum_loss, samples, targets, model, criterion, optimizer, current_classes, "currentmosaic")
             
-            samples, targets, _, _ = prefetcher.next() #* Next samples
-            count, sum_loss = Mosaic_training(args, epo, idx, count, sum_loss, samples, targets, model, criterion, optimizer, current_classes, "differentmosaic")
+            if args.Continual_Batch_size == 3: 
+                samples, targets, _, _ = prefetcher.next() #* Next samples
+                count, sum_loss = Mosaic_training(args, epo, idx, count, sum_loss, samples, targets, model, criterion, optimizer, current_classes, "FlipBatch")
             
         del samples, targets, trainable, train_check
         torch.cuda.empty_cache()

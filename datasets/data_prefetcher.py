@@ -12,12 +12,13 @@ def to_cuda(samples, targets, device):
     return samples, targets
 
 class data_prefetcher():
-    def __init__(self, loader, device, prefetch=True, Mosaic=False):
+    def __init__(self, loader, device, prefetch=True, Mosaic=False, Continual_Batch=2):
         self.loader = iter(loader)
         self.prefetch = prefetch
         self.device = device
         self.Mosaic = Mosaic
         self.data_gen = None
+        self.Continual_Batch = Continual_Batch
         if prefetch:
             self.stream = torch.cuda.Stream()
             self.preload()
@@ -26,21 +27,30 @@ class data_prefetcher():
         try:
             if self.Mosaic == True:
                 if self.data_gen is None:
-                    self.next_samples, self.next_targets, self.next_origin_samples, self.next_origin_targets, self.next_Current_samples, self.next_Current_target, self.next_Diff_samples, self.next_Diff_targets= next(self.loader)
-                    temp = [[self.next_samples, self.next_targets ,self.next_origin_samples, self.next_origin_targets], [self.next_Current_samples, self.next_Current_target, None, None], [self.next_Diff_samples, self.next_Diff_targets, None, None]]
+                    if self.Continual_Batch == 3:
+                        self.next_samples, self.next_targets, self.next_origin_samples, self.next_origin_targets, self.next_Current_samples, self.next_Current_target, self.next_Diff_samples, self.next_Diff_targets= next(self.loader)
+                        temp = [[self.next_samples, self.next_targets ,self.next_origin_samples, self.next_origin_targets], [self.next_Current_samples, self.next_Current_target, None, None], [self.next_Diff_samples, self.next_Diff_targets, None, None]]
+                    else: #CB = 2
+                        self.next_samples, self.next_targets, self.next_origin_samples, self.next_origin_targets, self.next_Current_samples, self.next_Current_target = next(self.loader)
+                        temp = [[self.next_samples, self.next_targets ,self.next_origin_samples, self.next_origin_targets], [self.next_Current_samples, self.next_Current_target, None, None]]
+                        
                     self.data_gen = self._split_gpu_preload(temp)
                     self.next_samples, self.next_targets, self.next_origin_samples, self.next_origin_targets = next(self.data_gen)
                 elif self.data_gen is not None:
                     self.next_samples, self.next_targets, self.next_origin_samples, self.next_origin_targets = next(self.data_gen, (None, None, None, None))
                     
                     if self.next_samples is None or new == True:
-                        self.next_samples, self.next_targets, self.next_origin_samples, self.next_origin_targets, self.next_Current_samples, self.next_Current_target, self.next_Diff_samples, self.next_Diff_targets= next(self.loader)
-                        temp = [[self.next_samples, self.next_targets ,self.next_origin_samples, self.next_origin_targets], [self.next_Current_samples, self.next_Current_target, None, None], [self.next_Diff_samples, self.next_Diff_targets, None, None]]
+                        if self.Continual_Batch == 3:
+                            self.next_samples, self.next_targets, self.next_origin_samples, self.next_origin_targets, self.next_Current_samples, self.next_Current_target, self.next_Diff_samples, self.next_Diff_targets= next(self.loader)
+                            temp = [[self.next_samples, self.next_targets ,self.next_origin_samples, self.next_origin_targets], [self.next_Current_samples, self.next_Current_target, None, None], [self.next_Diff_samples, self.next_Diff_targets, None, None]]
+                        else: #CB = 2
+                            self.next_samples, self.next_targets, self.next_origin_samples, self.next_origin_targets, self.next_Current_samples, self.next_Current_target = next(self.loader)
+                            temp = [[self.next_samples, self.next_targets ,self.next_origin_samples, self.next_origin_targets], [self.next_Current_samples, self.next_Current_target, None, None]]
                         self.data_gen = self._split_gpu_preload(temp)
                         self.next_samples, self.next_targets, self.next_origin_samples, self.next_origin_targets = next(self.data_gen)
             else:
                 self.next_samples, self.next_targets, self.next_origin_samples, self.next_origin_targets = next(self.loader)
-
+                
         except StopIteration:
             self.next_samples = None
             self.next_targets = None

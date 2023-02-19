@@ -35,7 +35,6 @@ def Incre_Dataset(Task_Num, args, Incre_Classes):
         sampler_train = torch.utils.data.RandomSampler(dataset_train)
         sampler_val = torch.utils.data.SequentialSampler(dataset_val)
         
-    print(f"dataset config :{dataset_train}")
     batch_sampler_train = torch.utils.data.BatchSampler(
         sampler_train, args.batch_size, drop_last=True)
 
@@ -105,34 +104,39 @@ class CustomDataset(torch.utils.data.Dataset):
 
     
 class BatchMosaicAug(torch.utils.data.Dataset):
-    def __init__(self, datasets, CCB_augmentation, old_length, Mosaic=False ):
+    def __init__(self, datasets, CCB_augmentation, old_length, Mosaic=False, Continual_Batch=2):
         self.Datasets = datasets
         self.Confidence = 0
         self.Mosaic = Mosaic
         self.img_size = (960, 1280) #Height, Width
         self.old_length = old_length
+        self.Continual_Batch = Continual_Batch
         if self.Mosaic == True: 
             #self._CCB = CCB_augmentation(self.Datasets,  self.Rehearsal_dataset, self.Current_dataset, self.img_size)
-            self._CCB = CCB_augmentation(self.img_size)
+            self._CCB = CCB_augmentation(self.img_size, self.Continual_Batch)
         
     def __len__(self):
             return len(self.Datasets)    
         
     def __getitem__(self, index):
-        img, target, origin_img, origin_target = self.Datasets[index]
+        img, target, origin_img, origin_target = self.Datasets[index] #No normalize pixel, Normed Targets
 
         if self.Mosaic == True :
             Current_mosaic_index = self._Mosaic_index(index,)
             image_list = []
             target_list = []
             for index in Current_mosaic_index:
-                _, _ , o_img, otarget = self.Datasets[index]
+                _, _ , o_img, otarget = self.Datasets[index] #Numpy image / torch.tensor
                 image_list.append(o_img)
                 target_list.append(otarget)
-                
-            Cur_img, Cur_lab, Dif_img, Dif_lab = self._CCB(image_list, target_list)
-                        
-            return img, target, origin_img, origin_target, Cur_img, Cur_lab, Dif_img, Dif_lab
+            
+            if self.Continual_Batch == 2:
+                Cur_img, Cur_lab = self._CCB(image_list, target_list)
+                return img, target, origin_img, origin_target, Cur_img, Cur_lab
+            
+            if self.Continual_Batch == 3:
+                Cur_img, Cur_lab, Dif_img, Dif_lab = self._CCB(image_list, target_list)
+                return img, target, origin_img, origin_target, Cur_img, Cur_lab, Dif_img, Dif_lab
         else:
             return img, target, origin_img, origin_target
     
@@ -142,11 +146,8 @@ class BatchMosaicAug(torch.utils.data.Dataset):
             index : index in dataset (total dataset = old + new )
             #TODO : count class variables need !! 
         '''
-        #self.current_id.add(index)
         #*Curretn Class augmentation / Other class AUgmentation
-        #Mosaic_index = random.sample(range(len(self.Current_dataset)), 3)
-        #Mosaic_index = random.sample(range(len(self.old)), 3)
-        Rehearsal_index = random.sample(range(self.old_length), 3)
+        Rehearsal_index = random.sample(range(self.old_length), 3) #TODO : sampling method change.
             
         #Mosaic_index.insert(0, index)
         Rehearsal_index.insert(0, index)
@@ -157,16 +158,18 @@ def CombineDataset(args, RehearsalData, CurrentDataset, Worker, Batch_size, old_
     OldDataset = CustomDataset(args, RehearsalData, old_classes) #oldDatset[idx]:
     old_length = len(OldDataset)
     CombinedDataset = ConcatDataset([OldDataset, CurrentDataset]) #Old : previous, Current : Now
-    MosaicBatchDataset = BatchMosaicAug(CombinedDataset, CCB, old_length, args.Mosaic) #* if Mosaic == True -> 1 batch(divided three batch/ False -> 3 batch (only original)
+    MosaicBatchDataset = BatchMosaicAug(CombinedDataset, CCB, old_length, args.Mosaic, args.Continual_Batch_size) #* if Mosaic == True -> 1 batch(divided three batch/ False -> 3 batch (only original)
     print(f"current Dataset length : {len(CurrentDataset)} -> Rehearsal + Current length : {len(MosaicBatchDataset)}")
     print(f"********** sucess combined Dataset ***********")
+    
+    print(MosaicBatchDataset[0])
     if args.distributed:
         if args.cache_mode:
             sampler_train = samplers.NodeDistributedSampler(MosaicBatchDataset)
         else:
             sampler_train = samplers.DistributedSampler(MosaicBatchDataset, shuffle=True)
     else:
-        sampler_train = torch.utils.data.RandomSampler(MosaicBatchDataset, shuffle=True)
+        sampler_train = torch.utils.data.RandomSampler(MosaicBatchDataset)
     
     def worker_init_fn(worker_id):
         torch.manual_seed(worker_id)

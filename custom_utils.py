@@ -333,13 +333,14 @@ def contruct_rehearsal(losses_value: float, lower_limit: float, upper_limit: flo
             image_id = target['image_id'].item()
             label_tensor_unique = torch.unique(label_tensor)
             label_tensor_unique_list = label_tensor_unique.tolist()
-            if set(label_tensor_unique_list).issubset(Current_Classes) is False: #if unique tensor composed by Old Dataset, So then Continue iteration
+            if set(label_tensor_unique_list).issubset(Current_Classes) is False: #if unique tensor composed by Old Dataset, So then pass iteration
                 continue
             
             label_tensor_count = label_tensor.numpy()
             bin = np.bincount(label_tensor_count)
             if image_id in rehearsal_classes.keys():
-                rehearsal_classes[image_id][-1].extend(label_tensor_unique_list)
+                unique_temp_list = list(set(rehearsal_classes[image_id][-1].extend(label_tensor_unique_list)))
+                rehearsal_classes[image_id][-1] = unique_temp_list
                 continue
             
             
@@ -493,7 +494,7 @@ def memory_usage_check(byte_usage):
 
 import pickle
 import os
-def save_replay(rehearsal, dir, task):    
+def save_rehearsal(rehearsal, dir, task):    
     all_dir = dir  + "ALL_gpu_rehearsal_task_" + str(task)
     if not os.path.exists(dir):
         os.mkdir(dir)
@@ -503,8 +504,9 @@ def save_replay(rehearsal, dir, task):
         if utils.is_main_process():
             pickle.dump(rehearsal, f)
             
-def load_replay(dir, task):
+def load_rehearsal(dir, task):
     all_dir = dir  + "ALL_gpu_rehearsal_task_" + str(task)
+    #all_dir = "/home/user/Desktop/jjunsss/CL_DDETR/Rehearsal_dict/0_gpu_rehearsal_task_1_ep_9"
     if os.path.exists(all_dir) :
         with open(all_dir, 'rb') as f :
             temp = pickle.load(f)

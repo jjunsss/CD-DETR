@@ -32,6 +32,7 @@ from typing import Tuple, Dict, List, Optional
 from tqdm import tqdm
 from GPUtil import showUtilization as gpu_usage
 from torch.cuda.amp import autocast, GradScaler
+from custom_fake_target import mosaic_query_selc_to_target, normal_query_selc_to_target
 
 @decompose
 def decompose_dataset(no_use_count: int, samples: utils.NestedTensor, targets: Dict, origin_samples: utils.NestedTensor, 
@@ -67,6 +68,8 @@ def Original_training(args, last_task, epo, idx, count, sum_loss, samples, targe
     targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
     with autocast():
         outputs = model(samples)
+        if args.Fake_Query == True:
+            targets = normal_query_selc_to_target(outputs, targets, current_classes)
         loss_dict = criterion(outputs, targets)
         weight_dict = criterion.weight_dict
         losses = sum(loss_dict[k] * weight_dict[k] for k in loss_dict.keys() if k in weight_dict)
@@ -92,14 +95,14 @@ def Original_training(args, last_task, epo, idx, count, sum_loss, samples, targe
             sum_loss += losses_reduced_scaled
             if utils.is_main_process(): #sum_loss가 GPU의 개수에 맞춰서 더해주고 있으니,
                 check_losses(epo, idx, losses_reduced_scaled, sum_loss, count, current_classes, rehearsal_classes)
-                print(f"epoch : {epo}")
+                print(f"epoch : {epo} \t Loss : {losses_value} \t Total Loss : {sum_loss}")
         
     optimizer = control_lr_backbone(args, optimizer=optimizer, frozen=False)
     optimizer.zero_grad()
     losses.backward()
     torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip_max_norm)
     optimizer.step()
-    dist.barrier()
+    #dist.barrier()
     
     del origin_sam, origin_tar, losses_reduced_scaled, loss_dict_reduced_scaled, loss_dict, outputs, loss_dict_reduced, losses
     torch.cuda.empty_cache()
@@ -120,6 +123,8 @@ def Mosaic_training(args, epo, idx, count, sum_loss, samples, targets,
     targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
     with autocast():
         outputs = model(samples)
+        if args.Fake_Query == True:
+            targets = mosaic_query_selc_to_target(outputs, targets, current_classes)
         loss_dict = criterion(outputs, targets)
         weight_dict = criterion.weight_dict
         losses = sum(loss_dict[k] * weight_dict[k] for k in loss_dict.keys() if k in weight_dict)
@@ -135,6 +140,7 @@ def Mosaic_training(args, epo, idx, count, sum_loss, samples, targets,
     if utils.is_main_process(): #sum_loss가 GPU의 개수에 맞춰서 더해주고 있으니,
         check_losses(epo, idx, losses_reduced_scaled, sum_loss, count, current_classes, None, data_type)
         if idx % 10 == 0:
+            print(f"loss : {losses.item()}")
             print(f"current classes is {current_classes}")
                 
     optimizer = control_lr_backbone(args, optimizer=optimizer, frozen=True)
@@ -142,7 +148,7 @@ def Mosaic_training(args, epo, idx, count, sum_loss, samples, targets,
     losses.backward()
     torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip_max_norm)
     optimizer.step()
-    dist.barrier()
+    #dist.barrier()
 
     del samples, targets, loss_dict, outputs, losses,  losses_reduced_scaled, loss_dict_reduced_scaled,  loss_dict_reduced 
     torch.cuda.empty_cache()

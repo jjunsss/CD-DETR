@@ -125,25 +125,21 @@ class ConvertCocoPolysToMask(object):
         return image, target
     
     
-def _origin_transform(image_set):
-
+def origin_transform(image_set):
     normalize = T.Compose([
-        T.ToTensor(),
-        #T.Normalize([0.312, 0.315, 0.294], [0.120, 0.122, 0.131]) # For LG
-        T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]) #For coco 
+        T.Origin_Normalize() #For Original (No pixel normalization)
     ])
 
     if image_set == 'train':
         return T.Compose([
-            #T.RandomResize([800], max_size=1333),
             normalize,
         ])
-        
+
     if image_set == 'val':
             return T.Compose([
             T.RandomResize([608], max_size=1333),
-            normalize,
         ])
+
 def make_coco_transforms(image_set):
 
     normalize = T.Compose([
@@ -152,7 +148,7 @@ def make_coco_transforms(image_set):
         T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])# third (11.14 ~ )
     ])
 
-    scales = [480, 512, 544, 576, 608, 640, 672, 704, 736, ]
+    scales = [480, 512, 544, 576, 608, 640, 672, 704, 736, 768]
 
 
     if image_set == 'LG':
@@ -213,6 +209,6 @@ def build(image_set, args, img_ids = None, class_ids = None):
     }
 
     img_folder, ann_file = PATHS[image_set]
-    dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms(image_set), origin_transforms=_origin_transform(image_set), return_masks=args.masks,
+    dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms(image_set), origin_transforms=origin_transform(image_set), return_masks=args.masks,
                             cache_mode=args.cache_mode, local_rank=get_local_rank(), local_size=get_local_size(), img_ids=img_ids, class_ids=class_ids)
     return dataset
