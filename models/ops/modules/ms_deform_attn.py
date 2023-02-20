@@ -98,11 +98,36 @@ class MSDeformAttn(nn.Module):
         sampling_offsets = self.sampling_offsets(query).view(N, Len_q, self.n_heads, self.n_levels, self.n_points, 2)
         attention_weights = self.attention_weights(query).view(N, Len_q, self.n_heads, self.n_levels * self.n_points)
         attention_weights = F.softmax(attention_weights, -1).view(N, Len_q, self.n_heads, self.n_levels, self.n_points)
+        
         # N, Len_q, n_heads, n_levels, n_points, 2
         if reference_points.shape[-1] == 2:
-            offset_normalizer = torch.stack([input_spatial_shapes[..., 1], input_spatial_shapes[..., 0]], -1)
-            sampling_locations = reference_points[:, :, None, :, None, :] \
-                                 + sampling_offsets / offset_normalizer[None, None, None, :, None, :]
+            offset_normalizer = torch.stack([input_spatial_shapes[..., 1], input_spatial_shapes[..., 0]], -1) # WIDTH, HEIGHT
+            sampling_locations = reference_points[:, :, None, :, None, :] + sampling_offsets / offset_normalizer[None, None, None, :, None, :]
+            
+            if Len_q != 300 and Len_q == 25500: #No decoder and No Normal Training
+                clone_sampling_locations = sampling_locations.clone()
+                #with torch.no_grad():
+                firstmask = ((reference_points[:, :, None, :, None, 0] < 0.5) & (reference_points[:, :, None, :, None, 1] < 0.5)).unsqueeze(-1)
+                firstmask = firstmask.repeat(repeats=(1, 1, self.n_heads, 1, self.n_points, 2))
+                
+                secmask = ((reference_points[:, :, None, :, None, 0] > 0.5) & (reference_points[:, :, None, :, None, 1] < 0.5)).unsqueeze(-1)
+                secmask = secmask.repeat(repeats=(1, 1, self.n_heads, 1, self.n_points, 2))
+                
+                thirdmask = ((reference_points[:, :, None, :, None, 0] < 0.5) & (reference_points[:, :, None, :, None, 1] > 0.5)).unsqueeze(-1)
+                thirdmask = thirdmask.repeat(repeats=(1, 1, self.n_heads, 1, self.n_points, 2))
+                
+                fourthmask = ((reference_points[:, :, None, :, None, 0] > 0.5) & (reference_points[:, :, None, :, None, 1] > 0.5)).unsqueeze(-1)
+                fourthmask = fourthmask.repeat(repeats=(1, 1, self.n_heads, 1, self.n_points, 2))
+                
+                
+                clone_sampling_locations[..., :] = torch.where(firstmask[..., :], torch.clamp(sampling_locations[..., :], 0, 0.5), sampling_locations[..., :])
+                clone_sampling_locations[..., 0] = torch.where(secmask[..., 0], torch.clamp(sampling_locations[..., 0], 0.5, 1.0), sampling_locations[..., 0])
+                clone_sampling_locations[..., 1] = torch.where(secmask[..., 1], torch.clamp(sampling_locations[..., 1], 0, 0.5), sampling_locations[..., 1])
+                clone_sampling_locations[..., 0] = torch.where(thirdmask[..., 0], torch.clamp(sampling_locations[..., 0], 0, 0.5), sampling_locations[..., 0])
+                clone_sampling_locations[..., 1] = torch.where(thirdmask[..., 1], torch.clamp(sampling_locations[..., 1], 0.5, 1.0), sampling_locations[..., 1])
+                clone_sampling_locations[..., :] = torch.where(fourthmask[..., :], torch.clamp(sampling_locations[..., :], 0.5, 1.0), sampling_locations[..., :])
+                sampling_locations = clone_sampling_locations
+                
         elif reference_points.shape[-1] == 4:
             sampling_locations = reference_points[:, :, None, :, None, :2] \
                                  + sampling_offsets / self.n_points * reference_points[:, :, None, :, None, 2:] * 0.5

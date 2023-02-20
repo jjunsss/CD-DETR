@@ -118,7 +118,7 @@ def get_args_parser():
     parser.add_argument('--file_name', default='./saved_rehearsal', type=str)
     parser.add_argument('--coco_panoptic_path', type=str)
     parser.add_argument('--remove_difficult', action='store_true')
-    parser.add_argument('--output_dir', default='CL_TEST', help='path where to save, empty for no saving')
+    parser.add_argument('--output_dir', default='./TEST/', help='path where to save, empty for no saving')
     parser.add_argument('--device', default='cuda',help='device to use for training / testing')
     parser.add_argument('--seed', default=42, type=int)
     parser.add_argument('--LG', default=False, action='store_true', help="for LG Dataset process")
@@ -140,12 +140,12 @@ def get_args_parser():
     parser.add_argument('--CL_Limited', default=1000, type=int, help='Use Limited Training in CL. If you choose False, you may encounter data imbalance in training.')
 
     #* Rehearsal method
-    parser.add_argument('--Rehearsal', default=False, action='store_true', help="use Rehearsal strategy in diverse CL method")
-    parser.add_argument('--Mosaic', default=False, action='store_true', help="use Our CCM strategy in diverse CL method")
+    parser.add_argument('--Rehearsal', default=True, action='store_true', help="use Rehearsal strategy in diverse CL method")
+    parser.add_argument('--Mosaic', default=True, action='store_true', help="use Our CCM strategy in diverse CL method")
     parser.add_argument('--Memory', default=125, type=int, help='memory capacity for rehearsal training')
     parser.add_argument('--Continual_Batch_size', default=2, type=int, help='continual batch training method')
     parser.add_argument('--Rehearsal_file', default='/data/LG/real_dataset/total_dataset/test_dir/Continaul_DETR/Rehearsal_dict/', type=str)
-    parser.add_argument('--Fake_Query', default=False, action='store_true', help="retaining previous task target through predict query")
+    parser.add_argument('--Fake_Query', default=True, action='store_true', help="retaining previous task target through predict query")
     return parser
 
 def main(args):
@@ -301,7 +301,10 @@ def main(args):
             save_rehearsal_for_combine(task_idx, args.Rehearsal_file, rehearsal_classes, epoch)
             dist.barrier()
             rehearsal_classes = multigpu_rehearsal(args.Rehearsal_file, args.Memory, 4, task_idx, epoch, *list_CC)
-            save_rehearsal(rehearsal_classes, args.Rehearsal_file, task_idx)
+            if utils.is_main_process():
+                save_rehearsal(rehearsal_classes, args.Rehearsal_file, task_idx)
+                
+            dist.barrier()
             
         save_model_params(model_without_ddp, optimizer, lr_scheduler, args, args.output_dir, task_idx, int(args.Task), -1)
         load_replay.extend(Divided_Classes[task_idx])

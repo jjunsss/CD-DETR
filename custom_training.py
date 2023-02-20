@@ -91,11 +91,11 @@ def Original_training(args, last_task, epo, idx, count, sum_loss, samples, targe
             count += 1
             loss_dict_reduced_scaled = {v * weight_dict[k] for k, v in loss_dict_reduced.items() if k in weight_dict}
             losses_reduced_scaled = sum(loss_dict_reduced_scaled)
-    
+
             sum_loss += losses_reduced_scaled
             if utils.is_main_process(): #sum_loss가 GPU의 개수에 맞춰서 더해주고 있으니,
                 check_losses(epo, idx, losses_reduced_scaled, sum_loss, count, current_classes, rehearsal_classes)
-                print(f"epoch : {epo} \t Loss : {losses_value} \t Total Loss : {sum_loss}")
+                print(f"epoch : {epo} \t Loss : {losses_reduced_scaled} \t Total Loss : {sum_loss}")
         
     optimizer = control_lr_backbone(args, optimizer=optimizer, frozen=False)
     optimizer.zero_grad()

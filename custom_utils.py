@@ -339,8 +339,9 @@ def contruct_rehearsal(losses_value: float, lower_limit: float, upper_limit: flo
             label_tensor_count = label_tensor.numpy()
             bin = np.bincount(label_tensor_count)
             if image_id in rehearsal_classes.keys():
-                unique_temp_list = list(set(rehearsal_classes[image_id][-1].extend(label_tensor_unique_list)))
-                rehearsal_classes[image_id][-1] = unique_temp_list
+                temp = set(rehearsal_classes[image_id][-1])
+                temp = temp.update(set(label_tensor_unique_list))
+                rehearsal_classes[image_id][-1] = list(temp)
                 continue
             
             
@@ -447,15 +448,21 @@ def save_model_params(model_without_ddp:model, optimizer:torch.optim, lr_schedul
     }, checkpoint_paths)
 
 import pickle
+import copy
 def save_rehearsal_for_combine(task, dir, rehearsal, epoch):
     #* save the capsulated dataset(Boolean, image_id:int)
     if not os.path.exists(dir):
         os.mkdir(dir)
         print(f"Directroy created")
-        
+
+    temp_dict = copy.deepcopy(rehearsal)
+    for key, value in rehearsal.items():
+        if len(value[-1]) == 0:
+            del temp_dict[key]
+            
     dir = dir + str(dist.get_rank()) + "_gpu_rehearsal_task_" + str(task) + "_ep_" + str(epoch)
     with open(dir, 'wb') as f:
-        pickle.dump(rehearsal, f)
+        pickle.dump(temp_dict, f)
 
 
 import torch.distributed as dist
@@ -503,16 +510,17 @@ def save_rehearsal(rehearsal, dir, task):
     with open(all_dir, 'wb') as f:
         if utils.is_main_process():
             pickle.dump(rehearsal, f)
-            
+    
+    
 def load_rehearsal(dir, task):
     all_dir = dir  + "ALL_gpu_rehearsal_task_" + str(task)
-    #all_dir = "/home/user/Desktop/jjunsss/CL_DDETR/Rehearsal_dict/0_gpu_rehearsal_task_1_ep_9"
+    #all_dir = "/data/LG/real_dataset/total_dataset/test_dir/Continaul_DETR/Rehearsal_dict/0_gpu_rehearsal_task_0_ep_9"
     if os.path.exists(all_dir) :
         with open(all_dir, 'rb') as f :
             temp = pickle.load(f)
             return temp
         
-def multigpu_rehearsal(dir, limit_memory_size, gpu_counts, task, epoch=0, *args):
+def multigpu_rehearsal(dir, limit_memory_size, gpu_counts, task, epoch, *args):
     '''
         limit_memory_size : args.memory
         rehearsal_classes: Rehearsal classes
