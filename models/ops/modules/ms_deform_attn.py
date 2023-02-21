@@ -28,7 +28,7 @@ def _is_power_of_2(n):
 
 
 class MSDeformAttn(nn.Module):
-    def __init__(self, d_model=256, n_levels=4, n_heads=8, n_points=4):
+    def __init__(self, d_model=256, n_levels=4, n_heads=8, n_points=4, attention_regularization=False):
         """
         Multi-Scale Deformable Attention Module
         :param d_model      hidden dimension
@@ -56,7 +56,7 @@ class MSDeformAttn(nn.Module):
         self.attention_weights = nn.Linear(d_model, n_heads * n_levels * n_points)
         self.value_proj = nn.Linear(d_model, d_model)
         self.output_proj = nn.Linear(d_model, d_model)
-
+        self.attention_regularization = attention_regularization
         self._reset_parameters()
 
     def _reset_parameters(self):
@@ -104,7 +104,7 @@ class MSDeformAttn(nn.Module):
             offset_normalizer = torch.stack([input_spatial_shapes[..., 1], input_spatial_shapes[..., 0]], -1) # WIDTH, HEIGHT
             sampling_locations = reference_points[:, :, None, :, None, :] + sampling_offsets / offset_normalizer[None, None, None, :, None, :]
             
-            if Len_q != 300 and Len_q == 25500: #No decoder and No Normal Training
+            if Len_q != 300 and Len_q == 25500 and self.attention_regularization == True: #No decoder and No Normal Training (25500 is 1280 x 960(mosaic training))
                 clone_sampling_locations = sampling_locations.clone()
                 #with torch.no_grad():
                 firstmask = ((reference_points[:, :, None, :, None, 0] < 0.5) & (reference_points[:, :, None, :, None, 1] < 0.5)).unsqueeze(-1)

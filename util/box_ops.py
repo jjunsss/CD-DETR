@@ -53,7 +53,7 @@ def box_iou(boxes1, boxes2):
     iou = inter / union
     return iou, union
 
-import torch.distributed as dist
+
 def generalized_box_iou(boxes1, boxes2):
     """
     Generalized IoU from https://giou.stanford.edu/
@@ -66,8 +66,21 @@ def generalized_box_iou(boxes1, boxes2):
     # degenerate boxes gives inf / nan results
     # so do an early check
     #print(f"gpu number : {dist.get_rank()} boxes : {boxes1} \n boxes2 : {boxes2}")
-    assert (boxes1[:, 2:] >= boxes1[:, :2]).all()
-    assert (boxes2[:, 2:] >= boxes2[:, :2]).all()
+    if (boxes1[:, 2:] <= boxes1[:, :2]).all():
+        print(f"boxes error : {boxes1}")
+        tempbox1 = boxes1
+        tempbox1[:, 2:] = boxes1[:, :2]
+        tempbox1[:, :2] = boxes1[:, 2:]
+        boxes1 = tempbox1
+        
+    if (boxes2[:, 2:] <= boxes2[:, :2]).all():
+        print(f"boxes error : {boxes2}")
+        tempbox2 = boxes2
+        tempbox2[:, 2:] = boxes2[:, :2]
+        tempbox2[:, :2] = boxes2[:, 2:]
+        boxes2 = tempbox2
+    # assert (boxes1[:, 2:] >= boxes1[:, :2]).all()
+    # assert (boxes2[:, 2:] >= boxes2[:, :2]).all()
     iou, union = box_iou(boxes1, boxes2)
 
     lt = torch.min(boxes1[:, None, :2], boxes2[:, :2])

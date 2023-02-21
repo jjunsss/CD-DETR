@@ -340,7 +340,7 @@ def contruct_rehearsal(losses_value: float, lower_limit: float, upper_limit: flo
             bin = np.bincount(label_tensor_count)
             if image_id in rehearsal_classes.keys():
                 temp = set(rehearsal_classes[image_id][-1])
-                temp = temp.update(set(label_tensor_unique_list))
+                temp = temp.union(set(label_tensor_unique_list))
                 rehearsal_classes[image_id][-1] = list(temp)
                 continue
             
@@ -518,6 +518,7 @@ def load_rehearsal(dir, task):
     if os.path.exists(all_dir) :
         with open(all_dir, 'rb') as f :
             temp = pickle.load(f)
+            print(f"********** Done Combined replay data ***********")
             return temp
         
 def multigpu_rehearsal(dir, limit_memory_size, gpu_counts, task, epoch, *args):

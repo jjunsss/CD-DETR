@@ -32,7 +32,7 @@ def normal_query_selc_to_target(outputs, targets, current_classes):
             addlabels = labels[labels < current_classes]
             addboxes = boxes[labels < current_classes]
             area = addboxes[:, 2] * addboxes[:, 3]
-            
+            addboxes += 1e-10
             print("fake query operatrion")
             target["boxes"] = torch.cat((target["boxes"], addboxes))
             target["labels"] = torch.cat((target["labels"], addlabels))
@@ -80,6 +80,7 @@ def mosaic_query_selc_to_target(outputs, targets, current_classes):
             
             if overlapped == False:    
                 area = boxes[src_idx, 2] * boxes[src_idx, 3]
+                addboxes[src_idx] += 1e-10
                 target["boxes"] = torch.cat((target["boxes"], addboxes[src_idx].unsqueeze(0)))
                 target["labels"] = torch.cat((target["labels"], addlabels[src_idx].unsqueeze(0)))
                 #target["area"] = torch.cat((target["area"], area.unsqueeze(0)))

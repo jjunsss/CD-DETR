@@ -124,9 +124,9 @@ def get_args_parser():
     parser.add_argument('--LG', default=False, action='store_true', help="for LG Dataset process")
     
     #* CL Setting 
-    parser.add_argument('--pretrained_model', default="/data/LG/real_dataset/total_dataset/test_dir/Continaul_DETR/COCO_5Epoch_1000Limit_CCBReplay/cp_02_01.pth", help='resume from checkpoint')
+    parser.add_argument('--pretrained_model', default=None, help='resume from checkpoint')
     parser.add_argument('--start_epoch', default=0, type=int, metavar='N',help='start epoch')
-    parser.add_argument('--start_task', default=1, type=int, metavar='N',help='start task')
+    parser.add_argument('--start_task', default=0, type=int, metavar='N',help='start task')
     parser.add_argument('--eval', action='store_true')
     parser.add_argument('--verbose', default=False, action='store_true')
     parser.add_argument('--num_workers', default=16, type=int)
@@ -134,18 +134,19 @@ def get_args_parser():
 
     #* Continual Learning 
     parser.add_argument('--Task', default=2, type=int, help='The task is the number that divides the entire dataset, like a domain.') #if Task is 1, so then you could use it for normal training.
-    parser.add_argument('--Task_Epochs', default=3, type=int, help='each Task epoch, e.g. 1 task is 5 of 10 epoch training.. ')
+    parser.add_argument('--Task_Epochs', default=15, type=int, help='each Task epoch, e.g. 1 task is 5 of 10 epoch training.. ')
     parser.add_argument('--Total_Classes', default=90, type=int, help='number of classes in custom COCODataset. e.g. COCO : 80 / LG : 59')
     parser.add_argument('--Total_Classes_Names', default=False, action='store_true', help="division of classes through class names (DID, PZ, VE). This option is available for LG Dataset")
-    parser.add_argument('--CL_Limited', default=1000, type=int, help='Use Limited Training in CL. If you choose False, you may encounter data imbalance in training.')
+    parser.add_argument('--CL_Limited', default=9999999, type=int, help='Use Limited Training in CL. If you choose False, you may encounter data imbalance in training.')
 
     #* Rehearsal method
-    parser.add_argument('--Rehearsal', default=True, action='store_true', help="use Rehearsal strategy in diverse CL method")
-    parser.add_argument('--Mosaic', default=True, action='store_true', help="use Our CCM strategy in diverse CL method")
+    parser.add_argument('--Rehearsal', default=False, action='store_true', help="use Rehearsal strategy in diverse CL method")
+    parser.add_argument('--Mosaic', default=False, action='store_true', help="use Our CCM strategy in diverse CL method")
+    parser.add_argument('--Fake_Query', default=False, action='store_true', help="retaining previous task target through predict query")
+    parser.add_argument('--Attn_Reg', default=False, action='store_true', help="retaining previous task target through predict query")
     parser.add_argument('--Memory', default=125, type=int, help='memory capacity for rehearsal training')
     parser.add_argument('--Continual_Batch_size', default=2, type=int, help='continual batch training method')
     parser.add_argument('--Rehearsal_file', default='/data/LG/real_dataset/total_dataset/test_dir/Continaul_DETR/Rehearsal_dict/', type=str)
-    parser.add_argument('--Fake_Query', default=True, action='store_true', help="retaining previous task target through predict query")
     return parser
 
 def main(args):
