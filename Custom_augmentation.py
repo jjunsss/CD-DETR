@@ -38,20 +38,10 @@ def visualize_bboxes(img, bboxes, img_size = (1024, 1024), vertical = False):
         cv2.imwrite("./vertical_"+str(bboxes[0][-1])+".png",img)
         
 import torchvision.transforms.functional as F
-class CCB_Normalize(object):
-    def __init__(self, mean =[0.485, 0.456, 0.406], std= [0.229, 0.224, 0.225]):
-        self.mean = mean
-        self.std = std
-        
-    def __call__(self, image, target=None):
-        image = F.to_tensor(image)
-        image = F.normalize(image, mean=self.mean, std=self.std)
-        return image, target            
-    
 class CCB(object):
     def __init__(self, image_size, Continual_Batch = 2):
         self.img_size = image_size
-        self.transformed = CCB_Normalize()
+        self.transformed = origin_transform("custom")
         self.Continual_Batch = Continual_Batch
         
     def __call__(self, image_list, target_list):
@@ -64,7 +54,8 @@ class CCB(object):
         
         if self.Continual_Batch == 2:
             Cur_img, Cur_lab, _, _ = self._load_mosaic(image_list, target_list)
-            Cur_img, Cur_lab = self.transformed(Cur_img, Cur_lab)            
+            Cur_img, Cur_lab = self.transformed(Cur_img, Cur_lab)
+            #visualize_bboxes(np.clip(Cur_img.permute(1, 2, 0).numpy(), 0, 1).copy(), Cur_lab['boxes'], Cur_img.shape[:-1], True)
             return Cur_img, Cur_lab
     
    

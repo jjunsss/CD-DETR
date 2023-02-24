@@ -82,14 +82,47 @@ def DivideTask_for_incre(Task_Counts: int, Total_Classes: int, DivisionOfNames: 
 
 #현재 (Samples, Targets)의 정보를 가진 형태로 데이터가 구성되어 있음(딕셔너리로 각각의 Class 정보를 가진 채로 구성됨)
 #참고로 Samples -> NestedTensor, Target -> List 형태로 구성되어 있음 다만 1개의 
+
+from collections import defaultdict
+import numpy as np
+
+def weight_dataset(re_dict):
+    index_counts = defaultdict(int)
+
+    for value in re_dict.values():
+        for index in value[1]:
+            index_counts[index] += 1
+
+    sorted_classes = sorted(index_counts.items(), key=lambda item : item[0], reverse=False)
+    temp = np.array(sorted_classes, dtype=np.float32)
+    sum_value = np.sum(temp[:, 1])
+    temp[:, 1] /= sum_value
+
+    weight_dict = {}
+    for key, value in temp:
+        weight_dict[int(key)] = value
+        
+    for key, value in re_dict.items():
+        sumvalue = np.sum([weight_dict[class_idx] for class_idx in value[1]])
+        temp_dict_value = re_dict[key]
+        temp_dict_value.append(sumvalue)
+        re_dict[key] = temp_dict_value
+        
+    re_dict = dict(sorted(re_dict.items(), key=lambda item : item[1][-1], reverse=True))
+    keys = list(re_dict.keys())
+    value_array = np.array(list(re_dict.values()), dtype=object)
+    weights = value_array[:, -1].tolist()
+    
+    return keys, weights
+
+import copy
 class CustomDataset(torch.utils.data.Dataset):
-    
     def __init__(self, args, re_dict, old_classes):
-        self.re_dict = re_dict
-        self.keys = list(self.re_dict.keys()) #image_id
+        self.re_dict = copy.deepcopy(re_dict)
         self.old_classes = old_classes
+        self.keys, self.weights = weight_dataset(re_dict)
         self.datasets = build_dataset(image_set='train', args=args, class_ids=self.old_classes, img_ids=self.keys)
-    
+        
     def __len__(self):
         return len(self.datasets)
     
@@ -104,13 +137,15 @@ class CustomDataset(torch.utils.data.Dataset):
 
     
 class BatchMosaicAug(torch.utils.data.Dataset):
-    def __init__(self, datasets, CCB_augmentation, old_length, Mosaic=False, Continual_Batch=2):
+    def __init__(self, datasets, CCB_augmentation, old_length, OldDataset_weights, Mosaic=False, Continual_Batch=2):
         self.Datasets = datasets
+        self.Rehearsal_dataset = datasets.datasets[0]
         self.Confidence = 0
         self.Mosaic = Mosaic
         self.img_size = (960, 1280) #Height, Width
         self.old_length = old_length
         self.Continual_Batch = Continual_Batch
+        self.OldDataset_weights = OldDataset_weights
         if self.Mosaic == True: 
             #self._CCB = CCB_augmentation(self.Datasets,  self.Rehearsal_dataset, self.Current_dataset, self.img_size)
             self._CCB = CCB_augmentation(self.img_size, self.Continual_Batch)
@@ -147,18 +182,22 @@ class BatchMosaicAug(torch.utils.data.Dataset):
             #TODO : count class variables need !! 
         '''
         #*Curretn Class augmentation / Other class AUgmentation
-        Rehearsal_index = random.sample(range(self.old_length), 3) #TODO : sampling method change.
+        assert self.old_length == len(self.OldDataset_weights)
+        
+        Rehearsal_index = random.choices(range(self.old_length), weights=self.OldDataset_weights, k=3) #TODO : sampling method change.
             
         #Mosaic_index.insert(0, index)
         Rehearsal_index.insert(0, index)
-
+        print(f"mosaic index : {Rehearsal_index}")
         return random.sample(Rehearsal_index, len(Rehearsal_index))
+    
 #For Rehearsal
 def CombineDataset(args, RehearsalData, CurrentDataset, Worker, Batch_size, old_classes):
     OldDataset = CustomDataset(args, RehearsalData, old_classes) #oldDatset[idx]:
-    old_length = len(OldDataset)
+    Old_length = len(OldDataset)
+    OldDataset_weights = OldDataset.weights
     CombinedDataset = ConcatDataset([OldDataset, CurrentDataset]) #Old : previous, Current : Now
-    MosaicBatchDataset = BatchMosaicAug(CombinedDataset, CCB, old_length, args.Mosaic, args.Continual_Batch_size) #* if Mosaic == True -> 1 batch(divided three batch/ False -> 3 batch (only original)
+    MosaicBatchDataset = BatchMosaicAug(CombinedDataset, CCB, Old_length, OldDataset_weights, args.Mosaic, args.Continual_Batch_size) #* if Mosaic == True -> 1 batch(divided three batch/ False -> 3 batch (only original)
     print(f"current Dataset length : {len(CurrentDataset)} -> Rehearsal + Current length : {len(MosaicBatchDataset)}")
     print(f"********** sucess combined Dataset ***********")
     
