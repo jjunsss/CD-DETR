@@ -298,8 +298,7 @@ def _dataset_for_memory_check(*args):
     check_target = memory_usage_check(args[3])
     total_memory = check_target + check_sample
 
-        
-    
+
     return total_memory
 
 def _divide_targetset(target: Dict, index: int)-> Dict:

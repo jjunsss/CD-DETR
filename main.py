@@ -33,7 +33,7 @@ from models import build_model
 
 def get_args_parser():
     parser = argparse.ArgumentParser('Deformable DETR Detector', add_help=False)
-    parser.add_argument('--lr', default=1e-4, type=float)
+    parser.add_argument('--lr', default=2e-4, type=float)
     parser.add_argument('--lr_backbone_names', default=["backbone.0"], type=str, nargs='+')
     parser.add_argument('--lr_backbone', default=2e-5, type=float)
     parser.add_argument('--lr_linear_proj_names', default=['reference_points', 'sampling_offsets'], type=str, nargs='+')
@@ -278,7 +278,8 @@ def main(args):
                 raise Exception("Too small rehearsal Dataset. Can't MosaicBatch Augmentation")
             
             check_components("replay", rehearsal_classes, args.verbose)
-            dataset_train, data_loader_train, sampler_train = CombineDataset(args, rehearsal_classes, dataset_train, args.num_workers, 
+            replay_dataset = copy.deepcopy(rehearsal_classes)
+            dataset_train, data_loader_train, sampler_train = CombineDataset(args, replay_dataset, dataset_train, args.num_workers, 
                                                                              args.batch_size, old_classes=load_replay) #rehearsal + New task dataset (rehearsal Dataset은 유지하도록 설정)
             if args.Mosaic == True:
                 MosaicBatch = True
@@ -299,7 +300,8 @@ def main(args):
             lr_scheduler.step()
             #if epoch % 2 == 0:
             save_model_params(model_without_ddp, optimizer, lr_scheduler, args, args.output_dir, task_idx, int(args.Task), epoch)
-            save_rehearsal_for_combine(task_idx, args.Rehearsal_file, rehearsal_classes, epoch)
+            if last_task == True :
+                save_rehearsal_for_combine(task_idx, args.Rehearsal_file, rehearsal_classes, epoch)
             dist.barrier()
             rehearsal_classes = multigpu_rehearsal(args.Rehearsal_file, args.Memory, 4, task_idx, epoch, *list_CC)
             if utils.is_main_process():

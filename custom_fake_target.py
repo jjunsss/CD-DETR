@@ -33,7 +33,7 @@ def normal_query_selc_to_target(outputs, targets, current_classes):
             addboxes = boxes[labels < current_classes]
             area = addboxes[:, 2] * addboxes[:, 3]
             addboxes += 1e-10
-            print("fake query operatrion")
+            print("fake query operation")
             target["boxes"] = torch.cat((target["boxes"], addboxes))
             target["labels"] = torch.cat((target["labels"], addlabels))
             target["area"] = torch.cat((target["area"], area))
@@ -52,7 +52,7 @@ def mosaic_query_selc_to_target(outputs, targets, current_classes):
     boxes = torch.gather(out_bbox, 1, topk_boxes.unsqueeze(-1).repeat(1,1,4))
 
     results = [{'scores': s, 'labels': l, 'boxes': b} for s, l, b in zip(scores, labels, boxes)]
-    threshold = 0.3
+    threshold = 0.5
     current_classes = max(current_classes)
     for target, result in zip(targets, results):
         scores = result["scores"][result["scores"] > threshold]
@@ -83,7 +83,8 @@ def mosaic_query_selc_to_target(outputs, targets, current_classes):
                 addboxes[src_idx] += 1e-10
                 target["boxes"] = torch.cat((target["boxes"], addboxes[src_idx].unsqueeze(0)))
                 target["labels"] = torch.cat((target["labels"], addlabels[src_idx].unsqueeze(0)))
+                print(f"Mosaic fake query operation")
                 #target["area"] = torch.cat((target["area"], area.unsqueeze(0)))
                 #target["iscrowd"] = torch.cat((target["iscrowd"], torch.tensor([0], device = torch.device("cuda"))))
-            
+
     return targets

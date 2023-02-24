@@ -126,10 +126,16 @@ class ConvertCocoPolysToMask(object):
     
     
 def origin_transform(image_set):
+    scales = [480, 512, 544, 576, 608, 640, 672, 704]
     normalize = T.Compose([
         T.Origin_Normalize() #For Original (No pixel normalization)
     ])
-
+    
+    image_normalize = T.Compose([
+        T.ToTensor(),
+        T.image_Normalize() #For Original (No pixel normalization)
+    ])
+    
     if image_set == 'train':
         return T.Compose([
             normalize,
@@ -138,6 +144,13 @@ def origin_transform(image_set):
     if image_set == 'val':
             return T.Compose([
             T.RandomResize([608], max_size=1333),
+        ])
+            
+    if image_set == 'custom':
+        return T.Compose([
+            # [
+            T.RandomResize(scales, max_size=1200),
+            image_normalize,
         ])
 
 def make_coco_transforms(image_set):
@@ -148,7 +161,7 @@ def make_coco_transforms(image_set):
         T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])# third (11.14 ~ )
     ])
 
-    scales = [480, 512, 544, 576, 608, 640, 672, 704, 736, 768]
+    scales = [480, 512, 544, 576, 608, 640, 672, 704]
 
 
     if image_set == 'LG':
@@ -205,7 +218,7 @@ def build(image_set, args, img_ids = None, class_ids = None):
     # }
     PATHS = {
         "train": (root / "train2017", root / 'annotations' / 'instances_train2017.json'),
-        "val": (root / "train2017", root / 'annotations' / 'instances_train2017.json'),
+        "val": (root / "val2017", root / 'annotations' / 'instances_val2017.json'),
     }
 
     img_folder, ann_file = PATHS[image_set]

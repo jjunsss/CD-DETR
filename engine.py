@@ -53,6 +53,7 @@ def train_one_epoch(args, last_task, epo, model: torch.nn.Module, criterion: tor
     count = 0
     label_dict = {} #* 하나의 에포크에서 계속해서 Class Check을 위한 딕셔너리 생성
     early_stopping_count = 0
+    trainable=True
     for idx in tqdm(range(len(data_loader))): #targets 
         with torch.no_grad():
             torch.cuda.empty_cache()
@@ -73,17 +74,18 @@ def train_one_epoch(args, last_task, epo, model: torch.nn.Module, criterion: tor
             #TODO : one samples no over / one samples over solve this ! 
             
             #* because MosaicAugmentation Data has not original data
-            no_use, yes_use, label_dict = check_class(args.verbose, args.LG , targets, label_dict, current_classes, CL_Limited=args.CL_Limited) #! Original에 한해서만 Limited Training(현재 Task의 데이터에 대해서만 가정)
-            samples, targets, origin_samples, origin_targets, train_check = decompose_dataset(no_use_count=len(no_use), samples= samples, targets = targets, origin_samples=origin_samples, origin_targets= origin_targets ,used_number= yes_use)
-            trainable = check_training_gpu(train_check=train_check)
-            if trainable == False :
-                del samples, targets, origin_samples, origin_targets, train_check
-                torch.cuda.empty_cache()
-                early_stopping_count += 1
-                if MosaicBatch == True :
-                    _, _, _, _ = prefetcher.next(new = True)
-                    
-                continue
+            if args.CL_Limited is not False:
+                no_use, yes_use, label_dict = check_class(args.verbose, args.LG , targets, label_dict, current_classes, CL_Limited=args.CL_Limited) #! Original에 한해서만 Limited Training(현재 Task의 데이터에 대해서만 가정)
+                samples, targets, origin_samples, origin_targets, train_check = decompose_dataset(no_use_count=len(no_use), samples= samples, targets = targets, origin_samples=origin_samples, origin_targets= origin_targets ,used_number= yes_use)
+                trainable = check_training_gpu(train_check=train_check)
+                if trainable == False :
+                    del samples, targets, origin_samples, origin_targets, train_check
+                    torch.cuda.empty_cache()
+                    early_stopping_count += 1
+                    if MosaicBatch == True :
+                        _, _, _, _ = prefetcher.next(new = True)
+                        
+                    continue
                 
     
         if trainable == True:
@@ -101,7 +103,7 @@ def train_one_epoch(args, last_task, epo, model: torch.nn.Module, criterion: tor
                 samples, targets, _, _ = prefetcher.next() #* Next samples
                 count, sum_loss = Mosaic_training(args, epo, idx, count, sum_loss, samples, targets, model, criterion, optimizer, current_classes, "FlipBatch")
             
-        del samples, targets, trainable, train_check
+        del samples, targets, train_check
         torch.cuda.empty_cache()
         
     #for checking limited Classes Learning

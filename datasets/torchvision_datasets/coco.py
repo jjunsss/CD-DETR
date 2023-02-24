@@ -34,7 +34,7 @@ class CocoDetection(VisionDataset):
         super(CocoDetection, self).__init__(root, transforms, transform, target_transform)
         from pycocotools.coco import COCO
         self.coco = COCO(annFile)
-        self.ids = list(sorted(self.coco.imgs.keys())) if ids_list == None else sorted(ids_list)
+        self.ids = list(sorted(self.coco.imgs.keys())) if ids_list == None else ids_list
         self.class_ids = class_ids
         
         if class_ids is not None and ids_list == None:

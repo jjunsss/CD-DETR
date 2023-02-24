@@ -111,6 +111,8 @@ def resize(image, target, size, max_size=None):
         else:
             return get_size_with_aspect_ratio(image_size, size, max_size)
 
+    if isinstance(image, np.ndarray):
+        image = PIL.Image.fromarray(image)
     size = get_size(image.size, size, max_size)
     rescaled_image = F.resize(image, size)
 
@@ -376,6 +378,15 @@ class Origin_Normalize(object):
             boxes = box_xyxy_to_cxcywh(boxes)
             boxes = boxes / torch.tensor([w, h, w, h], dtype=torch.float32)
             target["boxes"] = boxes
+        return image, target
+
+class image_Normalize(object):
+    def __init__(self, mean =[0.485, 0.456, 0.406], std= [0.229, 0.224, 0.225]):
+        self.mean = mean
+        self.std = std
+    
+    def __call__(self, image, target=None):
+        image = F.normalize(image, mean=self.mean, std=self.std)
         return image, target
     
 class Compose(object):
