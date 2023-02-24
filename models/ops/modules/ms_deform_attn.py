@@ -56,7 +56,6 @@ class MSDeformAttn(nn.Module):
         self.attention_weights = nn.Linear(d_model, n_heads * n_levels * n_points)
         self.value_proj = nn.Linear(d_model, d_model)
         self.output_proj = nn.Linear(d_model, d_model)
-        self.attention_regularization = attention_regularization
         self._reset_parameters()
 
     def _reset_parameters(self):
@@ -75,7 +74,7 @@ class MSDeformAttn(nn.Module):
         xavier_uniform_(self.output_proj.weight.data)
         constant_(self.output_proj.bias.data, 0.)
 
-    def forward(self, query, reference_points, input_flatten, input_spatial_shapes, input_level_start_index, input_padding_mask=None):
+    def forward(self, query, reference_points, input_flatten, input_spatial_shapes, input_level_start_index, input_padding_mask=None, attn_reg=False):
         """
         :param query                       (N, Length_{query}, C)
         :param reference_points            (N, Length_{query}, n_levels, 2), range in [0, 1], top-left (0,0), bottom-right (1, 1), including padding area
@@ -90,7 +89,7 @@ class MSDeformAttn(nn.Module):
         N, Len_q, _ = query.shape
         N, Len_in, _ = input_flatten.shape
         assert (input_spatial_shapes[:, 0] * input_spatial_shapes[:, 1]).sum() == Len_in
-
+        # print(f"len : {attn_reg}")
         value = self.value_proj(input_flatten)
         if input_padding_mask is not None:
             value = value.masked_fill(input_padding_mask[..., None], float(0))
@@ -104,7 +103,7 @@ class MSDeformAttn(nn.Module):
             offset_normalizer = torch.stack([input_spatial_shapes[..., 1], input_spatial_shapes[..., 0]], -1) # WIDTH, HEIGHT
             sampling_locations = reference_points[:, :, None, :, None, :] + sampling_offsets / offset_normalizer[None, None, None, :, None, :]
             
-            if Len_q != 300 and Len_q == 25500 and self.attention_regularization == True: #No decoder and No Normal Training (25500 is 1280 x 960(mosaic training))
+            if Len_q != 300 and attn_reg == True: #No decoder and No Normal Training (25500 is 1280 x 960(mosaic training))
                 clone_sampling_locations = sampling_locations.clone()
                 #with torch.no_grad():
                 firstmask = ((reference_points[:, :, None, :, None, 0] < 0.5) & (reference_points[:, :, None, :, None, 1] < 0.5)).unsqueeze(-1)
@@ -127,7 +126,7 @@ class MSDeformAttn(nn.Module):
                 clone_sampling_locations[..., 1] = torch.where(thirdmask[..., 1], torch.clamp(sampling_locations[..., 1], 0.5, 1.0), sampling_locations[..., 1])
                 clone_sampling_locations[..., :] = torch.where(fourthmask[..., :], torch.clamp(sampling_locations[..., :], 0.5, 1.0), sampling_locations[..., :])
                 sampling_locations = clone_sampling_locations
-                
+
         elif reference_points.shape[-1] == 4:
             sampling_locations = reference_points[:, :, None, :, None, :2] \
                                  + sampling_offsets / self.n_points * reference_points[:, :, None, :, None, 2:] * 0.5

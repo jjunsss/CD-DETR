@@ -48,7 +48,6 @@ def Original_training(args, last_task, epo, idx, count, sum_loss, samples, targe
         Only Training Original Data or (Transformed image, Transformed Target).
         This is not Mosaic Data.
     '''
-
     if train_check :
         model.train()
     else:
@@ -65,15 +64,16 @@ def Original_training(args, last_task, epo, idx, count, sum_loss, samples, targe
     
 
     samples = samples.to(device)
-    targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
     with autocast():
-        outputs = model(samples)
+        outputs = model(samples, ~args.Attn_Reg)
+        targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
         if args.Fake_Query == True:
             targets = normal_query_selc_to_target(outputs, targets, current_classes)
         loss_dict = criterion(outputs, targets)
-        weight_dict = criterion.weight_dict
-        losses = sum(loss_dict[k] * weight_dict[k] for k in loss_dict.keys() if k in weight_dict)
-    losses_value = losses.item()
+        if loss_dict is not False:
+            weight_dict = criterion.weight_dict
+            losses = sum(loss_dict[k] * weight_dict[k] for k in loss_dict.keys() if k in weight_dict)
+            losses_value = losses.item()
                
     with torch.no_grad():
         if train_check and args.Rehearsal and last_task == False: #* I will use this code line. No delete.
@@ -97,7 +97,7 @@ def Original_training(args, last_task, epo, idx, count, sum_loss, samples, targe
                 check_losses(epo, idx, losses_reduced_scaled, sum_loss, count, current_classes, rehearsal_classes)
                 print(f"epoch : {epo} \t Loss : {losses_value} \t Total Loss : {losses_reduced_scaled}")
         
-    optimizer = control_lr_backbone(args, optimizer=optimizer, frozen=False)
+    #optimizer = control_lr_backbone(args, optimizer=optimizer, frozen=False)
     optimizer.zero_grad()
     losses.backward()
     torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip_max_norm)
@@ -114,7 +114,6 @@ def Mosaic_training(args, epo, idx, count, sum_loss, samples, targets,
     torch.cuda.empty_cache()
     device = torch.device("cuda")
     ex_device = torch.device("cpu")
-    
     model.train()
     criterion.train()
     scaler = GradScaler()
@@ -122,7 +121,7 @@ def Mosaic_training(args, epo, idx, count, sum_loss, samples, targets,
     samples = samples.to(device)
     targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
     with autocast():
-        outputs = model(samples)
+        outputs = model(samples, args.Attn_Reg)
         if args.Fake_Query == True:
             targets = mosaic_query_selc_to_target(outputs, targets, current_classes)
         loss_dict = criterion(outputs, targets)
@@ -139,11 +138,12 @@ def Mosaic_training(args, epo, idx, count, sum_loss, samples, targets,
 
     if utils.is_main_process(): #sum_loss가 GPU의 개수에 맞춰서 더해주고 있으니,
         check_losses(epo, idx, losses_reduced_scaled, sum_loss, count, current_classes, None, data_type)
+        print(f"mosaic :  \t Loss : {losses.item()} \t Total Loss : {losses_reduced_scaled}")
         if idx % 10 == 0:
             print(f"loss : {losses.item()}")
             print(f"current classes is {current_classes}")
                 
-    optimizer = control_lr_backbone(args, optimizer=optimizer, frozen=True)
+    #optimizer = control_lr_backbone(args, optimizer=optimizer, frozen=True)
     optimizer.zero_grad()
     losses.backward()
     torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip_max_norm)
