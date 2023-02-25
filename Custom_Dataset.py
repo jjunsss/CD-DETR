@@ -140,6 +140,7 @@ class BatchMosaicAug(torch.utils.data.Dataset):
     def __init__(self, datasets, CCB_augmentation, old_length, OldDataset_weights, Mosaic=False, Continual_Batch=2):
         self.Datasets = datasets
         self.Rehearsal_dataset = datasets.datasets[0]
+        self.current_dataset = datasets.datasets[1]
         self.Confidence = 0
         self.Mosaic = Mosaic
         self.img_size = (960, 1280) #Height, Width
@@ -184,11 +185,13 @@ class BatchMosaicAug(torch.utils.data.Dataset):
         #*Curretn Class augmentation / Other class AUgmentation
         assert self.old_length == len(self.OldDataset_weights)
         
-        Rehearsal_index = random.choices(range(self.old_length), weights=self.OldDataset_weights, k=3) #TODO : sampling method change.
+        Rehearsal_index = random.choices(range(self.old_length), weights=self.OldDataset_weights, k=2) #TODO : sampling method change.
+        current_index = random.choices(range(self.old_length, len(self.Datasets)), k=1) #TODO : sampling method change.
             
         #Mosaic_index.insert(0, index)
         Rehearsal_index.insert(0, index)
-        print(f"mosaic index : {Rehearsal_index}")
+        Rehearsal_index.insert(0, current_index[0])
+        #print(f"mosaic index : {Rehearsal_index}")
         return random.sample(Rehearsal_index, len(Rehearsal_index))
     
 #For Rehearsal

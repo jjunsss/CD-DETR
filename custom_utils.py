@@ -512,7 +512,7 @@ def save_rehearsal(rehearsal, dir, task):
     
     
 def load_rehearsal(dir, task):
-    all_dir = dir  + "ALL_gpu_rehearsal_task_" + str(task)
+    all_dir = dir  + "ALL_gpu_rehearsal_task_" + str(task) + "_100"
     #all_dir = "/data/LG/real_dataset/total_dataset/test_dir/Continaul_DETR/Rehearsal_dict/0_gpu_rehearsal_task_0_ep_9"
     if os.path.exists(all_dir) :
         with open(all_dir, 'rb') as f :
