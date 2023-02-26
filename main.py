@@ -169,9 +169,11 @@ def main(args):
     model.to(device)
     if args.pretrained_model is not None:
         model = load_model_params(model, args.pretrained_model)
+        
     
     model_without_ddp = model
-
+    teacher_model = model_without_ddp
+    
     #* collate_fn : 최종 출력시에 모든 배치값에 할당해주는 함수를 말함. 여기서는 Nested Tensor 호출을 의미함.
     # lr_backbone_names = ["backbone.0", "backbone.neck", "input_proj", "transformer.encoder"]
     def match_name_keywords(n, name_keywords):
@@ -296,9 +298,8 @@ def main(args):
             #original training
             #TODO: 매 에포크 마다 생성되는 save 파일과 지워지는 rehearsal 없도록 정리.
             rehearsal_classes = train_one_epoch( #save the rehearsal dataset. this method necessary need to clear dataset
-                args, last_task, epoch, model, criterion, data_loader_train, optimizer, device, MosaicBatch, list_CC, rehearsal_classes)
+                args, last_task, epoch, model, teacher_model, criterion, data_loader_train, optimizer, device, MosaicBatch, list_CC, rehearsal_classes)
             lr_scheduler.step()
-            #if epoch % 2 == 0:
             save_model_params(model_without_ddp, optimizer, lr_scheduler, args, args.output_dir, task_idx, int(args.Task), epoch)
             if last_task == True :
                 save_rehearsal_for_combine(task_idx, args.Rehearsal_file, rehearsal_classes, epoch)
@@ -311,7 +312,7 @@ def main(args):
             
         save_model_params(model_without_ddp, optimizer, lr_scheduler, args, args.output_dir, task_idx, int(args.Task), -1)
         load_replay.extend(Divided_Classes[task_idx])
-        
+        teacher_model = model_without_ddp #Trained Model Change in change TASK 
         
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))

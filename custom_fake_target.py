@@ -4,7 +4,7 @@ from torch import nn
 import math
 
 from util import box_ops
-
+import random
 
 def normal_query_selc_to_target(outputs, targets, current_classes):
     out_logits, out_bbox = outputs['pred_logits'], outputs['pred_boxes']
@@ -32,13 +32,46 @@ def normal_query_selc_to_target(outputs, targets, current_classes):
             addlabels = labels[labels < current_classes]
             addboxes = boxes[labels < current_classes]
             area = addboxes[:, 2] * addboxes[:, 3]
-            addboxes += 1e-10
+            random_contorl = random.uniform(-1e-10, +1e-10)
+            addboxes += random_contorl
             print("fake query operation")
             target["boxes"] = torch.cat((target["boxes"], addboxes))
             target["labels"] = torch.cat((target["labels"], addlabels))
             target["area"] = torch.cat((target["area"], area))
             target["iscrowd"] = torch.cat((target["iscrowd"], torch.tensor([0], device = torch.device("cuda"))))
         
+    return targets
+
+def only_oldset_mosaic_query_selc_to_target(outputs, targets, current_classes):
+    out_logits, out_bbox = outputs['pred_logits'], outputs['pred_boxes']
+    
+    prob = out_logits.sigmoid()
+    topk_values, topk_indexes = torch.topk(prob.view(out_logits.shape[0], -1), 30, dim=1)
+    scores = topk_values
+    topk_boxes = topk_indexes // out_logits.shape[2]
+    labels = topk_indexes % out_logits.shape[2]
+    boxes = torch.gather(out_bbox, 1, topk_boxes.unsqueeze(-1).repeat(1,1,4))
+    results = [{'scores': s, 'labels': l, 'boxes': b} for s, l, b in zip(scores, labels, boxes)]
+    threshold = 0.5
+    current_classes = min(current_classes)
+    for target, result in zip(targets, results):
+        if target["labels"][target["labels"] >= current_classes].shape[0] > 0: #New Class에서만 동작하도록 구성
+            continue
+        
+        scores = result["scores"][result["scores"] > threshold]
+        labels = result["labels"][result["scores"] > threshold] 
+        boxes = result["boxes"][result["scores"] > threshold]
+        
+        if labels[labels >= current_classes].size(0) > 0:
+            addlabels = labels[labels >= current_classes]
+            addboxes = boxes[labels >= current_classes]
+            area = addboxes[:, 2] * addboxes[:, 3]   
+            random_contorl = random.uniform(-1e-10, +1e-10)
+            addboxes += random_contorl
+            print("new fake query operation")
+            target["boxes"] = torch.cat((target["boxes"], addboxes))
+            target["labels"] = torch.cat((target["labels"], addlabels))            
+            
     return targets
 
 def mosaic_query_selc_to_target(outputs, targets, current_classes):

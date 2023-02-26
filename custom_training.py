@@ -32,7 +32,7 @@ from typing import Tuple, Dict, List, Optional
 from tqdm import tqdm
 from GPUtil import showUtilization as gpu_usage
 from torch.cuda.amp import autocast, GradScaler
-from custom_fake_target import mosaic_query_selc_to_target, normal_query_selc_to_target
+from custom_fake_target import mosaic_query_selc_to_target, normal_query_selc_to_target, only_oldset_mosaic_query_selc_to_target
 
 @decompose
 def decompose_dataset(no_use_count: int, samples: utils.NestedTensor, targets: Dict, origin_samples: utils.NestedTensor, 
@@ -53,19 +53,16 @@ def Original_training(args, last_task, epo, idx, count, sum_loss, samples, targe
     else:
         model.eval()
     
+
     device = torch.device("cuda")
     ex_device = torch.device("cpu")
     criterion.train()
     model.to(device)
     torch.cuda.empty_cache()
-    if args.verbose :
-        print(f"current target number : {[ t['labels']  for t in targets ]} ")
-        #print(f"target : {[ t['size']  for t in targets ]} ")
-    
 
     samples = samples.to(device)
     with autocast(False):
-        outputs = model(samples, ~args.Attn_Reg)
+        outputs = model(samples)
         targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
         if args.Fake_Query == True:
             targets = normal_query_selc_to_target(outputs, targets, current_classes)
@@ -74,7 +71,7 @@ def Original_training(args, last_task, epo, idx, count, sum_loss, samples, targe
             weight_dict = criterion.weight_dict
             losses = sum(loss_dict[k] * weight_dict[k] for k in loss_dict.keys() if k in weight_dict)
             losses_value = losses.item()
-               
+
     with torch.no_grad():
         if train_check and args.Rehearsal and last_task == False: #* I will use this code line. No delete.
             targets = [{k: v.to(ex_device) for k, v in t.items()} for t in targets]
@@ -102,28 +99,40 @@ def Original_training(args, last_task, epo, idx, count, sum_loss, samples, targe
     losses.backward()
     torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip_max_norm)
     optimizer.step()
-    #dist.barrier()
     
     del origin_sam, origin_tar, losses_reduced_scaled, loss_dict_reduced_scaled, loss_dict, outputs, loss_dict_reduced, losses
     torch.cuda.empty_cache()
     return rehearsal_classes, sum_loss, count
 
-def Mosaic_training(args, epo, idx, count, sum_loss, samples, targets,
-                    model: torch.nn.Module, criterion: torch.nn.Module, optimizer: torch.optim.Optimizer, 
+def Mosaic_training(args, last_task, epo, idx, count, sum_loss, samples, targets,
+                    model: torch.nn.Module, teacher_model: torch.nn.Module, criterion: torch.nn.Module, optimizer: torch.optim.Optimizer, 
                     current_classes, data_type):
     torch.cuda.empty_cache()
     device = torch.device("cuda")
     ex_device = torch.device("cpu")
     model.train()
     criterion.train()
-    scaler = GradScaler()
-        
+    teacher_model.eval()
+    
+            
     samples = samples.to(device)
     targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
     with autocast(False):
-        outputs = model(samples, args.Attn_Reg)
+        if last_task == True:
+            with torch.no_grad():
+                t_encoder = []
+                hook = teacher_model.transformer.encoder.layers[-1].self_attn.register_forward_hook(
+                    lambda module, input, output: t_encoder.append(output)
+                )
+                t_outpus = teacher_model(samples)
+                hook.remove()
+            pretrained_attention = t_encoder[0]
+            outputs = model(samples, pretrained_attention)
+        else :
+            outputs = model(samples)
+
         if args.Fake_Query == True:
-            targets = mosaic_query_selc_to_target(outputs, targets, current_classes)
+            targets = only_oldset_mosaic_query_selc_to_target(outputs, targets, current_classes)
         loss_dict = criterion(outputs, targets)
         weight_dict = criterion.weight_dict
         losses = sum(loss_dict[k] * weight_dict[k] for k in loss_dict.keys() if k in weight_dict)
