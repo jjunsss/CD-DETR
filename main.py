@@ -33,7 +33,7 @@ from models import build_model
 
 def get_args_parser():
     parser = argparse.ArgumentParser('Deformable DETR Detector', add_help=False)
-    parser.add_argument('--lr', default=2e-4, type=float)
+    parser.add_argument('--lr', default=1e-4, type=float)
     parser.add_argument('--lr_backbone_names', default=["backbone.0"], type=str, nargs='+')
     parser.add_argument('--lr_backbone', default=2e-5, type=float)
     parser.add_argument('--lr_linear_proj_names', default=['reference_points', 'sampling_offsets'], type=str, nargs='+')
@@ -114,8 +114,8 @@ def get_args_parser():
     # dataset parameters
     parser.add_argument('--dataset_file', default='coco')
     #parser.add_argument('--coco_path', default='/data/LG/real_dataset/total_dataset/didvepz/', type=str)
-    parser.add_argument('--coco_path', default='/data/COCODIR/', type=str)
-    parser.add_argument('--file_name', default='./saved_rehearsal', type=str)
+    parser.add_argument('--coco_path', default='/home/user/Desktop/jjunsss/cocodataset/', type=str)
+    parser.add_argument('--file_name', default='/home/user/Desktop/jjunsss/Continaul_DETR/Rehearsal_dict/', type=str)
     parser.add_argument('--coco_panoptic_path', type=str)
     parser.add_argument('--remove_difficult', action='store_true')
     parser.add_argument('--output_dir', default='./TEST/', help='path where to save, empty for no saving')
@@ -124,7 +124,7 @@ def get_args_parser():
     parser.add_argument('--LG', default=False, action='store_true', help="for LG Dataset process")
     
     #* CL Setting 
-    parser.add_argument('--pretrained_model', default="/data/LG/real_dataset/total_dataset/test_dir/Continaul_DETR/COCOpre_15Epoch_NoLimit_Normal/cp_02_01.pth", help='resume from checkpoint')
+    parser.add_argument('--pretrained_model', default="/home/user/Desktop/jjunsss/Continaul_DETR/COCOs_15E_CCB_4O_Fake_nocrop/cp_02_02_8.pth", help='resume from checkpoint')
     parser.add_argument('--start_epoch', default=0, type=int, metavar='N',help='start epoch')
     parser.add_argument('--start_task', default=1, type=int, metavar='N',help='start task')
     parser.add_argument('--eval', action='store_true')

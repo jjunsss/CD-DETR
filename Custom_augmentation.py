@@ -74,19 +74,19 @@ class CCB(object):
         Mosaic_size = self.img_size #1024, im_w, im_h : 1024
         #self.mosaic_border = [Mosaic_size[0] // 2, Mosaic_size[1] // 2] # height . width
         Current_mosaic_img, Current_mosaic_labels = self._make_batch_mosaic(image_list, target_list, Mosaic_size)
-        temp_labels = self._make_resized_targets(Current_mosaic_labels)
+        Current_mosaic_labels = self._make_resized_targets(Current_mosaic_labels)
         
-        Current_mosaic_img, mosaic_labels = _crop(Current_mosaic_img, temp_labels['boxes'], temp_labels['labels']) # To 480, 640 random cropiing
-        if mosaic_labels.shape[-1] != 5:
-            return False
-        mosaic_labels = self._make_resized_targets(mosaic_labels)
+        # Current_mosaic_img, Current_mosaic_labels = _crop(Current_mosaic_img, Current_mosaic_labels['boxes'], Current_mosaic_labels['labels']) # To 480, 640 random cropiing
+        # if Current_mosaic_labels.shape[-1] != 5:
+        #     return False
+        # Current_mosaic_labels = self._make_resized_targets(Current_mosaic_labels)
         
         if self.Continual_Batch == 3: #For 3 CBB Training
             Diff_mosaic_labels = copy.deepcopy(Current_mosaic_labels)
             Diff_mosaic_img, Diff_bbox, Diff_labels  = _HorizontalFlip(Current_mosaic_img, Current_mosaic_labels['boxes'], Current_mosaic_labels['labels'])
             Diff_mosaic_labels = self._make_resized_targets(Diff_bbox, Diff_labels)
-            return Current_mosaic_img, mosaic_labels, Diff_mosaic_img, Diff_mosaic_labels
-        return Current_mosaic_img, mosaic_labels, None, None #For 2 CBB Training
+            return Current_mosaic_img, Current_mosaic_labels, Diff_mosaic_img, Diff_mosaic_labels
+        return Current_mosaic_img, Current_mosaic_labels, None, None #For 2 CBB Training
 
     def _make_batch_mosaic(self, image_list, target_list, mosaic_size ):
         mosaic_aug_labels = []

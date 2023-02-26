@@ -18,10 +18,7 @@ def Incre_Dataset(Task_Num, args, Incre_Classes):
     if len(Incre_Classes) == 1:
         dataset_train = build_dataset(image_set='train', args=args, class_ids=None) #* Task ID에 해당하는 Class들만 Dataset을 통해서 불러옴
     else: 
-        if Task_Num == 0 : #* First Task training
-            dataset_train = build_dataset(image_set='train', args=args, class_ids=current_classes)
-        else:
-            dataset_train = build_dataset(image_set='train', args=args, class_ids=current_classes)
+        dataset_train = build_dataset(image_set='train', args=args, class_ids=current_classes)
     dataset_val = build_dataset(image_set='val', args=args)
     
     if args.distributed:
@@ -108,12 +105,12 @@ def weight_dataset(re_dict):
         temp_dict_value.append(sumvalue)
         re_dict[key] = temp_dict_value
         
-    re_dict = dict(sorted(re_dict.items(), key=lambda item : item[1][-1], reverse=True))
+    re_dict = dict(sorted(re_dict.items(), key=lambda item : item[1][-1], reverse=True)) #가중치를 기준으로 내림차순으로 정렬
     keys = list(re_dict.keys())
     value_array = np.array(list(re_dict.values()), dtype=object)
     weights = value_array[:, -1].tolist()
     
-    return keys, weights
+    return keys, weights #가중치를 기준으로 정렬된 Key와 Weight. 둘은 fair를 유지하기 위해서 순서르 변경하지 않고 불러오도록 진행
 
 import copy
 class CustomDataset(torch.utils.data.Dataset):
@@ -131,7 +128,9 @@ class CustomDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, idx):
         samples, targets, new_samples, new_targets = self.datasets[idx]
-
+        check_dataset = set(targets['labels'].tolist()).issubset(set(self.old_classes))
+        if check_dataset == False:
+            raise Exception(f"pring no oldset")
         return samples, targets, new_samples, new_targets
 
 
@@ -143,7 +142,7 @@ class BatchMosaicAug(torch.utils.data.Dataset):
         self.current_dataset = datasets.datasets[1]
         self.Confidence = 0
         self.Mosaic = Mosaic
-        self.img_size = (960, 1280) #Height, Width
+        self.img_size = (480, 640) #Height, Width
         self.old_length = old_length
         self.Continual_Batch = Continual_Batch
         self.OldDataset_weights = OldDataset_weights
@@ -185,18 +184,19 @@ class BatchMosaicAug(torch.utils.data.Dataset):
         #*Curretn Class augmentation / Other class AUgmentation
         assert self.old_length == len(self.OldDataset_weights)
         
-        Rehearsal_index = random.choices(range(self.old_length), weights=self.OldDataset_weights, k=2) #TODO : sampling method change.
-        current_index = random.choices(range(self.old_length, len(self.Datasets)), k=1) #TODO : sampling method change.
+        Rehearsal_index = random.choices(range(self.old_length), weights=self.OldDataset_weights, k=4) #TODO : sampling method change.
+        #current_index = random.choices(range(self.old_length, len(self.Datasets)), k=2) #TODO : sampling method change.
             
         #Mosaic_index.insert(0, index)
-        Rehearsal_index.insert(0, index)
-        Rehearsal_index.insert(0, current_index[0])
+        #Rehearsal_index.insert(0, index)
+        #Rehearsal_index.insert(0, current_index[0])
         #print(f"mosaic index : {Rehearsal_index}")
         return random.sample(Rehearsal_index, len(Rehearsal_index))
     
 #For Rehearsal
 def CombineDataset(args, RehearsalData, CurrentDataset, Worker, Batch_size, old_classes):
     OldDataset = CustomDataset(args, RehearsalData, old_classes) #oldDatset[idx]:
+    
     Old_length = len(OldDataset)
     OldDataset_weights = OldDataset.weights
     CombinedDataset = ConcatDataset([OldDataset, CurrentDataset]) #Old : previous, Current : Now
@@ -219,7 +219,7 @@ def CombineDataset(args, RehearsalData, CurrentDataset, Worker, Batch_size, old_
     batch_sampler_train = torch.utils.data.BatchSampler(sampler_train, Batch_size, drop_last=True)
     CombinedLoader = DataLoader(MosaicBatchDataset, batch_sampler=batch_sampler_train,
                         collate_fn=utils.collate_fn, num_workers=Worker,
-                        pin_memory=True, prefetch_factor=4, worker_init_fn=worker_init_fn, persistent_workers=args.Mosaic)
+                        pin_memory=True, prefetch_factor=4,)# worker_init_fn=worker_init_fn)
     
     
     return MosaicBatchDataset, CombinedLoader, sampler_train

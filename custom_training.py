@@ -32,7 +32,7 @@ from typing import Tuple, Dict, List, Optional
 from tqdm import tqdm
 from GPUtil import showUtilization as gpu_usage
 from torch.cuda.amp import autocast, GradScaler
-from custom_fake_target import mosaic_query_selc_to_target, normal_query_selc_to_target
+from custom_fake_target import mosaic_query_selc_to_target, normal_query_selc_to_target, only_oldset_mosaic_query_selc_to_target
 
 @decompose
 def decompose_dataset(no_use_count: int, samples: utils.NestedTensor, targets: Dict, origin_samples: utils.NestedTensor, 
@@ -123,7 +123,7 @@ def Mosaic_training(args, epo, idx, count, sum_loss, samples, targets,
     with autocast():
         outputs = model(samples, args.Attn_Reg)
         if args.Fake_Query == True:
-            targets = mosaic_query_selc_to_target(outputs, targets, current_classes)
+            targets = only_oldset_mosaic_query_selc_to_target(outputs, targets, current_classes)
         loss_dict = criterion(outputs, targets)
         weight_dict = criterion.weight_dict
         losses = sum(loss_dict[k] * weight_dict[k] for k in loss_dict.keys() if k in weight_dict)
