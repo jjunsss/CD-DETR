@@ -219,7 +219,7 @@ def CombineDataset(args, RehearsalData, CurrentDataset, Worker, Batch_size, old_
     batch_sampler_train = torch.utils.data.BatchSampler(sampler_train, Batch_size, drop_last=True)
     CombinedLoader = DataLoader(MosaicBatchDataset, batch_sampler=batch_sampler_train,
                         collate_fn=utils.collate_fn, num_workers=Worker,
-                        pin_memory=True, prefetch_factor=4, worker_init_fn=worker_init_fn, persistent_workers=args.Mosaic)
+                        pin_memory=True, prefetch_factor=4,) #worker_init_fn=worker_init_fn, persistent_workers=args.Mosaic)
     
     
     return MosaicBatchDataset, CombinedLoader, sampler_train
