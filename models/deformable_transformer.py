@@ -179,7 +179,7 @@ class DeformableTransformer(nn.Module):
 
         # decoder
         hs, inter_references = self.decoder(tgt, reference_points, memory,
-                                            spatial_shapes, level_start_index, valid_ratios, query_embed, mask_flatten)
+                                            spatial_shapes, level_start_index, valid_ratios, query_embed, mask_flatten, pre_att)
 
         inter_references_out = inter_references
         if self.two_stage:
@@ -238,7 +238,7 @@ class DeformableTransformerEncoder(nn.Module):
         self.num_layers = num_layers
 
     @staticmethod
-    def get_reference_points(spatial_shapes, valid_ratios, device):
+    def get_reference_points(spatial_shapes, valid_ratios, device): #No learnable points. It's a only meshgird.
         reference_points_list = []
         for lvl, (H_, W_) in enumerate(spatial_shapes):
 
@@ -298,10 +298,13 @@ class DeformableTransformerDecoderLayer(nn.Module):
         tgt = self.norm3(tgt)
         return tgt
 
-    def forward(self, tgt, query_pos, reference_points, src, src_spatial_shapes, level_start_index, src_padding_mask=None):
+    def forward(self, tgt, query_pos, reference_points, src, src_spatial_shapes, level_start_index, src_padding_mask=None, pre_att=None):
         # self attention
         q = k = self.with_pos_embed(tgt, query_pos)
         tgt2 = self.self_attn(q.transpose(0, 1), k.transpose(0, 1), tgt.transpose(0, 1))[0].transpose(0, 1)
+        # if pre_att is not None:
+        #     pre_tgt2 = pre_att.transformer.decoder.layers[-1].self_attn(q.transpose(0, 1), k.transpose(0, 1), tgt.transpose(0, 1))[0].transpose(0, 1)
+        #     torch.nn.functional.mse_loss(
         tgt = tgt + self.dropout2(tgt2)
         tgt = self.norm2(tgt)
 
@@ -329,7 +332,7 @@ class DeformableTransformerDecoder(nn.Module):
         self.class_embed = None
 
     def forward(self, tgt, reference_points, src, src_spatial_shapes, src_level_start_index, src_valid_ratios,
-                query_pos=None, src_padding_mask=None):
+                query_pos=None, src_padding_mask=None, pre_att=None):
         output = tgt
 
         intermediate = []
@@ -341,7 +344,7 @@ class DeformableTransformerDecoder(nn.Module):
             else:
                 assert reference_points.shape[-1] == 2
                 reference_points_input = reference_points[:, :, None] * src_valid_ratios[:, None]
-            output = layer(output, query_pos, reference_points_input, src, src_spatial_shapes, src_level_start_index, src_padding_mask)
+            output = layer(output, query_pos, reference_points_input, src, src_spatial_shapes, src_level_start_index, src_padding_mask, pre_att)
 
             # hack implementation for iterative bounding box refinement
             if self.bbox_embed is not None:

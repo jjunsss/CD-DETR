@@ -147,6 +147,7 @@ def get_args_parser():
     parser.add_argument('--Memory', default=125, type=int, help='memory capacity for rehearsal training')
     parser.add_argument('--Continual_Batch_size', default=2, type=int, help='continual batch training method')
     parser.add_argument('--Rehearsal_file', default='/data/LG/real_dataset/total_dataset/test_dir/Continaul_DETR/Rehearsal_dict/', type=str)
+    parser.add_argument('--teacher_model', default='/data/LG/real_dataset/total_dataset/test_dir/Continaul_DETR/baseline_ddetr.pth', type=str)
     return parser
 
 def main(args):
@@ -166,13 +167,16 @@ def main(args):
     random.seed(seed)
 
     model, criterion, postprocessors = build_model(args)
+    pre_model = copy.deepcopy(model)
     model.to(device)
     if args.pretrained_model is not None:
-        model = load_model_params(model, args.pretrained_model)
+        model = load_model_params("main", model, args.pretrained_model)
+    
+    if args.teacher_model is not None:    
+        teacher_model = load_model_params("teacher", pre_model, args.teacher_model)
         
     
     model_without_ddp = model
-    teacher_model = model_without_ddp
     
     #* collate_fn : 최종 출력시에 모든 배치값에 할당해주는 함수를 말함. 여기서는 Nested Tensor 호출을 의미함.
     # lr_backbone_names = ["backbone.0", "backbone.neck", "input_proj", "transformer.encoder"]
@@ -212,7 +216,8 @@ def main(args):
     if args.distributed:
         model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu])
         model_without_ddp = model.module
-
+    print(f"model ddp : {model}")
+    #print(f"model.module is {model.module.transformer.encoder.layers[-1].self_attn.sampling_offsets}")
     if args.frozen_weights is not None:
         checkpoint = torch.load(args.frozen_weights, map_location='cpu')
         model_without_ddp.detr.load_state_dict(checkpoint['model'])

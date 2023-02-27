@@ -30,8 +30,7 @@ import util.misc as utils
 import numpy as np
 from typing import Tuple, Dict, List, Optional
 from tqdm import tqdm
-from GPUtil import showUtilization as gpu_usage
-from torch.cuda.amp import autocast, GradScaler
+from torch.cuda.amp import autocast
 from custom_fake_target import mosaic_query_selc_to_target, normal_query_selc_to_target, only_oldset_mosaic_query_selc_to_target
 
 @decompose
@@ -42,7 +41,7 @@ def decompose_dataset(no_use_count: int, samples: utils.NestedTensor, targets: D
 
 
 def Original_training(args, last_task, epo, idx, count, sum_loss, samples, targets, origin_sam, origin_tar, 
-                      model: torch.nn.Module, criterion: torch.nn.Module, optimizer: torch.optim.Optimizer,  
+                      model: torch.nn.Module, teacher_model: torch.nn.Module, criterion: torch.nn.Module, optimizer: torch.optim.Optimizer,  
                       rehearsal_classes, train_check, current_classes): 
     '''
         Only Training Original Data or (Transformed image, Transformed Target).
@@ -59,9 +58,12 @@ def Original_training(args, last_task, epo, idx, count, sum_loss, samples, targe
     criterion.train()
     model.to(device)
     torch.cuda.empty_cache()
-
+    teacher_model.eval()
+    teacher_model.to(device)
     samples = samples.to(device)
+    location_loss = torch.tensor(0.0)
     with autocast(False):
+
         outputs = model(samples)
         targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
         if args.Fake_Query == True:
@@ -71,7 +73,10 @@ def Original_training(args, last_task, epo, idx, count, sum_loss, samples, targe
             weight_dict = criterion.weight_dict
             losses = sum(loss_dict[k] * weight_dict[k] for k in loss_dict.keys() if k in weight_dict)
             losses_value = losses.item()
-
+            
+        # print(f"distillation loss : {location_loss}")
+        # losses = losses + location_loss * 0.5
+         
     with torch.no_grad():
         if train_check and args.Rehearsal and last_task == False: #* I will use this code line. No delete.
             targets = [{k: v.to(ex_device) for k, v in t.items()} for t in targets]
@@ -113,30 +118,45 @@ def Mosaic_training(args, last_task, epo, idx, count, sum_loss, samples, targets
     model.train()
     criterion.train()
     teacher_model.eval()
-    
+    teacher_model.to(device)
             
     samples = samples.to(device)
     targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
+    location_loss = torch.tensor(0.0)
     with autocast(False):
         if last_task == True:
             with torch.no_grad():
                 t_encoder = []
-                hook = teacher_model.transformer.encoder.layers[-1].self_attn.register_forward_hook(
+                hook = teacher_model.transformer.encoder.layers[-1].self_attn.sampling_offsets.register_forward_hook(
                     lambda module, input, output: t_encoder.append(output)
                 )
-                t_outpus = teacher_model(samples)
+                
+                _ = teacher_model(samples)
+                teacher_model.to(ex_device)
                 hook.remove()
-            pretrained_attention = t_encoder[0]
-            outputs = model(samples, pretrained_attention)
+                pre_encodre = t_encoder[0]
+                
+            s_encoder = []
+            hook = model.module.transformer.encoder.layers[-1].self_attn.sampling_offsets.register_forward_hook(
+                    lambda module, input, output: s_encoder.append(output)
+                )
+            outputs = model(samples)
+            hook.remove()
+            new_encoder = s_encoder[0]
+            
+            location_loss = torch.nn.functional.mse_loss(new_encoder.detach(), pre_encodre)
         else :
             outputs = model(samples)
-
+        del t_encoder, s_encoder, new_encoder, pre_encodre
+                
         if args.Fake_Query == True:
             targets = only_oldset_mosaic_query_selc_to_target(outputs, targets, current_classes)
         loss_dict = criterion(outputs, targets)
         weight_dict = criterion.weight_dict
         losses = sum(loss_dict[k] * weight_dict[k] for k in loss_dict.keys() if k in weight_dict)
-
+        
+        print(f"distillation loss : {location_loss}")
+        losses = losses + location_loss * 0.5 #revise for location
     count += 1
         
     loss_dict_reduced = utils.reduce_dict(loss_dict, True)

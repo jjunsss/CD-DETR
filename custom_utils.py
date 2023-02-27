@@ -398,7 +398,7 @@ def rearrange_rehearsal(rehearsal_classes: dict, current_classes: list) -> dict:
             
     return rehearsal_classes
 
-def load_model_params(model: model,
+def load_model_params(mode, model: model,
                       dir: str = "/home/user/Desktop/jjunsss/CL_DDETR/baseline_ddetr.pth"):
     new_model_dict = model.state_dict()
     #temp dir
@@ -418,9 +418,11 @@ def load_model_params(model: model,
     #No parameter update
     for name, params in model.named_parameters():
         if name in pretraind_model_dict.keys():
-            params.requires_grad = True #if you wanna set frozen the pre parameters for specific Neuron update, so then you could set False
+            if mode == "teacher":
+                params.requires_grad = False #if you wanna set frozen the pre parameters for specific Neuron update, so then you could set False
         else:
-            params.requires_grad = True
+            if mode == "teacher":
+                params.requires_grad = False
     
     print(f"$$$$$$$ Done every model params $$$$$$$$$$")
             

@@ -91,7 +91,7 @@ def train_one_epoch(args, last_task, epo, model: torch.nn.Module, teacher_model,
         if trainable == True:
         #contruct rehearsal buffer in main training
             rehearsal_classes, sum_loss, count = Original_training(args, last_task, epo, idx, count, sum_loss, samples, targets, origin_samples, origin_targets, 
-                                                model,criterion, optimizer, rehearsal_classes, train_check, current_classes)
+                                                model, teacher_model, criterion, optimizer, rehearsal_classes, train_check, current_classes)
 
         early_stopping_count = 0
         #* For Mosaic Training method
