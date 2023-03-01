@@ -6,33 +6,19 @@ import numpy as np
 import os
 import sys
 import random
-from typing import Iterable
-from tqdm import tqdm
 import torch.distributed as dist
-import pickle
 import torch
 import util.misc as utils
-from datasets.coco_eval import CocoEvaluator
-from datasets.panoptic_eval import PanopticEvaluator
-from datasets.data_prefetcher import data_prefetcher
-from torch.utils.data import DataLoader
-from pympler import summary
-from pympler import asizeof
 from custom_utils import *
 from custom_prints import check_losses
 import os
-import time
-from pycocotools.coco import COCO
 from typing import Tuple, Collection, Dict, List
-from datasets import build_dataset, get_coco_api_from_dataset
 import torch
 import util.misc as utils
 import numpy as np
 from typing import Tuple, Dict, List, Optional
-from tqdm import tqdm
-from GPUtil import showUtilization as gpu_usage
-from torch.cuda.amp import autocast, GradScaler
-from custom_fake_target import mosaic_query_selc_to_target, normal_query_selc_to_target
+from torch.cuda.amp import autocast
+from custom_fake_target import normal_query_selc_to_target, only_oldset_mosaic_query_selc_to_target
 
 @decompose
 def decompose_dataset(no_use_count: int, samples: utils.NestedTensor, targets: Dict, origin_samples: utils.NestedTensor, 
@@ -42,7 +28,7 @@ def decompose_dataset(no_use_count: int, samples: utils.NestedTensor, targets: D
 
 
 def Original_training(args, last_task, epo, idx, count, sum_loss, samples, targets, origin_sam, origin_tar, 
-                      model: torch.nn.Module, criterion: torch.nn.Module, optimizer: torch.optim.Optimizer,  
+                      model: torch.nn.Module, teacher_model, criterion: torch.nn.Module, optimizer: torch.optim.Optimizer,  
                       rehearsal_classes, train_check, current_classes): 
     '''
         Only Training Original Data or (Transformed image, Transformed Target).
@@ -58,14 +44,40 @@ def Original_training(args, last_task, epo, idx, count, sum_loss, samples, targe
     criterion.train()
     model.to(device)
     torch.cuda.empty_cache()
-    # if args.verbose :
-    #     print(f"target : {[ t['labels']  for t in targets ]} ")
-    #     print(f"target : {[ t['size']  for t in targets ]} ")
+    #if args.verbose :
+        #print(f"NEw target : {[ t['labels']  for t in targets ]} ")
+        # print(f"target : {[ t['size']  for t in targets ]} ")
     
-
     samples = samples.to(device)
-    with autocast():
-        outputs = model(samples, ~args.Attn_Reg)
+    with autocast(True):
+        if last_task == True and args.Distill:
+            teacher_model.eval()
+            teacher_model.to(device)
+            with torch.no_grad():
+                t_encoder = []
+                hook = teacher_model.transformer.encoder.layers[-1].self_attn.attention_weights.register_forward_hook(
+                    lambda module, input, output: t_encoder.append(output)
+                )
+                
+                _ = teacher_model(samples)
+                teacher_model.to(ex_device)
+                hook.remove()
+                pre_encodre = t_encoder[0]
+                
+            s_encoder = []
+            hook = model.module.transformer.encoder.layers[-1].self_attn.attention_weights.register_forward_hook(
+                    lambda module, input, output: s_encoder.append(output)
+                )
+            outputs = model(samples)
+            hook.remove()
+            new_encoder = s_encoder[0]
+            
+            location_loss = torch.nn.functional.mse_loss(new_encoder.detach(), pre_encodre)
+            del t_encoder, s_encoder, new_encoder, pre_encodre
+
+        else :
+            outputs = model(samples)
+            
         targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
         if args.Fake_Query == True:
             targets = normal_query_selc_to_target(outputs, targets, current_classes)
@@ -74,7 +86,10 @@ def Original_training(args, last_task, epo, idx, count, sum_loss, samples, targe
             weight_dict = criterion.weight_dict
             losses = sum(loss_dict[k] * weight_dict[k] for k in loss_dict.keys() if k in weight_dict)
             losses_value = losses.item()
-               
+            
+        print(f"distillation loss : {location_loss}")
+        losses = losses + location_loss * 0.2 #alpha
+        
     with torch.no_grad():
         if train_check and args.Rehearsal and last_task == False: #* I will use this code line. No delete.
             targets = [{k: v.to(ex_device) for k, v in t.items()} for t in targets]
@@ -108,26 +123,59 @@ def Original_training(args, last_task, epo, idx, count, sum_loss, samples, targe
     torch.cuda.empty_cache()
     return rehearsal_classes, sum_loss, count
 
-def Mosaic_training(args, epo, idx, count, sum_loss, samples, targets,
-                    model: torch.nn.Module, criterion: torch.nn.Module, optimizer: torch.optim.Optimizer, 
+def Mosaic_training(args, last_task, epo, idx, count, sum_loss, samples, targets, 
+                    model: torch.nn.Module, teacher_model, criterion: torch.nn.Module, optimizer: torch.optim.Optimizer, 
                     current_classes, data_type):
+    '''
+        many replay augmentation dataset.
+        It's composed by only old dataset buffer.
+        but matched same quantity to new buffer data.
+    '''
     torch.cuda.empty_cache()
     device = torch.device("cuda")
     ex_device = torch.device("cpu")
     model.train()
     criterion.train()
-    scaler = GradScaler()
-        
+    if args.verbose :
+        print(f"old target : {[ t['labels']  for t in targets ]} ")
+
     samples = samples.to(device)
     targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
-    with autocast():
-        outputs = model(samples, args.Attn_Reg)
+    with autocast(True):
+        if last_task == True and args.Distill:
+            teacher_model.eval()
+            teacher_model.to(device)
+            with torch.no_grad():
+                t_encoder = []
+                hook = teacher_model.transformer.encoder.layers[-1].self_attn.attention_weights.register_forward_hook(
+                    lambda module, input, output: t_encoder.append(output)
+                )
+                
+                _ = teacher_model(samples)
+                teacher_model.to(ex_device)
+                hook.remove()
+                pre_encodre = t_encoder[0]
+                
+            s_encoder = []
+            hook = model.module.transformer.encoder.layers[-1].self_attn.attention_weights.register_forward_hook(
+                    lambda module, input, output: s_encoder.append(output)
+                )
+            outputs = model(samples)
+            hook.remove()
+            new_encoder = s_encoder[0]
+            
+            location_loss = torch.nn.functional.mse_loss(new_encoder.detach(), pre_encodre)
+        else :
+            outputs = model(samples)
+            
+        del t_encoder, s_encoder, new_encoder, pre_encodre
         if args.Fake_Query == True:
-            targets = mosaic_query_selc_to_target(outputs, targets, current_classes)
+            targets = only_oldset_mosaic_query_selc_to_target(outputs, targets, current_classes)
         loss_dict = criterion(outputs, targets)
         weight_dict = criterion.weight_dict
         losses = sum(loss_dict[k] * weight_dict[k] for k in loss_dict.keys() if k in weight_dict)
-
+    print(f"distillation loss : {location_loss}")
+    losses = losses + location_loss * 0.5 #beta
     count += 1
         
     loss_dict_reduced = utils.reduce_dict(loss_dict, True)

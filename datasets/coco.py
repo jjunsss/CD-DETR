@@ -126,7 +126,7 @@ class ConvertCocoPolysToMask(object):
     
     
 def origin_transform(image_set):
-    scales = [480, 512, 544, 576, 608, 640, 672, 704]
+    scales = [608, 640, 672, 704, 736, 768, 800]
     normalize = T.Compose([
         T.Origin_Normalize() #For Original (No pixel normalization)
     ])
