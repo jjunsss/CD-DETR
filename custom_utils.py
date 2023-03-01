@@ -325,10 +325,14 @@ def contruct_rehearsal(losses_value: float, lower_limit: float, upper_limit: flo
     # Check if losses_value is within the specified range
     if losses_value > lower_limit and losses_value < upper_limit : 
         ex_device = torch.device("cpu")
-        
+        #TODO : Loss change staratgy.
+        number_of_labels = sum([ torch.count_nonzero(t['labels']).item()  for t in targets ])
+        each_loss = losses_value / number_of_labels #loss value of each instances.
         for enum, target in enumerate(targets): #! 배치 개수 ex) 4개 
             # Get the unique labels and the count of each label
             label_tensor = target['labels']
+            number_of_label = torch.count_nonzero(label_tensor).item()
+            sample_loss = each_loss * number_of_label #The number of label in image * loss value of each label instance = loss value of one image 
             image_id = target['image_id'].item()
             label_tensor_unique = torch.unique(label_tensor)
             label_tensor_unique_list = label_tensor_unique.tolist()
@@ -341,21 +345,24 @@ def contruct_rehearsal(losses_value: float, lower_limit: float, upper_limit: flo
                 temp = set(rehearsal_classes[image_id][-1])
                 temp = temp.union(set(label_tensor_unique_list))
                 rehearsal_classes[image_id][-1] = list(temp)
+                rehearsal_classes[image_id][0] = sample_loss #change loss value. because still model updated for optimizing something.
                 continue
             
             
             if _check_rehearsal_size(Rehearsal_Memory, rehearsal_classes, *label_tensor_unique_list) == True:
-                rehearsal_classes[image_id] = [losses_value, label_tensor_unique_list]
+                rehearsal_classes[image_id] = [sample_loss, label_tensor_unique_list]
             else:
                 print(f"**** Memory over ****")
                 high_loss_rehearsal = _change_rehearsal_size(Rehearsal_Memory, rehearsal_classes, *label_tensor_unique_list)
-                if high_loss_rehearsal == False: #!얘를들어 unique index를 모두 포함하고 있는 rehearsal 데이터 애들이 존재하지 않는 경우에 해당 상황이 발생할 수 있다.
+                if high_loss_rehearsal == False: 
+                    #!얘를들어 unique index를 모두 포함하고 있는 rehearsal 데이터 애들이 존재하지 않는 경우에 해당 상황이 발생할 수 있다.
+                    #It will be result in confusion replay dataset for downgrade.
                     continue
                 
-                if high_loss_rehearsal[0] > losses_value:
+                if high_loss_rehearsal[0] > sample_loss:
                     print(f"chagne rehearsal value")
                     del rehearsal_classes[high_loss_rehearsal[0]]
-                    rehearsal_classes[image_id] = [losses_value, label_tensor_unique_list]
+                    rehearsal_classes[image_id] = [sample_loss, label_tensor_unique_list]
     
     return rehearsal_classes
 
@@ -426,6 +433,12 @@ def load_model_params(mode, model: model,
     
     print(f"$$$$$$$ Done every model params $$$$$$$$$$")
             
+    return model
+
+def teacher_model_freeze(model):
+    for _, params in model.named_parameters():
+            params.requires_grad = False
+                
     return model
 
 def save_model_params(model_without_ddp:model, optimizer:torch.optim, lr_scheduler:scheduler,
@@ -502,8 +515,9 @@ def memory_usage_check(byte_usage):
 
 import pickle
 import os
-def save_rehearsal(rehearsal, dir, task):    
-    all_dir = dir  + "ALL_gpu_rehearsal_task_" + str(task)
+def save_rehearsal(rehearsal, dir, task, memory):
+    all_memory = memory * 4
+    all_dir = dir  + "ALL_gpu_rehearsal_task_" + str(task) +"_" + str(all_memory)
     if not os.path.exists(dir):
         os.mkdir(dir)
         print(f"Directroy created")
@@ -513,8 +527,9 @@ def save_rehearsal(rehearsal, dir, task):
             pickle.dump(rehearsal, f)
     
     
-def load_rehearsal(dir, task):
-    all_dir = dir  + "ALL_gpu_rehearsal_task_" + str(task) + "_100"
+def load_rehearsal(dir, task, memory):
+    all_memory = memory * 4
+    all_dir = dir  + "ALL_gpu_rehearsal_task_" + str(task) + "_" + str(all_memory)
     #all_dir = "/data/LG/real_dataset/total_dataset/test_dir/Continaul_DETR/Rehearsal_dict/0_gpu_rehearsal_task_0_ep_9"
     if os.path.exists(all_dir) :
         with open(all_dir, 'rb') as f :

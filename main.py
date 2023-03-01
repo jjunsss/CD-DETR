@@ -141,10 +141,10 @@ def get_args_parser():
 
     #* Rehearsal method
     parser.add_argument('--Rehearsal', default=False, action='store_true', help="use Rehearsal strategy in diverse CL method")
-    parser.add_argument('--Mosaic', default=False, action='store_true', help="use Our CCM strategy in diverse CL method")
+    parser.add_argument('--AugReplay', default=False, action='store_true', help="use Our augreplay strategy in step 2")
     parser.add_argument('--Fake_Query', default=False, action='store_true', help="retaining previous task target through predict query")
-    parser.add_argument('--Attn_Reg', default=False, action='store_true', help="retaining previous task target through predict query")
-    parser.add_argument('--Memory', default=125, type=int, help='memory capacity for rehearsal training')
+    parser.add_argument('--Distill', default=False, action='store_true', help="retaining previous task target through predict query")
+    parser.add_argument('--Memory', default=25, type=int, help='memory capacity for rehearsal training')
     parser.add_argument('--Continual_Batch_size', default=2, type=int, help='continual batch training method')
     parser.add_argument('--Rehearsal_file', default='/data/LG/real_dataset/total_dataset/test_dir/Continaul_DETR/Rehearsal_dict/', type=str)
     parser.add_argument('--teacher_model', default='/data/LG/real_dataset/total_dataset/test_dir/Continaul_DETR/baseline_ddetr.pth', type=str)
@@ -172,7 +172,8 @@ def main(args):
     if args.pretrained_model is not None:
         model = load_model_params("main", model, args.pretrained_model)
     
-    if args.teacher_model is not None:    
+    teacher_model = None
+    if args.teacher_model is not None and args.Distill:    
         teacher_model = load_model_params("teacher", pre_model, args.teacher_model)
         
     
@@ -216,8 +217,7 @@ def main(args):
     if args.distributed:
         model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu])
         model_without_ddp = model.module
-    print(f"model ddp : {model}")
-    #print(f"model.module is {model.module.transformer.encoder.layers[-1].self_attn.sampling_offsets}")
+
     if args.frozen_weights is not None:
         checkpoint = torch.load(args.frozen_weights, map_location='cpu')
         model_without_ddp.detr.load_state_dict(checkpoint['model'])
@@ -232,7 +232,7 @@ def main(args):
             args.Task = len(Divided_Classes)    
     start_epoch = 0
     start_task = 0
-    
+
     DIR = './mAP_TEST.txt'
     if args.eval:
         expand_classes = []
@@ -260,9 +260,8 @@ def main(args):
     
     #* Load for Replay
     if args.Rehearsal and (start_task >= 1):
-        rehearsal_classes = load_rehearsal(args.Rehearsal_file, 0)
+        rehearsal_classes = load_rehearsal(args.Rehearsal_file, 0, args.Memory)
     
-        #rehearsal_classes = multigpu_rehearsal(args.Rehearsal_file, args.Memory, 4, 0, 9, *load_replay) #TODO : 여기 설정 되는 거 변화하는 것도 중요할 듯
         if len(rehearsal_classes)  == 0:
             print(f"No rehearsal file")
             rehearsal_classes = dict()
@@ -278,18 +277,18 @@ def main(args):
         
         #New task dataset
         dataset_train, data_loader_train, sampler_train, list_CC = Incre_Dataset(task_idx, args, Divided_Classes) #rehearsal + New task dataset (rehearsal Dataset은 유지하도록 설정)
-        MosaicBatch = False
+        AugReplay = False
         
         if task_idx >= 1 and args.Rehearsal:
             if len(rehearsal_classes.keys()) < 5:
-                raise Exception("Too small rehearsal Dataset. Can't MosaicBatch Augmentation")
+                raise Exception("Too small rehearsal Dataset. Can't AugReplay Augmentation")
             
             check_components("replay", rehearsal_classes, args.verbose)
             replay_dataset = copy.deepcopy(rehearsal_classes)
             dataset_train, data_loader_train, sampler_train = CombineDataset(args, replay_dataset, dataset_train, args.num_workers, 
                                                                              args.batch_size, old_classes=load_replay) #rehearsal + New task dataset (rehearsal Dataset은 유지하도록 설정)
-            if args.Mosaic == True:
-                MosaicBatch = True
+            if args.AugReplay == True:
+                AugReplay = True
         else:
             print(f"no use rehearsal training method")
         
@@ -303,22 +302,22 @@ def main(args):
             #original training
             #TODO: 매 에포크 마다 생성되는 save 파일과 지워지는 rehearsal 없도록 정리.
             rehearsal_classes = train_one_epoch( #save the rehearsal dataset. this method necessary need to clear dataset
-                args, last_task, epoch, model, teacher_model, criterion, data_loader_train, optimizer, device, MosaicBatch, list_CC, rehearsal_classes)
+                args, last_task, epoch, model, teacher_model, criterion, data_loader_train, optimizer, device, AugReplay, list_CC, rehearsal_classes)
             lr_scheduler.step()
             save_model_params(model_without_ddp, optimizer, lr_scheduler, args, args.output_dir, task_idx, int(args.Task), epoch)
-            if last_task == True :
+            if last_task == False:
                 save_rehearsal_for_combine(task_idx, args.Rehearsal_file, rehearsal_classes, epoch)
+                dist.barrier()
+                rehearsal_classes = multigpu_rehearsal(args.Rehearsal_file, args.Memory, 4, task_idx, epoch, *list_CC)
+                if utils.is_main_process():
+                    save_rehearsal(rehearsal_classes, args.Rehearsal_file, task_idx, args.Memory)
+
             dist.barrier()
-            rehearsal_classes = multigpu_rehearsal(args.Rehearsal_file, args.Memory, 4, task_idx, epoch, *list_CC)
-            if utils.is_main_process():
-                save_rehearsal(rehearsal_classes, args.Rehearsal_file, task_idx)
-                
-            dist.barrier()
-            
+
         save_model_params(model_without_ddp, optimizer, lr_scheduler, args, args.output_dir, task_idx, int(args.Task), -1)
         load_replay.extend(Divided_Classes[task_idx])
         teacher_model = model_without_ddp #Trained Model Change in change TASK 
-        
+        teacher_model = teacher_model_freeze(teacher_model)
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
     print('Training time {}'.format(total_time_str))

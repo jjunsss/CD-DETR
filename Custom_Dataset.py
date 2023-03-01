@@ -1,15 +1,11 @@
 from xmlrpc.client import Boolean
 import util.misc as utils
 from datasets import build_dataset, get_coco_api_from_dataset
-from torch.utils.data import DataLoader, ConcatDataset
+from torch.utils.data import DataLoader
 import datasets.samplers as samplers
 import torch
 import numpy as np
-import random
 import albumentations as A
-from util.box_ops import box_cxcywh_to_xyxy_resize, box_cxcywh_to_xyxy, box_xyxy_to_cxcywh
-from Custom_augmentation import CCB
-from torch.utils.data.sampler import SubsetRandomSampler
 
 def Incre_Dataset(Task_Num, args, Incre_Classes):    
     current_classes = Incre_Classes[Task_Num]
@@ -137,14 +133,11 @@ class CustomDataset(torch.utils.data.Dataset):
 
 
 class BatchMosaicAug(torch.utils.data.Dataset):
-    def __init__(self, datasets, OldDataset, CCB_augmentation, old_length, OldDataset_weights, Mosaic=False, Continual_Batch=2):
+    def __init__(self, datasets, OldDataset, old_length, OldDataset_weights, AugReplay=False, ):
         self.Datasets = datasets #now task
         self.Rehearsal_dataset = OldDataset
-        self.Confidence = 0
-        self.Mosaic = Mosaic
-        self.img_size = (480, 640) #Height, Width
+        self.AugReplay = AugReplay
         self.old_length = old_length
-        self.Continual_Batch = Continual_Batch
         self.OldDataset_weights = OldDataset_weights
 
         
@@ -154,7 +147,7 @@ class BatchMosaicAug(torch.utils.data.Dataset):
     def __getitem__(self, index):
         img, target, origin_img, origin_target = self.Datasets[index] #No normalize pixel, Normed Targets
 
-        if self.Mosaic == True :
+        if self.AugReplay == True :
             if index > (len(self.Rehearsal_dataset)-1):
                 index = index % len(self.Rehearsal_dataset)
                 O_img, O_target, _, _ = self.Rehearsal_dataset[index] #No shuffle because weight sorting.
@@ -171,24 +164,24 @@ def CombineDataset(args, RehearsalData, CurrentDataset, Worker, Batch_size, old_
     OldDataset = CustomDataset(args, RehearsalData, old_classes) #oldDatset[idx]:
     Old_length = len(OldDataset)
     OldDataset_weights = OldDataset.weights
-    MosaicBatchDataset = BatchMosaicAug(CurrentDataset, OldDataset, CCB, Old_length, OldDataset_weights, args.Mosaic, args.Continual_Batch_size)
-    print(f"current Dataset length : {len(CurrentDataset)} -> Rehearsal + Current length : {len(MosaicBatchDataset)}")
+    NewTaskTraining = BatchMosaicAug(CurrentDataset, OldDataset, Old_length, OldDataset_weights, args.AugReplay, args.Continual_Batch_size)
+    print(f"current Dataset length : {len(CurrentDataset)} -> Rehearsal + Current length : {len(NewTaskTraining)}")
     print(f"current Dataset length : {len(CurrentDataset)} -> old dataset length : {len(OldDataset)}")
     print(f"********** sucess combined Dataset ***********")
-    print(MosaicBatchDataset[0])
+    print(NewTaskTraining[0])
     
     if args.distributed:
         if args.cache_mode:
-            sampler_train = samplers.NodeDistributedSampler(MosaicBatchDataset)
+            sampler_train = samplers.NodeDistributedSampler(NewTaskTraining)
         else:
-            sampler_train = samplers.DistributedSampler(MosaicBatchDataset, shuffle=True)
+            sampler_train = samplers.DistributedSampler(NewTaskTraining, shuffle=True)
     else:
-        sampler_train = torch.utils.data.RandomSampler(MosaicBatchDataset)
+        sampler_train = torch.utils.data.RandomSampler(NewTaskTraining)
         
     batch_sampler_train = torch.utils.data.BatchSampler(sampler_train, Batch_size, drop_last=True)
-    CombinedLoader = DataLoader(MosaicBatchDataset, batch_sampler=batch_sampler_train,
+    CombinedLoader = DataLoader(NewTaskTraining, batch_sampler=batch_sampler_train,
                         collate_fn=utils.collate_fn, num_workers=Worker,
-                        pin_memory=True, prefetch_factor=4,) #worker_init_fn=worker_init_fn, persistent_workers=args.Mosaic)
+                        pin_memory=True, prefetch_factor=4,) #worker_init_fn=worker_init_fn, persistent_workers=args.AugReplay)
     
     
-    return MosaicBatchDataset, CombinedLoader, sampler_train
+    return NewTaskTraining, CombinedLoader, sampler_train

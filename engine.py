@@ -97,7 +97,7 @@ def train_one_epoch(args, last_task, epo, model: torch.nn.Module, teacher_model,
         #* For Mosaic Training method
         if MosaicBatch == True and trainable == True:
             samples, targets, _, _ = prefetcher.next() #* Different
-            count, sum_loss = Mosaic_training(args, last_task, epo, idx, count, sum_loss, samples, targets, model, teacher_model,  criterion, optimizer, current_classes, "currentmosaic")
+            count, sum_loss = Mosaic_training(args, last_task, epo, idx, count, sum_loss, samples, targets, model, teacher_model, criterion, optimizer, current_classes, "currentmosaic")
             
             if args.Continual_Batch_size == 3: 
                 samples, targets, _, _ = prefetcher.next() #* Next samples
