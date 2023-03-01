@@ -86,9 +86,11 @@ def Original_training(args, last_task, epo, idx, count, sum_loss, samples, targe
             weight_dict = criterion.weight_dict
             losses = sum(loss_dict[k] * weight_dict[k] for k in loss_dict.keys() if k in weight_dict)
             losses_value = losses.item()
+        
+        if last_task == True and args.Distill:  
+            print(f"distillation loss : {location_loss}")
+            losses = losses + location_loss * 0.2 #alpha
             
-        print(f"distillation loss : {location_loss}")
-        losses = losses + location_loss * 0.2 #alpha
     with torch.no_grad():
         if train_check and args.Rehearsal and last_task == False: #* I will use this code line. No delete.
             targets = [{k: v.to(ex_device) for k, v in t.items()} for t in targets]
@@ -174,8 +176,10 @@ def Mosaic_training(args, last_task, epo, idx, count, sum_loss, samples, targets
         loss_dict = criterion(outputs, targets)
         weight_dict = criterion.weight_dict
         losses = sum(loss_dict[k] * weight_dict[k] for k in loss_dict.keys() if k in weight_dict)
-    print(f"distillation loss : {location_loss}")
-    losses = losses + location_loss * 0.5 #beta
+        
+    if last_task == True and args.Distill:  
+        print(f"distillation loss : {location_loss}")
+        losses = losses + location_loss * 0.2 #alpha
     count += 1
         
     loss_dict_reduced = utils.reduce_dict(loss_dict, True)
