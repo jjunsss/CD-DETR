@@ -47,7 +47,7 @@ def Original_training(args, last_task, epo, idx, count, sum_loss, samples, targe
     #if args.verbose :
         #print(f"NEw target : {[ t['labels']  for t in targets ]} ")
         # print(f"target : {[ t['size']  for t in targets ]} ")
-    
+    location_loss = torch.tensor(0.0)
     samples = samples.to(device)
     with autocast(True):
         if last_task == True and args.Distill:
@@ -89,7 +89,6 @@ def Original_training(args, last_task, epo, idx, count, sum_loss, samples, targe
             
         print(f"distillation loss : {location_loss}")
         losses = losses + location_loss * 0.2 #alpha
-        
     with torch.no_grad():
         if train_check and args.Rehearsal and last_task == False: #* I will use this code line. No delete.
             targets = [{k: v.to(ex_device) for k, v in t.items()} for t in targets]
@@ -136,6 +135,7 @@ def Mosaic_training(args, last_task, epo, idx, count, sum_loss, samples, targets
     ex_device = torch.device("cpu")
     model.train()
     criterion.train()
+    location_loss = torch.tensor(0.0)
     if args.verbose :
         print(f"old target : {[ t['labels']  for t in targets ]} ")
 
