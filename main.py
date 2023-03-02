@@ -124,9 +124,9 @@ def get_args_parser():
     parser.add_argument('--LG', default=False, action='store_true', help="for LG Dataset process")
     
     #* CL Setting 
-    parser.add_argument('--pretrained_model', default="/data/LG/real_dataset/total_dataset/test_dir/Continaul_DETR/COCOpre_15Epoch_NoLimit_Normal/cp_02_01.pth", help='resume from checkpoint')
-    parser.add_argument('--start_epoch', default=0, type=int, metavar='N',help='start epoch')
-    parser.add_argument('--start_task', default=1, type=int, metavar='N',help='start task')
+    parser.add_argument('--pretrained_model', default="/data/LG/real_dataset/total_dataset/test_dir/Continaul_DETR/COCOpre_02_01_10.pth", help='resume from checkpoint')
+    parser.add_argument('--start_epoch', default=11, type=int, metavar='N',help='start epoch')
+    parser.add_argument('--start_task', default=0, type=int, metavar='N',help='start task')
     parser.add_argument('--eval', action='store_true')
     parser.add_argument('--verbose', default=False, action='store_true')
     parser.add_argument('--num_workers', default=16, type=int)
@@ -140,7 +140,7 @@ def get_args_parser():
     parser.add_argument('--CL_Limited', default=0, type=int, help='Use Limited Training in CL. If you choose False, you may encounter data imbalance in training.')
 
     #* Rehearsal method
-    parser.add_argument('--Rehearsal', default=False, action='store_true', help="use Rehearsal strategy in diverse CL method")
+    parser.add_argument('--Rehearsal', default=True, action='store_true', help="use Rehearsal strategy in diverse CL method")
     parser.add_argument('--AugReplay', default=False, action='store_true', help="use Our augreplay strategy in step 2")
     parser.add_argument('--Fake_Query', default=False, action='store_true', help="retaining previous task target through predict query")
     parser.add_argument('--Distill', default=False, action='store_true', help="retaining previous task target through predict query")

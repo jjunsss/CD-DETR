@@ -323,6 +323,7 @@ from pympler import asizeof, summary
 def contruct_rehearsal(losses_value: float, lower_limit: float, upper_limit: float, targets,
                        rehearsal_classes: List, Current_Classes: List[int], Rehearsal_Memory: int = 300) -> Dict:
     # Check if losses_value is within the specified range
+    Rehearsal_Memory = Rehearsal_Memory * 4
     if losses_value > lower_limit and losses_value < upper_limit : 
         ex_device = torch.device("cpu")
         #TODO : Loss change staratgy.

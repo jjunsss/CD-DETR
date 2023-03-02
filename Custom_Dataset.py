@@ -164,7 +164,7 @@ def CombineDataset(args, RehearsalData, CurrentDataset, Worker, Batch_size, old_
     OldDataset = CustomDataset(args, RehearsalData, old_classes) #oldDatset[idx]:
     Old_length = len(OldDataset)
     OldDataset_weights = OldDataset.weights
-    NewTaskTraining = BatchMosaicAug(CurrentDataset, OldDataset, Old_length, OldDataset_weights, args.AugReplay, args.Continual_Batch_size)
+    NewTaskTraining = BatchMosaicAug(CurrentDataset, OldDataset, Old_length, OldDataset_weights, args.AugReplay, )
     print(f"current Dataset length : {len(CurrentDataset)} -> Rehearsal + Current length : {len(NewTaskTraining)}")
     print(f"current Dataset length : {len(CurrentDataset)} -> old dataset length : {len(OldDataset)}")
     print(f"********** sucess combined Dataset ***********")
