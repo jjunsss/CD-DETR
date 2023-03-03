@@ -1,7 +1,7 @@
 from xmlrpc.client import Boolean
 import util.misc as utils
 from datasets import build_dataset, get_coco_api_from_dataset
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, ConcatDataset
 import datasets.samplers as samplers
 import torch
 import numpy as np
@@ -164,7 +164,12 @@ def CombineDataset(args, RehearsalData, CurrentDataset, Worker, Batch_size, old_
     OldDataset = CustomDataset(args, RehearsalData, old_classes) #oldDatset[idx]:
     Old_length = len(OldDataset)
     OldDataset_weights = OldDataset.weights
-    NewTaskTraining = BatchMosaicAug(CurrentDataset, OldDataset, Old_length, OldDataset_weights, args.AugReplay, )
+    if args.AugReplay :
+        NewTaskTraining = BatchMosaicAug(CurrentDataset, OldDataset, Old_length, OldDataset_weights, args.AugReplay, )
+    else:
+        CombinedDataset = ConcatDataset([OldDataset, CurrentDataset])
+        NewTaskTraining = BatchMosaicAug(CombinedDataset, OldDataset, Old_length, OldDataset_weights, False) 
+        
     print(f"current Dataset length : {len(CurrentDataset)} -> Rehearsal + Current length : {len(NewTaskTraining)}")
     print(f"current Dataset length : {len(CurrentDataset)} -> old dataset length : {len(OldDataset)}")
     print(f"********** sucess combined Dataset ***********")
