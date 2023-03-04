@@ -184,12 +184,12 @@ class BatchMosaicAug(torch.utils.data.Dataset):
         #*Curretn Class augmentation / Other class AUgmentation
         assert self.old_length == len(self.OldDataset_weights)
         
-        Rehearsal_index = random.choices(range(self.old_length), weights=self.OldDataset_weights, k=4) #TODO : sampling method change.
-        #current_index = random.choices(range(self.old_length, len(self.Datasets)), k=2) #TODO : sampling method change.
+        Rehearsal_index = random.choices(range(self.old_length), weights=self.OldDataset_weights, k=2) #TODO : sampling method change.
+        current_index = random.choices(range(self.old_length, len(self.Datasets)), k=2) #TODO : sampling method change.
             
-        #Mosaic_index.insert(0, index)
-        #Rehearsal_index.insert(0, index)
-        #Rehearsal_index.insert(0, current_index[0])
+        # Mosaic_index.insert(0, index)
+        Rehearsal_index.insert(0, current_index[0])
+        Rehearsal_index.insert(0, current_index[1])
         #print(f"mosaic index : {Rehearsal_index}")
         return random.sample(Rehearsal_index, len(Rehearsal_index))
     
