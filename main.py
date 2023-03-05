@@ -124,7 +124,7 @@ def get_args_parser():
     parser.add_argument('--LG', default=False, action='store_true', help="for LG Dataset process")
     
     #* CL Setting 
-    parser.add_argument('--pretrained_model', default="/data/LG/real_dataset/total_dataset/test_dir/Continaul_DETR/COCOpre_02_01_10.pth", help='resume from checkpoint')
+    parser.add_argument('--pretrained_model', default=None, help='resume from checkpoint')
     parser.add_argument('--start_epoch', default=11, type=int, metavar='N',help='start epoch')
     parser.add_argument('--start_task', default=0, type=int, metavar='N',help='start task')
     parser.add_argument('--eval', action='store_true')
@@ -147,7 +147,7 @@ def get_args_parser():
     parser.add_argument('--Memory', default=25, type=int, help='memory capacity for rehearsal training')
     parser.add_argument('--Continual_Batch_size', default=2, type=int, help='continual batch training method')
     parser.add_argument('--Rehearsal_file', default='/data/LG/real_dataset/total_dataset/test_dir/Continaul_DETR/Rehearsal_dict/', type=str)
-    parser.add_argument('--teacher_model', default='/data/LG/real_dataset/total_dataset/test_dir/Continaul_DETR/baseline_ddetr.pth', type=str)
+    parser.add_argument('--teacher_model', default=None, type=str)
     return parser
 
 def main(args):
@@ -173,9 +173,9 @@ def main(args):
         model = load_model_params("main", model, args.pretrained_model)
     
     teacher_model = None
-    if args.teacher_model is not None and args.Distill:    
+    if args.Distill:    
         teacher_model = load_model_params("teacher", pre_model, args.teacher_model)
-        
+        print(f"teacher model load complete !!!!")
     
     model_without_ddp = model
     
