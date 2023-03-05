@@ -140,7 +140,7 @@ def get_args_parser():
     parser.add_argument('--CL_Limited', default=0, type=int, help='Use Limited Training in CL. If you choose False, you may encounter data imbalance in training.')
 
     #* Rehearsal method
-    parser.add_argument('--Rehearsal', default=True, action='store_true', help="use Rehearsal strategy in diverse CL method")
+    parser.add_argument('--Rehearsal', default=False, action='store_true', help="use Rehearsal strategy in diverse CL method")
     parser.add_argument('--AugReplay', default=False, action='store_true', help="use Our augreplay strategy in step 2")
     parser.add_argument('--Fake_Query', default=False, action='store_true', help="retaining previous task target through predict query")
     parser.add_argument('--Distill', default=False, action='store_true', help="retaining previous task target through predict query")

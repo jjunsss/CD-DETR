@@ -360,7 +360,7 @@ def contruct_rehearsal(losses_value: float, lower_limit: float, upper_limit: flo
                     #It will be result in confusion replay dataset for downgrade.
                     continue
                 
-                if high_loss_rehearsal[0] > sample_loss:
+                if high_loss_rehearsal[1][0] > sample_loss:
                     print(f"chagne rehearsal value")
                     del rehearsal_classes[high_loss_rehearsal[0]]
                     rehearsal_classes[image_id] = [sample_loss, label_tensor_unique_list]
@@ -531,6 +531,7 @@ def save_rehearsal(rehearsal, dir, task, memory):
 def load_rehearsal(dir, task, memory):
     all_memory = memory * 4
     all_dir = dir  + "ALL_gpu_rehearsal_task_" + str(task) + "_" + str(all_memory)
+    print(f"load replay file name : {all_dir}")
     #all_dir = "/data/LG/real_dataset/total_dataset/test_dir/Continaul_DETR/Rehearsal_dict/0_gpu_rehearsal_task_0_ep_9"
     if os.path.exists(all_dir) :
         with open(all_dir, 'rb') as f :
