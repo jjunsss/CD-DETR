@@ -264,7 +264,7 @@ class SetCriterion(nn.Module):
         losses = {'cardinality_error': card_err}
         return losses
 
-    def loss_boxes(self, outputs, targets, indices, num_boxes):
+    def loss_boxes(self, outputs, targets, indices, num_boxes): #여기서 Distillaiton 하나.
         """Compute the losses related to the bounding boxes, the L1 regression loss and the GIoU loss
            targets dicts must contain the key "boxes" containing a tensor of dim [nb_target_boxes, 4]
            The target boxes are expected in format (center_x, center_y, h, w), normalized by the image size.
@@ -328,9 +328,9 @@ class SetCriterion(nn.Module):
 
     def get_loss(self, loss, outputs, targets, indices, num_boxes, **kwargs):
         loss_map = {
-            'labels': self.loss_labels,
+            'labels': self.loss_labels, #여기서 Distillaiton 하나. 비율을 1로 맞춰서 실험하는 형태로 진행
             'cardinality': self.loss_cardinality,
-            'boxes': self.loss_boxes,
+            'boxes': self.loss_boxes, #여기서 Distillaiton 하나. 비율을 1로 맞춰서 실험하는 형태로 진행 얘네를 그냥 Loss 더해서 추가 Loss 값을 만들어 모델이 훈련하도록 형성
             'masks': self.loss_masks
         }
         assert loss in loss_map, f'do you really want to compute {loss} loss?'

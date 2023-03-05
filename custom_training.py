@@ -42,7 +42,7 @@ def decompose_dataset(no_use_count: int, samples: utils.NestedTensor, targets: D
 
 
 def Original_training(args, last_task, epo, idx, count, sum_loss, samples, targets, origin_sam, origin_tar, 
-                      model: torch.nn.Module, criterion: torch.nn.Module, optimizer: torch.optim.Optimizer,  
+                      model: torch.nn.Module, teacher_model, criterion: torch.nn.Module, optimizer: torch.optim.Optimizer,  
                       rehearsal_classes, train_check, current_classes): 
     '''
         Only Training Original Data or (Transformed image, Transformed Target).
@@ -61,7 +61,8 @@ def Original_training(args, last_task, epo, idx, count, sum_loss, samples, targe
     # if args.verbose :
     #     print(f"target : {[ t['labels']  for t in targets ]} ")
     #     print(f"target : {[ t['size']  for t in targets ]} ")
-    
+    teacher_model.to(device)
+    teacher_model.eval()
 
     samples = samples.to(device)
     with autocast():

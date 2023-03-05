@@ -147,6 +147,7 @@ def get_args_parser():
     parser.add_argument('--Memory', default=125, type=int, help='memory capacity for rehearsal training')
     parser.add_argument('--Continual_Batch_size', default=2, type=int, help='continual batch training method')
     parser.add_argument('--Rehearsal_file', default='/data/LG/real_dataset/total_dataset/test_dir/Continaul_DETR/Rehearsal_dict/', type=str)
+    parser.add_argument('--teacher_model', default=None, type=str)
     return parser
 
 def main(args):
@@ -166,9 +167,14 @@ def main(args):
     random.seed(seed)
 
     model, criterion, postprocessors = build_model(args)
+    pre_model = copy.deepcopy(model)
     model.to(device)
     if args.pretrained_model is not None:
         model = load_model_params(model, args.pretrained_model)
+        
+    teacher_model = None
+    if args.teacher_model is not None:    
+        teacher_model = load_model_params("teacher", pre_model, args.teacher_model)
     
     model_without_ddp = model
 
@@ -296,11 +302,11 @@ def main(args):
             #original training
             #TODO: 매 에포크 마다 생성되는 save 파일과 지워지는 rehearsal 없도록 정리.
             rehearsal_classes = train_one_epoch( #save the rehearsal dataset. this method necessary need to clear dataset
-                args, last_task, epoch, model, criterion, data_loader_train, optimizer, device, MosaicBatch, list_CC, rehearsal_classes)
+                args, last_task, epoch, model, teacher_model, criterion, data_loader_train, optimizer, device, MosaicBatch, list_CC, rehearsal_classes)
             lr_scheduler.step()
             #if epoch % 2 == 0:
             save_model_params(model_without_ddp, optimizer, lr_scheduler, args, args.output_dir, task_idx, int(args.Task), epoch)
-            if last_task == True :
+            if last_task == False :
                 save_rehearsal_for_combine(task_idx, args.Rehearsal_file, rehearsal_classes, epoch)
             dist.barrier()
             rehearsal_classes = multigpu_rehearsal(args.Rehearsal_file, args.Memory, 4, task_idx, epoch, *list_CC)
