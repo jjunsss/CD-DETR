@@ -47,7 +47,7 @@ def Original_training(args, last_task, epo, idx, count, sum_loss, samples, targe
     #if args.verbose :
         #print(f"NEw target : {[ t['labels']  for t in targets ]} ")
         # print(f"target : {[ t['size']  for t in targets ]} ")
-    location_loss = torch.tensor(0.0)
+    
     samples = samples.to(device)
     with autocast(False):
         if last_task == True and args.Distill:
