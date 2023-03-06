@@ -126,7 +126,7 @@ def get_args_parser():
     #* CL Setting 
     parser.add_argument('--pretrained_model', default=None, help='resume from checkpoint')
     parser.add_argument('--start_epoch', default=0, type=int, metavar='N',help='start epoch')
-    parser.add_argument('--start_task', default=0, type=int, metavar='N',help='start task')
+    parser.add_argument('--start_task', default=1, type=int, metavar='N',help='start task')
     parser.add_argument('--eval', action='store_true')
     parser.add_argument('--verbose', default=False, action='store_true')
     parser.add_argument('--num_workers', default=16, type=int)
@@ -147,7 +147,7 @@ def get_args_parser():
     parser.add_argument('--Memory', default=25, type=int, help='memory capacity for rehearsal training')
     parser.add_argument('--Continual_Batch_size', default=2, type=int, help='continual batch training method')
     parser.add_argument('--Rehearsal_file', default='/data/LG/real_dataset/total_dataset/test_dir/Continaul_DETR/Rehearsal_dict/', type=str)
-    parser.add_argument('--teacher_model', default='/data/LG/real_dataset/total_dataset/test_dir/Continaul_DETR/baseline_ddetr.pth', type=str)
+    parser.add_argument('--teacher_model', default=None, type=str)
     return parser
 
 def main(args):

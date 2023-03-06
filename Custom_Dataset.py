@@ -1,7 +1,7 @@
 from xmlrpc.client import Boolean
 import util.misc as utils
 from datasets import build_dataset, get_coco_api_from_dataset
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, ConcatDataset
 import datasets.samplers as samplers
 import torch
 import numpy as np
@@ -131,7 +131,7 @@ class CustomDataset(torch.utils.data.Dataset):
         return samples, targets, new_samples, new_targets
 
 
-
+import random
 class BatchMosaicAug(torch.utils.data.Dataset):
     def __init__(self, datasets, OldDataset, old_length, OldDataset_weights, AugReplay=False, ):
         self.Datasets = datasets #now task
@@ -145,13 +145,11 @@ class BatchMosaicAug(torch.utils.data.Dataset):
             return len(self.Datasets)    
 
     def __getitem__(self, index):
+        print(f"index is {index}")
         img, target, origin_img, origin_target = self.Datasets[index] #No normalize pixel, Normed Targets
 
         if self.AugReplay == True :
-            if index > (len(self.Rehearsal_dataset)-1):
-                index = index % len(self.Rehearsal_dataset)
-                O_img, O_target, _, _ = self.Rehearsal_dataset[index] #No shuffle because weight sorting.
-                return img, target, origin_img, origin_target, O_img, O_target
+            Rehearsal_index = random.sample(range(self.old_length), 1)
             O_img, O_target, _, _ = self.Rehearsal_dataset[index]
             return img, target, origin_img, origin_target, O_img, O_target
         else:
@@ -164,7 +162,12 @@ def CombineDataset(args, RehearsalData, CurrentDataset, Worker, Batch_size, old_
     OldDataset = CustomDataset(args, RehearsalData, old_classes) #oldDatset[idx]:
     Old_length = len(OldDataset)
     OldDataset_weights = OldDataset.weights
-    NewTaskTraining = BatchMosaicAug(CurrentDataset, OldDataset, Old_length, OldDataset_weights, args.AugReplay, )
+    if args.AugReplay :
+        NewTaskTraining = BatchMosaicAug(CurrentDataset, OldDataset, Old_length, OldDataset_weights, args.AugReplay, )
+    else:
+        CombinedDataset = ConcatDataset([OldDataset, CurrentDataset])
+        NewTaskTraining = BatchMosaicAug(CombinedDataset, OldDataset, Old_length, OldDataset_weights, False) 
+        
     print(f"current Dataset length : {len(CurrentDataset)} -> Rehearsal + Current length : {len(NewTaskTraining)}")
     print(f"current Dataset length : {len(CurrentDataset)} -> old dataset length : {len(OldDataset)}")
     print(f"********** sucess combined Dataset ***********")

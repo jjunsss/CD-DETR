@@ -319,7 +319,6 @@ def _rearrange_targets(no_use_count: int, samples: utils.NestedTensor, targets: 
     batch_size = 2
     return (batch_size, no_use_count, samples, targets, origin_samples, origin_targets, used_number)
 
-from pympler import asizeof, summary
 def contruct_rehearsal(losses_value: float, lower_limit: float, upper_limit: float, targets,
                        rehearsal_classes: List, Current_Classes: List[int], Rehearsal_Memory: int = 300) -> Dict:
     # Check if losses_value is within the specified range
@@ -343,10 +342,10 @@ def contruct_rehearsal(losses_value: float, lower_limit: float, upper_limit: flo
             label_tensor_count = label_tensor.numpy()
             bin = np.bincount(label_tensor_count)
             if image_id in rehearsal_classes.keys():
-                temp = set(rehearsal_classes[image_id][-1])
-                temp = temp.union(set(label_tensor_unique_list))
-                rehearsal_classes[image_id][-1] = list(temp)
-                rehearsal_classes[image_id][0] = sample_loss #change loss value. because still model updated for optimizing something.
+                # temp = set(rehearsal_classes[image_id][-1])
+                # temp = temp.union(set(label_tensor_unique_list))
+                # rehearsal_classes[image_id][-1] = list(temp)
+                # rehearsal_classes[image_id][0] = sample_loss #change loss value. because still model updated for optimizing something.
                 continue
             
             
@@ -354,14 +353,13 @@ def contruct_rehearsal(losses_value: float, lower_limit: float, upper_limit: flo
                 rehearsal_classes[image_id] = [sample_loss, label_tensor_unique_list]
             else:
                 print(f"**** Memory over ****")
-                high_loss_rehearsal = _change_rehearsal_size(Rehearsal_Memory, rehearsal_classes, *label_tensor_unique_list)
+                #high_loss_rehearsal = _change_rehearsal_size(Rehearsal_Memory, rehearsal_classes, *label_tensor_unique_list)
+                high_loss_rehearsal = _change_rehearsal_rodeo(Rehearsal_Memory, rehearsal_classes, *label_tensor_unique_list)
                 if high_loss_rehearsal == False: 
                     #!얘를들어 unique index를 모두 포함하고 있는 rehearsal 데이터 애들이 존재하지 않는 경우에 해당 상황이 발생할 수 있다.
                     #It will be result in confusion replay dataset for downgrade.
                     continue
-                
-                if high_loss_rehearsal[0] > sample_loss:
-                    print(f"chagne rehearsal value")
+                else:
                     del rehearsal_classes[high_loss_rehearsal[0]]
                     rehearsal_classes[image_id] = [sample_loss, label_tensor_unique_list]
     
@@ -388,6 +386,28 @@ def _change_rehearsal_size(limit_memory_size, rehearsal_classes, *args, ):
             
     check_list = list(filter(lambda x: all(item in x[1][1] for item in over_list), list(rehearsal_classes.items())))
     sorted_result = sorted(check_list, key = lambda x : x[1][0])
+    if len(sorted_result) == 0 :
+        return False
+    
+    sorted_result = sorted_result[-1]
+
+    return sorted_result
+
+def _change_rehearsal_rodeo(limit_memory_size, rehearsal_classes, *args, ): 
+    check_list = [len(list(filter(lambda x: index in x[1], list(rehearsal_classes.values())))) for index in args]
+    temp_array = np.array(check_list)
+    temp_array = temp_array < limit_memory_size 
+    
+    over_list = [] #index_list
+    for t, arg in zip(temp_array, args):
+        if t == False:
+            over_list.append(arg)
+           
+            
+    check_list = list(filter(lambda x: any(item in x[1][1] for item in over_list), list(rehearsal_classes.items())))
+    check_list = list(filter(lambda x: any(item in x[1][1] for item in over_list), list(rehearsal_classes.items())))
+    #check_list = [item for item in list(rehearsal_classes.items()) ]
+    sorted_result = sorted(check_list, key = lambda x : len(x[1][1]), reverse=True) #* The lowest count value
     if len(sorted_result) == 0 :
         return False
     

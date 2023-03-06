@@ -49,7 +49,7 @@ def Original_training(args, last_task, epo, idx, count, sum_loss, samples, targe
         # print(f"target : {[ t['size']  for t in targets ]} ")
     location_loss = torch.tensor(0.0)
     samples = samples.to(device)
-    with autocast(True):
+    with autocast(False):
         if last_task == True and args.Distill:
             teacher_model.eval()
             teacher_model.to(device)
@@ -94,7 +94,7 @@ def Original_training(args, last_task, epo, idx, count, sum_loss, samples, targe
     with torch.no_grad():
         if train_check and args.Rehearsal and last_task == False: #* I will use this code line. No delete.
             targets = [{k: v.to(ex_device) for k, v in t.items()} for t in targets]
-            rehearsal_classes = contruct_rehearsal(losses_value=losses_value, lower_limit=0.1, upper_limit=10, 
+            rehearsal_classes = contruct_rehearsal(losses_value=losses_value, lower_limit=0.1, upper_limit=100, #* For rodeo replay method 
                                                 targets=targets,
                                                 rehearsal_classes=rehearsal_classes, 
                                                 Current_Classes=current_classes, 
@@ -143,7 +143,7 @@ def Mosaic_training(args, last_task, epo, idx, count, sum_loss, samples, targets
 
     samples = samples.to(device)
     targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
-    with autocast(True):
+    with autocast(False):
         if last_task == True and args.Distill:
             teacher_model.eval()
             teacher_model.to(device)
