@@ -404,7 +404,7 @@ def _change_rehearsal_rodeo(limit_memory_size, rehearsal_classes, *args, ):
             over_list.append(arg)
            
             
-    check_list = list(filter(lambda x: any(item in x[1][1] for item in over_list), list(rehearsal_classes.items())))
+    #check_list = list(filter(lambda x: any(item in x[1][1] for item in over_list), list(rehearsal_classes.items())))
     check_list = list(filter(lambda x: any(item in x[1][1] for item in over_list), list(rehearsal_classes.items())))
     #check_list = [item for item in list(rehearsal_classes.items()) ]
     sorted_result = sorted(check_list, key = lambda x : len(x[1][1]), reverse=True) #* The lowest count value
