@@ -140,8 +140,7 @@ class BatchMosaicAug(torch.utils.data.Dataset):
         self.old_length = old_length
         self.OldDataset_weights = OldDataset_weights
         self.Count = 0
-        # if self.Mosaic == True: 
-        #     #self._CCB = CCB_augmentation(self.img_size, self.Continual_Batch)
+
         
     def __len__(self):
             return len(self.Datasets)    
@@ -149,7 +148,7 @@ class BatchMosaicAug(torch.utils.data.Dataset):
     def __getitem__(self, index):
         img, target, origin_img, origin_target = self.Datasets[index] #No normalize pixel, Normed Targets
         
-        if self.Mosaic == True :
+        if self.AugReplay == True :
             self.Count += 1
             if self.Count > (len(self.Rehearsal_dataset)-1):
                 Replay_index = self.Count % len(self.Rehearsal_dataset)
