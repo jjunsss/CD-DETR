@@ -146,7 +146,7 @@ def get_args_parser():
     parser.add_argument('--Distill', default=False, action='store_true', help="retaining previous task target through predict query")
     parser.add_argument('--Memory', default=25, type=int, help='memory capacity for rehearsal training')
     parser.add_argument('--Continual_Batch_size', default=2, type=int, help='continual batch training method')
-    parser.add_argument('--Rehearsal_file', default='/data/LG/real_dataset/total_dataset/test_dir/Continaul_DETR/Rehearsal_dict/', type=str)
+    parser.add_argument('--Rehearsal_file', default='./Rehearsal_dict/', type=str) # /data/LG/real_dataset/total_dataset/test_dir/Continaul_DETR
     parser.add_argument('--teacher_model', default=None, type=str)
     return parser
 
