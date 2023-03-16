@@ -150,7 +150,7 @@ class BatchMosaicAug(torch.utils.data.Dataset):
 
         if self.AugReplay == True :
             Rehearsal_index = random.sample(range(self.old_length), 1)
-            O_img, O_target, _, _ = self.Rehearsal_dataset[index]
+            O_img, O_target, _, _ = self.Rehearsal_dataset[Rehearsal_index[0]]
             return img, target, origin_img, origin_target, O_img, O_target
         else:
             return img, target, origin_img, origin_target
