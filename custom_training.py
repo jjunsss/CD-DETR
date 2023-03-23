@@ -44,10 +44,6 @@ def Original_training(args, last_task, epo, idx, count, sum_loss, samples, targe
     criterion.train()
     model.to(device)
     torch.cuda.empty_cache()
-    #if args.verbose :
-        #print(f"NEw target : {[ t['labels']  for t in targets ]} ")
-        # print(f"target : {[ t['size']  for t in targets ]} ")
-    #location_loss = torch.tensor(0.0)
     samples = samples.to(device)
     with autocast(False):
         if last_task == True and args.Distill:
@@ -113,12 +109,10 @@ def Original_training(args, last_task, epo, idx, count, sum_loss, samples, targe
                 check_losses(epo, idx, losses_reduced_scaled, sum_loss, count, current_classes, rehearsal_classes)
                 print(f"epoch : {epo} \t Loss : {losses_value} \t Total Loss : {losses_reduced_scaled}")
         
-    #optimizer = control_lr_backbone(args, optimizer=optimizer, frozen=False)
     optimizer.zero_grad()
     losses.backward()
     torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip_max_norm)
     optimizer.step()
-    #dist.barrier()
     
     del origin_sam, origin_tar, losses_reduced_scaled, loss_dict_reduced_scaled, loss_dict, outputs, loss_dict_reduced, losses
     torch.cuda.empty_cache()
@@ -137,7 +131,7 @@ def Mosaic_training(args, last_task, epo, idx, count, sum_loss, samples, targets
     ex_device = torch.device("cpu")
     model.train()
     criterion.train()
-    location_loss = torch.tensor(0.0)
+    
     if args.verbose :
         print(f"old target : {[ t['labels']  for t in targets ]} ")
 
