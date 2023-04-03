@@ -38,10 +38,10 @@ def decompose_dataset(no_use_count: int, samples: utils.NestedTensor, targets: D
 
 
 def train_one_epoch(args, last_task, epo, model: torch.nn.Module, criterion: torch.nn.Module,
-                    data_loader: Iterable, optimizer: torch.optim.Optimizer, 
-                    device: torch.device, MosaicBatch: Boolean,  
-                    current_classes: List = [], rehearsal_classes: Dict = {}):
-    ex_device = torch.device("cpu")
+                    data_loader: Iterable, optimizer: torch.optim.Optimizer, device: torch.device, 
+                    MosaicBatch: Boolean, current_classes: List = [], 
+                    rehearsal_data: Dict = {}, prototypes: Dict = {}, data_loader_icarl=None):
+
     if MosaicBatch == False:    
         prefetcher = data_prefetcher(data_loader, device, prefetch=True, Mosaic=False)
     else:
@@ -50,65 +50,172 @@ def train_one_epoch(args, last_task, epo, model: torch.nn.Module, criterion: tor
 
     set_tm = time.time()
     sum_loss = 0.0
-    count = 0
-    label_dict = {} #* 하나의 에포크에서 계속해서 Class Check을 위한 딕셔너리 생성
-    early_stopping_count = 0
-    for idx in tqdm(range(len(data_loader))): #targets 
-        with torch.no_grad():
-            torch.cuda.empty_cache()
-            samples, targets, origin_samples, origin_targets = prefetcher.next()
-            #print(f"target value: {targets}")
-            if idx > 100000:
-                break
-        
-            if early_stopping_count > 40 :
-                dist.barrier()
-                print(f"too many stopping index.")
-                break
-            
+    if args.only_icarl and not last_task:
+        pass
+    else:
+        for idx in tqdm(range(len(data_loader))): #targets 
             train_check = True
-            samples = samples.to(ex_device)
-            targets = [{k: v.to(ex_device) for k, v in t.items()} for t in targets]
-        
-            #TODO : one samples no over / one samples over solve this ! 
-            
-            #* because MosaicAugmentation Data has not original data
-            no_use, yes_use, label_dict = check_class(args.verbose, args.LG , targets, label_dict, current_classes, CL_Limited=args.CL_Limited) #! Original에 한해서만 Limited Training(현재 Task의 데이터에 대해서만 가정)
-            samples, targets, origin_samples, origin_targets, train_check = decompose_dataset(no_use_count=len(no_use), samples= samples, targets = targets, origin_samples=origin_samples, origin_targets= origin_targets ,used_number= yes_use)
-            trainable = check_training_gpu(train_check=train_check)
-            if trainable == False :
-                del samples, targets, origin_samples, origin_targets, train_check
-                torch.cuda.empty_cache()
-                early_stopping_count += 1
-                if MosaicBatch == True :
-                    _, _, _, _ = prefetcher.next(new = True)
-                    
-                continue
+            trainable = True
+            samples, targets, origin_samples, origin_targets = prefetcher.next()
+            del origin_samples, origin_targets
+            # with torch.no_grad():
+            #     torch.cuda.empty_cache()
+            #     samples, targets, origin_samples, origin_targets = prefetcher.next()
+            #     #print(f"target value: {targets}")
                 
-    
-        if trainable == True:
-        #contruct rehearsal buffer in main training
-            rehearsal_classes, sum_loss, count = Original_training(args, last_task, epo, idx, count, sum_loss, samples, targets, origin_samples, origin_targets, 
-                                                model, criterion, optimizer, rehearsal_classes, train_check, current_classes)
+            #     train_check = True
+            #     trainable = True
+            #     samples = samples.to(ex_device)
+            #     targets = [{k: v.to(ex_device) for k, v in t.items()} for t in targets
+                #TODO : one samples no over / one samples over solve this ! 
+                # #* because MosaicAugmentation Data has not original data
+                # no_use, yes_use, label_dict = check_class(args.verbose, args.LG , targets, label_dict, current_classes, CL_Limited=args.CL_Limited) #! Original에 한해서만 Limited Training(현재 Task의 데이터에 대해서만 가정)
+                # samples, targets, origin_samples, origin_targets, train_check = decompose_dataset(no_use_count=len(no_use), samples= samples, targets = targets, origin_samples=origin_samples, origin_targets= origin_targets ,used_number= yes_use)
+                # trainable = check_training_gpu(train_check=train_check)
+                # if trainable == False :
+                #     del samples, targets, origin_samples, origin_targets, train_check
+                #     torch.cuda.empty_cache()
+                #     early_stopping_count += 1
+                #     if MosaicBatch == True :
+                #         _, _, _, _ = prefetcher.next(new = True)        
+                #     continue
 
-        early_stopping_count = 0
-        #* For Mosaic Training method
-        if MosaicBatch == True and trainable == True:
-            samples, targets, _, _ = prefetcher.next() #* Different
-            count, sum_loss = Mosaic_training(args, epo, idx, count, sum_loss, samples, targets, model, criterion, optimizer, current_classes, "currentmosaic")
+            # if trainable == True:
+            # #contruct rehearsal buffer in main training
+            # rehearsal_data, sum_loss, count = Original_training(args, last_task, epo, idx, count, 
+            #                                         sum_loss, samples, targets, origin_samples, origin_targets, 
+            #                                         model, criterion, optimizer, rehearsal_data, train_check, 
+            #                                         current_classes)
+            model.train()
+            criterion.train()
+            # model.to(device)        
+            # samples = samples.to(device)
+            # targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
+            with autocast(True):
+                outputs = model(samples)
+                if args.Fake_Query == True:
+                    targets = normal_query_selc_to_target(outputs, targets, current_classes)
+                loss_dict = criterion(outputs, targets)
+                weight_dict = criterion.weight_dict
+                losses = sum(loss_dict[k] * weight_dict[k] for k in loss_dict.keys() if k in weight_dict)
+            del samples, targets
+                    
+            # with torch.no_grad():
+            #     if train_check and args.Rehearsal and last_task == False: #* I will use this code line. No delete.
+            #         targets = [{k: v.to(ex_device) for k, v in t.items()} for t in targets]
+            #         rehearsal_classes = contruct_rehearsal(losses_value=losses_value, lower_limit=0.1, upper_limit=10, 
+            #                                             targets=targets,
+            #                                             rehearsal_classes=rehearsal_classes, 
+            #                                             Current_Classes=current_classes, 
+            #                                             Rehearsal_Memory=args.Memory)
+                    
+            #     del samples, targets
+
+            loss_dict_reduced = utils.reduce_dict(loss_dict, train_check)
+            loss_dict_reduced_scaled = {k: v * weight_dict[k] for k, v in loss_dict_reduced.items() if k in weight_dict}
+            losses_reduced_scaled = sum(loss_dict_reduced_scaled.values())
+            losses_value = losses_reduced_scaled
+            sum_loss += losses_value
+
+            if utils.is_main_process(): #sum_loss가 GPU의 개수에 맞춰서 더해주고 있으니,
+                check_losses(epo, idx, losses_reduced_scaled, sum_loss, idx, current_classes, rehearsal_data)
+                if idx % 50 == 0:
+                    print(f"Epoch[{epo}]: \t loss: {losses_value} \t total_loss: {sum_loss/(idx+1)}")
+                
+            # optimizer = control_lr_backbone(args, optimizer=optimizer, frozen=False)
+            optimizer.zero_grad()
+            losses.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip_max_norm)
+            optimizer.step()
             
-            if args.Continual_Batch_size == 3: 
-                samples, targets, _, _ = prefetcher.next() #* Next samples
-                count, sum_loss = Mosaic_training(args, epo, idx, count, sum_loss, samples, targets, model, criterion, optimizer, current_classes, "FlipBatch")
-            
-        del samples, targets, trainable, train_check
-        torch.cuda.empty_cache()
+            del trainable, train_check, losses_reduced_scaled, loss_dict_reduced_scaled, loss_dict, outputs, loss_dict_reduced, losses
+            torch.cuda.empty_cache()
+
+    # iCaRL data setup
+    if not last_task:
+        prefetcher_prototype = data_prefetcher(data_loader_icarl, device, prefetch=True, Mosaic=False)
+        prefetcher_exemplar = data_prefetcher(data_loader_icarl, device, prefetch=True, Mosaic=False)
+        # icarl copy feature extracter
+        feature_extracter = copy.deepcopy(model.module.backbone)
+        for n, p in feature_extracter.named_parameters():
+            p.requires_grad = False
+        feature_extracter.eval()
+        # construct prototype (1)- generate prototype
+        with torch.no_grad():
+            _cnt = 0
+            for idx in tqdm(range(len(data_loader_icarl)), desc='Construct_prototype:'):
+                _, _, origin_sample, origin_target = prefetcher_prototype.next()
+                origin_sample = origin_sample.to(device)
+                origin_target = origin_target[0]
+                feature, pos = feature_extracter(origin_sample)
+                feature_0 = feature[0].tensors.squeeze(dim=0)
+
+                label_tensor = origin_target['labels']
+                label_tensor_unique = torch.unique(label_tensor)
+                label_list_unique = label_tensor_unique.tolist()
+                for label in label_list_unique:
+                    try:
+                        if not prototypes[label]:
+                            prototypes[label] = [feature_0, 1]
+                        else:
+                            prototypes[label][0] += feature_0
+                            prototypes[label][1] += 1
+                    except KeyError:
+                        print('The label isnot in this Task!!')
+                _cnt += 1
+                if args.debug and _cnt >= 100:
+                    print('BREAKBREAKBREAKBREAKBREAK')
+                    break
         
+        # construct prototype (2) - gather exemplar 
+            _cnt = 0
+            for idx in tqdm(range(len(data_loader_icarl)), desc='Construct_exemplar:'):
+                _, _, origin_sample, origin_target = prefetcher_exemplar.next()
+                origin_target = origin_target[0]
+                origin_sample = origin_sample.to(device)
+                feature, pos = feature_extracter(origin_sample)
+                feature_0 = feature[0].tensors.squeeze(dim=0).cpu()
+
+                label_tensor = origin_target['labels']
+                label_tensor_unique = torch.unique(label_tensor)
+                label_list_unique = label_tensor_unique.tolist()
+                for label in label_list_unique:
+                    try:
+                        class_mean = (prototypes[label][0] / prototypes[label][1]).cpu()
+                    except KeyError:
+                        print(f'label: {label} donot in prototype: {prototypes.keys()}')
+                        continue
+
+                    if rehearsal_data[label]:
+                        exemplar_mean = (rehearsal_data[label][0].cpu() + feature_0) / (len(rehearsal_data[label]) + 1)
+                        difference = torch.mean(torch.sqrt(torch.sum((class_mean - exemplar_mean)**2, axis=1))).item()
+
+                        rehearsal_data[label][0] = rehearsal_data[label][0].cpu()                    
+                        rehearsal_data[label][0]+= feature_0
+                        rehearsal_data[label][1].append([origin_target['image_id'].item(), difference])
+                    else:
+                        difference = torch.argmin(torch.sqrt(torch.sum((class_mean - feature_0)**2, axis=0))).item() # argmin is true????
+                        rehearsal_data[label] = [feature_0, [[origin_target['image_id'].item(), difference], ]]
+                    
+                    rehearsal_data[label][1].sort(key=lambda x: x[1]) # sort with difference
+                _cnt += 1
+                if args.debug and _cnt >=100:
+                    print('BREAKBREAKBREAKBREAKBREAK')
+                    break
+
+        # construct rehearsal (3) - reduce exemplar set
+            for label, data in tqdm(rehearsal_data.items(), desc='Reduce_exemplar:'):
+                try:
+                    data[1] = data[1][:args.Memory]
+                except:
+                    continue
+
     #for checking limited Classes Learning
-    check_components("Limited", label_dict, args.verbose)
     if utils.is_main_process():
         print("Total Time : ", time.time() - set_tm)
-    return rehearsal_classes
+    return rehearsal_data
+
+
 
 @torch.no_grad()
 def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, output_dir, DIR) :

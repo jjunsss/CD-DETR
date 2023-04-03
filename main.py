@@ -33,7 +33,7 @@ from models import build_model
 
 def get_args_parser():
     parser = argparse.ArgumentParser('Deformable DETR Detector', add_help=False)
-    parser.add_argument('--lr', default=1e-4, type=float)
+    parser.add_argument('--lr', default=2e-4, type=float)
     parser.add_argument('--lr_backbone_names', default=["backbone.0"], type=str, nargs='+')
     parser.add_argument('--lr_backbone', default=2e-5, type=float)
     parser.add_argument('--lr_linear_proj_names', default=['reference_points', 'sampling_offsets'], type=str, nargs='+')
@@ -144,9 +144,12 @@ def get_args_parser():
     parser.add_argument('--Mosaic', default=False, action='store_true', help="use Our CCM strategy in diverse CL method")
     parser.add_argument('--Fake_Query', default=False, action='store_true', help="retaining previous task target through predict query")
     parser.add_argument('--Attn_Reg', default=False, action='store_true', help="retaining previous task target through predict query")
-    parser.add_argument('--Memory', default=125, type=int, help='memory capacity for rehearsal training')
+    parser.add_argument('--Memory', default=25, type=int, help='memory capacity for rehearsal training')
     parser.add_argument('--Continual_Batch_size', default=2, type=int, help='continual batch training method')
-    parser.add_argument('--Rehearsal_file', default='/data/LG/real_dataset/total_dataset/test_dir/Continaul_DETR/Rehearsal_dict/', type=str)
+    parser.add_argument('--Rehearsal_file', default='./rehearsal_dict/', type=str)
+
+    parser.add_argument('--debug', action='store_true')
+    parser.add_argument('--only_icarl', action='store_true')
     return parser
 
 def main(args):
@@ -251,39 +254,55 @@ def main(args):
     for idx in range(start_task):
         load_replay.extend(Divided_Classes[idx])
     
-    #* Load for Replay
+    # initialize set of exemplar, Load for Replay
     if args.Rehearsal and (start_task >= 1):
-        rehearsal_classes = load_rehearsal(args.Rehearsal_file, 0)
-    
-        #rehearsal_classes = multigpu_rehearsal(args.Rehearsal_file, args.Memory, 4, 0, 9, *load_replay) #TODO : 여기 설정 되는 거 변화하는 것도 중요할 듯
-        if len(rehearsal_classes)  == 0:
-            print(f"No rehearsal file")
-            rehearsal_classes = dict()
+        rehearsal_data = load_rehearsal(args.Rehearsal_file, 0)
+        #rehearsal_data = multigpu_rehearsal(args.Rehearsal_file, args.Memory, 4, 0, 9, *load_replay) #TODO : 여기 설정 되는 거 변화하는 것도 중요할 듯
+        if not len(rehearsal_data):
+            print(f"No rehearsal file!!")
+            for label in range(1, 91):
+                rehearsal_data[label] = [] # [feature_sum, [[image_ids, difference] ...]]
     else:
-        rehearsal_classes = dict()
+        rehearsal_data = dict()
+        for label in range(1, 91):
+            rehearsal_data[label] = [] # [feature_sum, [[image_ids, difference] ...]]
     
-    last_task = False        
-    #TODO : TASK 마다 훈련된 모델이 저장되게 설정해두기
+    last_task = False
+    
     for task_idx in range(start_task, args.Task):
         if task_idx+1 == args.Task:
             last_task = True
-        print(f"old class list : {load_replay}")
         
         #New task dataset
         dataset_train, data_loader_train, sampler_train, list_CC = Incre_Dataset(task_idx, args, Divided_Classes) #rehearsal + New task dataset (rehearsal Dataset은 유지하도록 설정)
         MosaicBatch = False
+        print(f"Old classes: {load_replay}")
+
+
+        # initialize prototypes of each class
+        prototypes = {}
+        if not last_task:
+            for label in list_CC:
+                prototypes[label] = [] # [feature_sum, feature_count]
         
+        data_loader_icarl = None
         if task_idx >= 1 and args.Rehearsal:
-            if len(rehearsal_classes.keys()) < 5:
-                raise Exception("Too small rehearsal Dataset. Can't MosaicBatch Augmentation")
+            # if len(rehearsal_data.keys()) < 5:
+            #     raise Exception("Too small rehearsal Dataset. Can't MosaicBatch Augmentation")
             
-            check_components("replay", rehearsal_classes, args.verbose)
-            dataset_train, data_loader_train, sampler_train = CombineDataset(args, rehearsal_classes, dataset_train, args.num_workers, 
-                                                                             args.batch_size, old_classes=load_replay) #rehearsal + New task dataset (rehearsal Dataset은 유지하도록 설정)
+            # TODO
+            # check_components("replay", rehearsal_data, args.verbose)
+            dataset_train, data_loader_train, sampler_train = \
+                                        CombineDataset(args, rehearsal_data, dataset_train, args.num_workers, 
+                                        args.batch_size, old_classes=load_replay) #rehearsal + New task dataset (rehearsal Dataset은 유지하도록 설정)
             if args.Mosaic == True:
                 MosaicBatch = True
+        elif not last_task and args.Rehearsal:
+            data_loader_icarl = DataLoader(dataset_train, batch_size=1, sampler=sampler_train,
+                                        drop_last=True, collate_fn=utils.collate_fn, num_workers=args.num_workers,
+                                        pin_memory=True)
         else:
-            print(f"no use rehearsal training method")
+            print(f"No Rehearsal training !!")
         
         
         for epoch in range(start_epoch, args.Task_Epochs): #어차피 Task마다 훈련을 진행해야 하고, 중간점음 없을 것이므로 TASK마다 훈련이 되도록 만들어도 상관이 없음
@@ -294,18 +313,22 @@ def main(args):
 
             #original training
             #TODO: 매 에포크 마다 생성되는 save 파일과 지워지는 rehearsal 없도록 정리.
-            rehearsal_classes = train_one_epoch( #save the rehearsal dataset. this method necessary need to clear dataset
-                args, last_task, epoch, model, criterion, data_loader_train, optimizer, device, MosaicBatch, list_CC, rehearsal_classes)
+            rehearsal_data = train_one_epoch( #save the rehearsal dataset. this method necessary need to clear dataset
+                args, last_task, epoch, model, criterion, 
+                data_loader_train, optimizer, device, 
+                MosaicBatch, list_CC, 
+                rehearsal_data, prototypes, data_loader_icarl)
             lr_scheduler.step()
-            #if epoch % 2 == 0:
+
             save_model_params(model_without_ddp, optimizer, lr_scheduler, args, args.output_dir, task_idx, int(args.Task), epoch)
-            save_rehearsal_for_combine(task_idx, args.Rehearsal_file, rehearsal_classes, epoch)
-            dist.barrier()
-            rehearsal_classes = multigpu_rehearsal(args.Rehearsal_file, args.Memory, 4, task_idx, epoch, *list_CC)
+            save_rehearsal_for_combine(task_idx, args.Rehearsal_file, rehearsal_data, epoch)
+            utils.synchronize_between_device()
+            
+            rehearsal_data = multigpu_rehearsal(args.Rehearsal_file, args.Memory, 4, task_idx, epoch, *list_CC)
+            
             if utils.is_main_process():
-                save_rehearsal(rehearsal_classes, args.Rehearsal_file, task_idx)
-                
-            dist.barrier()
+                save_rehearsal(rehearsal_data, args.Rehearsal_file, task_idx)
+            utils.synchronize_between_device()
             
         save_model_params(model_without_ddp, optimizer, lr_scheduler, args, args.output_dir, task_idx, int(args.Task), -1)
         load_replay.extend(Divided_Classes[task_idx])

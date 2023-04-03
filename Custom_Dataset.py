@@ -63,20 +63,36 @@ def DivideTask_for_incre(Task_Counts: int, Total_Classes: int, DivisionOfNames: 
         Divided_Classes.append([22, 23, 24, 25, 26, 27, 29, 30, 31, 33,34,36, 37, 38, 39, 40,42,43,44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 57, 58, 59]) #VE
         return Divided_Classes
     
+    # classes = [idx+1 for idx in range(Total_Classes)]
+    # Task = int(Total_Classes / Task_Counts)
+    # Rest_Classes_num = Total_Classes % Task_Counts
+    
+    # start = 0
+    # end = Task
+    # Divided_Classes = []
+    # for _ in range(Task_Counts):
+    #     Divided_Classes.append(classes[start:end])
+    #     start += Task
+    #     end += Task
+    # if Rest_Classes_num != 0:
+    #     Rest_Classes = classes[-Rest_Classes_num:]
+    #     Divided_Classes[-1].extend(Rest_Classes)
     classes = [idx+1 for idx in range(Total_Classes)]
-    Task = int(Total_Classes / Task_Counts)
+    Task = int(Total_Classes / 3)
     Rest_Classes_num = Total_Classes % Task_Counts
     
     start = 0
     end = Task
     Divided_Classes = []
-    for _ in range(Task_Counts):
+    for _ in range(3):
         Divided_Classes.append(classes[start:end])
         start += Task
         end += Task
     if Rest_Classes_num != 0:
         Rest_Classes = classes[-Rest_Classes_num:]
         Divided_Classes[-1].extend(Rest_Classes)
+    
+    Divided_Classes = [Divided_Classes[0]+Divided_Classes[1], Divided_Classes[2]]
     
     return Divided_Classes
 
@@ -86,7 +102,10 @@ class CustomDataset(torch.utils.data.Dataset):
     
     def __init__(self, args, re_dict, old_classes):
         self.re_dict = re_dict
-        self.keys = list(self.re_dict.keys()) #image_id
+        self.keys = []
+        for label_data in list(self.re_dict.values()):
+            self.keys.extend(np.array(label_data[1]).astype(np.int32)[:, 0].tolist())
+            
         self.old_classes = old_classes
         self.datasets = build_dataset(image_set='train', args=args, class_ids=self.old_classes, img_ids=self.keys)
     
@@ -177,7 +196,7 @@ def CombineDataset(args, RehearsalData, CurrentDataset, Worker, Batch_size, old_
     batch_sampler_train = torch.utils.data.BatchSampler(sampler_train, Batch_size, drop_last=True)
     CombinedLoader = DataLoader(MosaicBatchDataset, batch_sampler=batch_sampler_train,
                         collate_fn=utils.collate_fn, num_workers=Worker,
-                        pin_memory=True, prefetch_factor=4, worker_init_fn=worker_init_fn, persistent_workers=args.Mosaic)
+                        pin_memory=True, prefetch_factor=4)
     
     
     return MosaicBatchDataset, CombinedLoader, sampler_train

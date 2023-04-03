@@ -455,14 +455,14 @@ def save_rehearsal_for_combine(task, dir, rehearsal, epoch):
         os.mkdir(dir)
         print(f"Directroy created")
 
-    temp_dict = copy.deepcopy(rehearsal)
-    for key, value in rehearsal.items():
-        if len(value[-1]) == 0:
-            del temp_dict[key]
+    rehearsal_data = copy.deepcopy(rehearsal)
+    for cls, value in rehearsal.items():
+        if len(value) == 0:
+            del rehearsal_data[cls]
             
     dir = dir + str(dist.get_rank()) + "_gpu_rehearsal_task_" + str(task) + "_ep_" + str(epoch)
     with open(dir, 'wb') as f:
-        pickle.dump(temp_dict, f)
+        pickle.dump(rehearsal_data, f)
 
 
 import torch.distributed as dist

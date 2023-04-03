@@ -107,11 +107,12 @@ class NodeDistributedSampler(Sampler):
             
         if local_size is None:
             local_size = int(os.environ.get('LOCAL_SIZE', 1))
+            print(f"local_size: {local_size}")
             
         self.dataset = dataset
         self.shuffle = shuffle
         self.num_replicas = num_replicas
-        self.num_parts = local_size
+        self.num_parts = 4 # local_size
         self.rank = rank
         self.local_rank = local_rank
         self.epoch = 0
@@ -135,6 +136,7 @@ class NodeDistributedSampler(Sampler):
         assert len(indices) == self.total_size_parts
 
         # subsample
+        print(f'*******************3: {self.num_replicas} {self.num_parts}')
         indices = indices[self.rank // self.num_parts:self.total_size_parts:self.num_replicas // self.num_parts]
         assert len(indices) == self.num_samples
 
