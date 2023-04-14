@@ -24,7 +24,7 @@ import torch.distributed as dist
 from Custom_Dataset import *
 from custom_utils import *
 from custom_prints import *
-
+from custom_buffer_manage import *
 
 from datasets import build_dataset, get_coco_api_from_dataset
 from engine import evaluate, train_one_epoch
@@ -41,7 +41,7 @@ def get_args_parser():
     parser.add_argument('--batch_size', default=4, type=int)
     parser.add_argument('--weight_decay', default=1e-4, type=float)
     parser.add_argument('--epochs', default=600, type=int)
-    parser.add_argument('--lr_drop', default=10, type=int)
+    parser.add_argument('--lr_drop', default=30, type=int)
     parser.add_argument('--lr_drop_epochs', default=None, type=int, nargs='+')
     #TODO : clip max grading usually set value 1 or 5 but this therory used to value 0.1 originally
     parser.add_argument('--clip_max_norm', default=0.1, type=float,
@@ -134,8 +134,8 @@ def get_args_parser():
 
     #* Continual Learning 
     parser.add_argument('--Task', default=2, type=int, help='The task is the number that divides the entire dataset, like a domain.') #if Task is 1, so then you could use it for normal training.
-    parser.add_argument('--Task_Epochs', default=5, type=int, help='each Task epoch, e.g. 1 task is 5 of 10 epoch training.. ')
-    parser.add_argument('--Total_Classes', default=80, type=int, help='number of classes in custom COCODataset. e.g. COCO : 80 / LG : 59')
+    parser.add_argument('--Task_Epochs', default=0, type=int, help='each Task epoch, e.g. 1 task is 5 of 10 epoch training.. ')
+    parser.add_argument('--Total_Classes', default=90, type=int, help='number of classes in custom COCODataset. e.g. COCO : 80 / LG : 59')
     parser.add_argument('--Total_Classes_Names', default=False, action='store_true', help="division of classes through class names (DID, PZ, VE). This option is available for LG Dataset")
     parser.add_argument('--CL_Limited', default=0, type=int, help='Use Limited Training in CL. If you choose False, you may encounter data imbalance in training.')
 
@@ -307,12 +307,8 @@ def main(args):
             lr_scheduler.step()
             save_model_params(model_without_ddp, optimizer, lr_scheduler, args, args.output_dir, task_idx, int(args.Task), epoch)
             if last_task == False and args.Rehearsal:
-                save_rehearsal_for_combine(task_idx, args.Rehearsal_file, rehearsal_classes, epoch)
-                rehearsal_classes = multigpu_rehearsal(args.Rehearsal_file, args.Memory, 4, task_idx, epoch, *list_CC)
-                dist.barrier()
-                
-                if utils.is_main_process():
-                    save_rehearsal(rehearsal_classes, args.Rehearsal_file, task_idx, args.Memory)
+                rehearsal_classes = construct_combined_rehearsal(task=task_idx, dir=args.Rehearsal_file, rehearsal=rehearsal_classes,
+                                                                 epoch=epoch, limit_memory_size=args.Memory, gpu_counts=4, list_CC=list_CC)
 
             dist.barrier()
 

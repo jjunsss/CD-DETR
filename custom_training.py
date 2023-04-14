@@ -33,6 +33,7 @@ from tqdm import tqdm
 from GPUtil import showUtilization as gpu_usage
 from torch.cuda.amp import autocast, GradScaler
 from custom_fake_target import mosaic_query_selc_to_target, normal_query_selc_to_target, only_oldset_mosaic_query_selc_to_target
+from custom_buffer_manage import contruct_rehearsal
 
 @decompose
 def decompose_dataset(no_use_count: int, samples: utils.NestedTensor, targets: Dict, origin_samples: utils.NestedTensor, 

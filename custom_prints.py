@@ -9,6 +9,8 @@ def write_to_addfile(filename):
     def decorator(func):
         def wrapper(*args, **kwargs):
             original_stdout = sys.stdout
+            if os.path.exists("./" + filename.split('/')[1]) is False:
+                os.makedirs(filename.split('/')[1],)                
             with open(filename, "a") as f:
                 sys.stdout = f
                 func(*args, **kwargs)
@@ -16,7 +18,7 @@ def write_to_addfile(filename):
         return wrapper
     return decorator
 
-@write_to_addfile("check_replay_limited.txt")
+@write_to_addfile("./check/check_replay_limited.txt")
 def check_components(filesort:str, rehearsal_classes: Dict, print_stat: bool=False):
     '''
         1. check each instance usage capacity
@@ -65,7 +67,7 @@ def over_label_checker(check_list:List , check_list2:List = None, check_list3:Li
     else :
         print("overlist: ", check_list, check_list2, check_list3, check_list4)
 
-@write_to_addfile("Loss_check.txt")
+@write_to_addfile("../check/loss_check.txt")
 def check_losses(epoch, index, losses, epoch_loss, count, training_class, rehearsal=None, dtype=None):
     '''
         protect to division zero Error.
