@@ -215,7 +215,7 @@ def check_class(verbose, LG_Dataset: bool, targets: Dict, label_dict: Dict, curr
         limit2 = [28, 32, 35, 41, 56] #photozone
         limit3 = [22, 23, 24, 25, 26, 27, 29, 30,  31, 33, 34, 36, 37,38, 39, 40,42,43,44, 45, 46,47, 48, 49,50, 51, 52,53,\
                     54, 55, 57, 58, 59] #VE 
-            
+
         for enum, target in enumerate(targets):
             
             label_tensor = target['labels']
@@ -352,7 +352,8 @@ def contruct_rehearsal(losses_value: float, lower_limit: float, upper_limit: flo
                 if high_loss_rehearsal == False: #!얘를들어 unique index를 모두 포함하고 있는 rehearsal 데이터 애들이 존재하지 않는 경우에 해당 상황이 발생할 수 있다.
                     continue
                 
-                if high_loss_rehearsal[0] > losses_value:
+                #replay dictionary ~ [image id][Loss_value, [Unique_classes]]
+                if len(high_loss_rehearsal[1][1]) < len(label_tensor_unique_list):
                     print(f"chagne rehearsal value")
                     del rehearsal_classes[high_loss_rehearsal[0]]
                     rehearsal_classes[image_id] = [losses_value, label_tensor_unique_list]
@@ -378,8 +379,8 @@ def _change_rehearsal_size(limit_memory_size, rehearsal_classes, *args, ):
         if t == False:
             over_list.append(arg)
             
-    check_list = list(filter(lambda x: all(item in x[1][1] for item in over_list), list(rehearsal_classes.items())))
-    sorted_result = sorted(check_list, key = lambda x : x[1][0])
+    check_list = list(filter(lambda x: any(item in x[1][1] for item in over_list), list(rehearsal_classes.items())))
+    sorted_result = sorted(check_list, key = lambda x : len(x[1][1]), reverse=True)
     if len(sorted_result) == 0 :
         return False
     
@@ -464,6 +465,7 @@ def save_rehearsal_for_combine(task, dir, rehearsal, epoch):
         pickle.dump(temp_dict, f)
 
 
+
 import torch.distributed as dist
 def check_training_gpu(train_check):
     world_size = utils.get_world_size()
@@ -500,8 +502,9 @@ def memory_usage_check(byte_usage):
 
 import pickle
 import os
-def save_rehearsal(rehearsal, dir, task):    
-    all_dir = dir  + "ALL_gpu_rehearsal_task_" + str(task)
+def save_rehearsal(rehearsal, dir, task, memory):
+    all_memory = memory * 4
+    all_dir = dir  + "ALL_gpu_rehearsal_task_" + str(task) +"_" + str(all_memory)
     if not os.path.exists(dir):
         os.mkdir(dir)
         print(f"Directroy created")
@@ -511,9 +514,11 @@ def save_rehearsal(rehearsal, dir, task):
             pickle.dump(rehearsal, f)
     
     
-def load_rehearsal(dir, task):
-    all_dir = dir  + "ALL_gpu_rehearsal_task_" + str(task) + "_100"
-    #all_dir = "/home/user/Desktop/jjunsss/Continaul_DETR/Rehearsal_dict/ALL_gpu_rehearsal_task_0_100"
+def load_rehearsal(dir, task, memory):
+    all_memory = memory * 4
+    all_dir = dir  + "ALL_gpu_rehearsal_task_" + str(task) + "_" + str(all_memory)
+    print(f"load replay file name : {all_dir}")
+    #all_dir = "/data/LG/real_dataset/total_dataset/test_dir/Continaul_DETR/Rehearsal_dict/0_gpu_rehearsal_task_0_ep_9"
     if os.path.exists(all_dir) :
         with open(all_dir, 'rb') as f :
             temp = pickle.load(f)
@@ -546,25 +551,26 @@ def multigpu_rehearsal(dir, limit_memory_size, gpu_counts, task, epoch, *args):
     while True:
         check_list = [len(list(filter(lambda x: index in x[1], list(merge_dict.values())))) for index in args]
         temp_array = np.array(check_list)
-        temp_array = temp_array < limit_memory_size
-        if all(temp_array) == True:
+        temp_array_bool = temp_array < limit_memory_size
+        if all(temp_array_bool) == True:
             print(f"********** Done Combined replay data ***********")
             return merge_dict
 
         over_list = []
-        for t, arg in zip(temp_array, args):
+        count_list = []
+        temp_array = temp_array - limit_memory_size
+        for idx, (t, arg) in enumerate(zip(temp_array_bool, args)):
             if t == False:
                 over_list.append(arg)
-                
-        check_list = list(filter(lambda x: all(item in x[1][1] for item in over_list), list(merge_dict.items())))
-        sorted_result = sorted(check_list, key = lambda x : x[1][0])
-        if len(sorted_result) == 0 :
-            check_list = list(filter(lambda x: any(item in x[1][1] for item in over_list), list(merge_dict.items())))
-            sorted_result = sorted(check_list, key = lambda x : x[1][0])
-            del merge_dict[sorted_result[-1][0]]
-            continue
+                count_list.append(temp_array[idx])
+    
+        min_value = min(count_list)
         
-        del merge_dict[sorted_result[-1][0]]
+        check_list = list(filter(lambda x: any(item in x[1][1] for item in over_list), list(merge_dict.items())))
+        sorted_result = sorted(check_list, key = lambda x : x[1][0])
+        for number in [item[0] for item in sorted_result[-min_value:]]:
+            del merge_dict[number]
+        continue
         
         
 def control_lr_backbone(args, optimizer, frozen):

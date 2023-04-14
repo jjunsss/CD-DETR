@@ -58,14 +58,10 @@ def Original_training(args, last_task, epo, idx, count, sum_loss, samples, targe
     criterion.train()
     model.to(device)
     torch.cuda.empty_cache()
-    # if args.verbose :
-    #     print(f"target : {[ t['labels']  for t in targets ]} ")
-    #     print(f"target : {[ t['size']  for t in targets ]} ")
-    teacher_model.to(device)
-    teacher_model.eval()
+
 
     samples = samples.to(device)
-    with autocast():
+    with autocast(False):
         outputs = model(samples, ~args.Attn_Reg)
         targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
         if args.Fake_Query == True:
@@ -121,7 +117,7 @@ def Mosaic_training(args, epo, idx, count, sum_loss, samples, targets,
         
     samples = samples.to(device)
     targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
-    with autocast():
+    with autocast(False):
         outputs = model(samples, args.Attn_Reg)
         if args.Fake_Query == True:
             targets = only_oldset_mosaic_query_selc_to_target(outputs, targets, current_classes)

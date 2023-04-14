@@ -114,7 +114,7 @@ def get_args_parser():
     # dataset parameters
     parser.add_argument('--dataset_file', default='coco')
     #parser.add_argument('--coco_path', default='/data/LG/real_dataset/total_dataset/didvepz/', type=str)
-    parser.add_argument('--coco_path', default='/data/COCODIR/', type=str)
+    parser.add_argument('--coco_path', default='/data/LG/real_dataset/total_dataset/test_dir/COCODIR/', type=str)
     parser.add_argument('--file_name', default='/home/user/Desktop/jjunsss/Continaul_DETR/Rehearsal_dict/', type=str)
     parser.add_argument('--coco_panoptic_path', type=str)
     parser.add_argument('--remove_difficult', action='store_true')
@@ -126,7 +126,7 @@ def get_args_parser():
     #* CL Setting 
     parser.add_argument('--pretrained_model', default=None, help='resume from checkpoint')
     parser.add_argument('--start_epoch', default=0, type=int, metavar='N',help='start epoch')
-    parser.add_argument('--start_task', default=1, type=int, metavar='N',help='start task')
+    parser.add_argument('--start_task', default=0, type=int, metavar='N',help='start task')
     parser.add_argument('--eval', action='store_true')
     parser.add_argument('--verbose', default=False, action='store_true')
     parser.add_argument('--num_workers', default=16, type=int)
@@ -134,8 +134,8 @@ def get_args_parser():
 
     #* Continual Learning 
     parser.add_argument('--Task', default=2, type=int, help='The task is the number that divides the entire dataset, like a domain.') #if Task is 1, so then you could use it for normal training.
-    parser.add_argument('--Task_Epochs', default=15, type=int, help='each Task epoch, e.g. 1 task is 5 of 10 epoch training.. ')
-    parser.add_argument('--Total_Classes', default=90, type=int, help='number of classes in custom COCODataset. e.g. COCO : 80 / LG : 59')
+    parser.add_argument('--Task_Epochs', default=5, type=int, help='each Task epoch, e.g. 1 task is 5 of 10 epoch training.. ')
+    parser.add_argument('--Total_Classes', default=80, type=int, help='number of classes in custom COCODataset. e.g. COCO : 80 / LG : 59')
     parser.add_argument('--Total_Classes_Names', default=False, action='store_true', help="division of classes through class names (DID, PZ, VE). This option is available for LG Dataset")
     parser.add_argument('--CL_Limited', default=0, type=int, help='Use Limited Training in CL. If you choose False, you may encounter data imbalance in training.')
 
@@ -144,7 +144,7 @@ def get_args_parser():
     parser.add_argument('--Mosaic', default=False, action='store_true', help="use Our CCM strategy in diverse CL method")
     parser.add_argument('--Fake_Query', default=False, action='store_true', help="retaining previous task target through predict query")
     parser.add_argument('--Attn_Reg', default=False, action='store_true', help="retaining previous task target through predict query")
-    parser.add_argument('--Memory', default=125, type=int, help='memory capacity for rehearsal training')
+    parser.add_argument('--Memory', default=500, type=int, help='memory capacity for rehearsal training')
     parser.add_argument('--Continual_Batch_size', default=2, type=int, help='continual batch training method')
     parser.add_argument('--Rehearsal_file', default='/data/LG/real_dataset/total_dataset/test_dir/Continaul_DETR/Rehearsal_dict/', type=str)
     parser.add_argument('--teacher_model', default=None, type=str)
@@ -187,7 +187,7 @@ def main(args):
                 out = True
                 break
         return out
-    
+
 
     param_dicts = [
         {
@@ -259,7 +259,7 @@ def main(args):
     
     #* Load for Replay
     if args.Rehearsal and (start_task >= 1):
-        rehearsal_classes = load_rehearsal(args.Rehearsal_file, 0)
+        rehearsal_classes = load_rehearsal(args.Rehearsal_file, 0, args.Memory)
     
         #rehearsal_classes = multigpu_rehearsal(args.Rehearsal_file, args.Memory, 4, 0, 9, *load_replay) #TODO : 여기 설정 되는 거 변화하는 것도 중요할 듯
         if len(rehearsal_classes)  == 0:
@@ -267,10 +267,11 @@ def main(args):
             rehearsal_classes = dict()
     else:
         rehearsal_classes = dict()
-    
-    last_task = False        
+    print(f"start task : {start_task}")
+    last_task = False
     #TODO : TASK 마다 훈련된 모델이 저장되게 설정해두기
     for task_idx in range(start_task, args.Task):
+        print(task_idx)
         if task_idx+1 == args.Task:
             last_task = True
         print(f"old class list : {load_replay}")
@@ -304,26 +305,23 @@ def main(args):
             rehearsal_classes = train_one_epoch( #save the rehearsal dataset. this method necessary need to clear dataset
                 args, last_task, epoch, model, teacher_model, criterion, data_loader_train, optimizer, device, MosaicBatch, list_CC, rehearsal_classes)
             lr_scheduler.step()
-            #if epoch % 2 == 0:
             save_model_params(model_without_ddp, optimizer, lr_scheduler, args, args.output_dir, task_idx, int(args.Task), epoch)
-            if last_task == False :
+            if last_task == False and args.Rehearsal:
                 save_rehearsal_for_combine(task_idx, args.Rehearsal_file, rehearsal_classes, epoch)
-            dist.barrier()
-            rehearsal_classes = multigpu_rehearsal(args.Rehearsal_file, args.Memory, 4, task_idx, epoch, *list_CC)
-            if utils.is_main_process():
-                save_rehearsal(rehearsal_classes, args.Rehearsal_file, task_idx)
+                rehearsal_classes = multigpu_rehearsal(args.Rehearsal_file, args.Memory, 4, task_idx, epoch, *list_CC)
+                dist.barrier()
                 
+                if utils.is_main_process():
+                    save_rehearsal(rehearsal_classes, args.Rehearsal_file, task_idx, args.Memory)
+
             dist.barrier()
-            
+
         save_model_params(model_without_ddp, optimizer, lr_scheduler, args, args.output_dir, task_idx, int(args.Task), -1)
         load_replay.extend(Divided_Classes[task_idx])
-        
-        
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
     print('Training time {}'.format(total_time_str))
 
-    
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('Deformable DETR training and evaluation script', parents=[get_args_parser()])
     args = parser.parse_args()
