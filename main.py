@@ -311,7 +311,9 @@ def main(args):
                                                                  epoch=epoch, limit_memory_size=args.Memory, gpu_counts=4, list_CC=list_CC)
 
             dist.barrier()
-
+            
+        #Initialization for changing epoch 
+        start_epoch = 0
         save_model_params(model_without_ddp, optimizer, lr_scheduler, args, args.output_dir, task_idx, int(args.Task), -1)
         load_replay.extend(Divided_Classes[task_idx])
     total_time = time.time() - start_time
