@@ -76,7 +76,7 @@ def Original_training(args, last_task, epo, idx, count, sum_loss, samples, targe
     with torch.no_grad():
         if train_check and args.Rehearsal and last_task == False: #* I will use this code line. No delete.
             targets = [{k: v.to(ex_device) for k, v in t.items()} for t in targets]
-            rehearsal_classes = contruct_rehearsal(losses_value=losses_value, lower_limit=0.1, upper_limit=10, 
+            rehearsal_classes = contruct_rehearsal(losses_value=losses_value, lower_limit=0.1, upper_limit=100, 
                                                 targets=targets,
                                                 rehearsal_classes=rehearsal_classes, 
                                                 Current_Classes=current_classes, 
@@ -93,7 +93,7 @@ def Original_training(args, last_task, epo, idx, count, sum_loss, samples, targe
             sum_loss += losses_reduced_scaled
             if utils.is_main_process(): #sum_loss가 GPU의 개수에 맞춰서 더해주고 있으니,
                 check_losses(epo, idx, losses_reduced_scaled, sum_loss, count, current_classes, rehearsal_classes)
-                print(f"epoch : {epo} \t Loss : {losses_value} \t Total Loss : {losses_reduced_scaled}")
+                print(f"epoch : {epo} \t Loss : {losses_value} \t Total Loss : {sum_loss / count}")
         
     #optimizer = control_lr_backbone(args, optimizer=optimizer, frozen=False)
     optimizer.zero_grad()
@@ -136,7 +136,7 @@ def Mosaic_training(args, epo, idx, count, sum_loss, samples, targets,
 
     if utils.is_main_process(): #sum_loss가 GPU의 개수에 맞춰서 더해주고 있으니,
         check_losses(epo, idx, losses_reduced_scaled, sum_loss, count, current_classes, None, data_type)
-        print(f"mosaic :  \t Loss : {losses.item()} \t Total Loss : {losses_reduced_scaled}")
+        print(f"mosaic :  \t Loss : {losses.item()} \t Total Loss : {sum_loss / count}")
         if idx % 10 == 0:
             print(f"loss : {losses.item()}")
             print(f"current classes is {current_classes}")

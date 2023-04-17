@@ -117,9 +117,9 @@ def load_rehearsal(dir, task, memory):
             print(f"********** Done Combined replay data ***********")
             return temp
 
-def _multigpu_rehearsal(dir, limit_memory_size, gpu_counts, task, epoch, *args):
+def _multigpu_rehearsal(dir, limit_memory_size, gpu_counts, task, epoch, current_classes):
     '''
-        limit_memory_size : args.memory
+        limit_memory_size : current_classes.memory
         rehearsal_classes: Rehearsal classes
         gpu_counts : the number of all GPUs
         args : old classes or current classes 
@@ -128,12 +128,12 @@ def _multigpu_rehearsal(dir, limit_memory_size, gpu_counts, task, epoch, *args):
     '''
     limit_memory_size = limit_memory_size * gpu_counts
 
-
+        
     dir_list = [dir + str(num) +"_gpu_rehearsal_task_" + str(task) + "_ep_" + str(epoch) for num in range(gpu_counts)]
     for each_dir in dir_list:
         if os.path.exists(each_dir) == False:
             raise Exception("No rehearsal file")
-
+        
     merge_dict = {}
     for idx, dictionary_dir in enumerate(dir_list):
         with open(dictionary_dir, 'rb') as f :
@@ -141,27 +141,26 @@ def _multigpu_rehearsal(dir, limit_memory_size, gpu_counts, task, epoch, *args):
             merge_dict = {**merge_dict, **temp}
     
     while True:
-        check_list = [len(list(filter(lambda x: index in x[1], list(merge_dict.values())))) for index in args]
+        check_list = [len(list(filter(lambda x: index in x[1], list(merge_dict.values())))) for index in current_classes]
         temp_array = np.array(check_list)
         temp_array_bool = temp_array < limit_memory_size
         if all(temp_array_bool) == True:
             print(f"********** Done Combined replay data ***********")
             return merge_dict
-
+        
         over_list = []
         count_list = []
         temp_array = temp_array - limit_memory_size
-        for idx, (t, arg) in enumerate(zip(temp_array_bool, args)):
+        for idx, (t, arg) in enumerate(zip(temp_array_bool, current_classes)):
             if t == False:
                 over_list.append(arg)
-                count_list.append(temp_array[idx])
-
-        min_value = min(count_list)
-
+        
         check_list = list(filter(lambda x: any(item in x[1][1] for item in over_list), list(merge_dict.items())))
         sorted_result = sorted(check_list, key = lambda x : x[1][0])
-        for number in [item[0] for item in sorted_result[-min_value:]]:
-            del merge_dict[number]
+        number = sorted_result[-20:]
+        
+        for index, _ in number: 
+            del merge_dict[index]
         continue
 
 def construct_combined_rehearsal(task:int ,dir:str ,rehearsal:dict ,epoch:int ,limit_memory_size:int ,list_CC:list,
@@ -169,6 +168,9 @@ def construct_combined_rehearsal(task:int ,dir:str ,rehearsal:dict ,epoch:int ,l
     #file save of each GPUs
     _save_rehearsal_for_combine(task, dir, rehearsal, epoch)
 
+    #need time for synchronization each GPUs
+    dist.barrier()
+    
     #combine replay buffer data in each GPUs processes
     rehearsal_classes = _multigpu_rehearsal(dir, limit_memory_size, gpu_counts, task, epoch, *list_CC)
 

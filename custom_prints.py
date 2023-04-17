@@ -67,7 +67,7 @@ def over_label_checker(check_list:List , check_list2:List = None, check_list3:Li
     else :
         print("overlist: ", check_list, check_list2, check_list3, check_list4)
 
-@write_to_addfile("../check/loss_check.txt")
+@write_to_addfile("./check/loss_check.txt")
 def check_losses(epoch, index, losses, epoch_loss, count, training_class, rehearsal=None, dtype=None):
     '''
         protect to division zero Error.
