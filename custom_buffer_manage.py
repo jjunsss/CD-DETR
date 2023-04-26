@@ -143,26 +143,45 @@ def _multigpu_rehearsal(dir, limit_memory_size, gpu_counts, task, epoch, current
     while True:
         check_list = [len(list(filter(lambda x: index in x[1], list(merge_dict.values())))) for index in current_classes]
         temp_array = np.array(check_list)
-        temp_array_bool = temp_array < limit_memory_size
+        temp_array_bool = temp_array <= limit_memory_size
+        
         if all(temp_array_bool) == True:
             print(f"********** Done Combined replay data ***********")
             return merge_dict
-        
-        over_list = []
-        count_list = []
+            break
+
+        over_list = {}
         temp_array = temp_array - limit_memory_size
+        temp_array = np.clip(temp_array, 0, np.Infinity)
         for idx, (t, arg) in enumerate(zip(temp_array_bool, current_classes)):
             if t == False:
-                over_list.append(arg)
-        
-        check_list = list(filter(lambda x: any(item in x[1][1] for item in over_list), list(merge_dict.items())))
-        sorted_result = sorted(check_list, key = lambda x : x[1][0])
-        number = sorted_result[-20:]
-        
-        for index, _ in number: 
-            del merge_dict[index]
-        continue
+                over_list[arg] = temp_array[idx]
 
+        # 수가 적은 것부터 정렬
+        sorted_over_list = sorted(over_list.items(), key=lambda x: x[1])
+        
+        del_classes = sorted_over_list[0][0]
+        del_counts = sorted_over_list[0][1]
+        
+        #얘가 계속해서 변경되어야 맞음
+        check_list = list(filter(lambda x: del_classes in x[1][1], list(merge_dict.items())))
+        sorted_result = sorted(check_list, key=lambda x: x[1][0], reverse=True)
+        
+        del_count = int(del_counts * 1)
+        
+        # Delete elements in merge_dict according to the sorted result and del_count
+        deleted_count = 0
+        for img_index, _ in sorted_result:
+            if deleted_count >= del_count:
+                break
+            
+            # Ensure that del_count is greater than 0 before deleting
+            if del_count > 0:
+                del merge_dict[img_index]
+                deleted_count += 1
+                
+        continue
+    
 def construct_combined_rehearsal(task:int ,dir:str ,rehearsal:dict ,epoch:int ,limit_memory_size:int ,list_CC:list,
                                  gpu_counts:int, ) -> dict:
     #file save of each GPUs
@@ -172,7 +191,7 @@ def construct_combined_rehearsal(task:int ,dir:str ,rehearsal:dict ,epoch:int ,l
     dist.barrier()
     
     #combine replay buffer data in each GPUs processes
-    rehearsal_classes = _multigpu_rehearsal(dir, limit_memory_size, gpu_counts, task, epoch, *list_CC)
+    rehearsal_classes = _multigpu_rehearsal(dir, limit_memory_size, gpu_counts, task, epoch, list_CC)
 
     #save combined replay buffer data for next training
     if utils.is_main_process():
