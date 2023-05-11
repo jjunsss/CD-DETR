@@ -24,7 +24,7 @@ import torch.distributed as dist
 from Custom_Dataset import *
 from custom_utils import *
 from custom_prints import *
-
+from custom_buffer_manager import *
 
 from datasets import build_dataset, get_coco_api_from_dataset
 from engine import evaluate, train_one_epoch
@@ -212,7 +212,8 @@ def main(args):
     else:
         optimizer = torch.optim.AdamW(param_dicts, lr=args.lr,
                                       weight_decay=args.weight_decay)
-    lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, args.lr_drop, gamma = 0.5)
+    # lr_scheduler = ContinualStepLR(optimizer, args.lr_drop, gamma = 0.5)
+    lr_scheduler = StepLR(optimizer, args.lr_drop, gamma = 0.5)
 
     if args.distributed:
         model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu])
@@ -268,8 +269,11 @@ def main(args):
     else:
         rehearsal_classes = dict()
     
-    last_task = False        
-    #TODO : TASK 마다 훈련된 모델이 저장되게 설정해두기
+    last_task = False
+    AugReplay = False
+    if args.AugReplay == True:
+        AugReplay = True        
+        
     for task_idx in range(start_task, args.Task):
         if task_idx+1 == args.Task:
             last_task = True
@@ -277,20 +281,16 @@ def main(args):
         
         #New task dataset
         dataset_train, data_loader_train, sampler_train, list_CC = Incre_Dataset(task_idx, args, Divided_Classes) #rehearsal + New task dataset (rehearsal Dataset은 유지하도록 설정)
-        AugReplay = False
         
         if task_idx >= 1 and args.Rehearsal:
-            if len(rehearsal_classes.keys()) < 5:
-                raise Exception("Too small rehearsal Dataset. Can't AugReplay Augmentation")
-            
-            check_components("replay", rehearsal_classes, args.verbose)
+            if args.verbose :
+                check_components("replay", rehearsal_classes, args.verbose)
             replay_dataset = copy.deepcopy(rehearsal_classes)
             dataset_train, data_loader_train, sampler_train = CombineDataset(args, replay_dataset, dataset_train, args.num_workers, 
                                                                              args.batch_size, old_classes=load_replay) #rehearsal + New task dataset (rehearsal Dataset은 유지하도록 설정)
-            if args.AugReplay == True:
-                AugReplay = True
-        else:
-            print(f"no use rehearsal training method")
+            
+            # Learning rate control in task change
+            # lr_scheduler.task_change()
         
         
         for epoch in range(start_epoch, args.Task_Epochs): #어차피 Task마다 훈련을 진행해야 하고, 중간점음 없을 것이므로 TASK마다 훈련이 되도록 만들어도 상관이 없음
@@ -298,21 +298,28 @@ def main(args):
                 sampler_train.set_epoch(epoch)#TODO: 추후에 epoch를 기준으로 batch sampler를 추출하는 행위 자체가 오류를 일으킬 가능성이 있음 Incremental Learning에서                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
             print(f"task id : {task_idx}")
             print(f"each epoch id : {epoch} , Dataset length : {len(dataset_train)}, current classes :{list_CC}")
-
-            #original training
-            #TODO: 매 에포크 마다 생성되는 save 파일과 지워지는 rehearsal 없도록 정리.
-            rehearsal_classes = train_one_epoch( #save the rehearsal dataset. this method necessary need to clear dataset
-                args, last_task, epoch, model, teacher_model, criterion, data_loader_train, optimizer, device, AugReplay, list_CC, rehearsal_classes)
+            print(f"Task is Last : {last_task}")
+            print(f"args task : : {args.Task}")
+            
+            # Training process
+            rehearsal_classes = train_one_epoch(args, last_task, epoch, model, teacher_model, criterion, 
+                                                data_loader_train, optimizer, lr_scheduler,
+                                                device, AugReplay, list_CC, rehearsal_classes)
+            
+            # set a lr scheduler.
             lr_scheduler.step()
+            
+            # Save model
             save_model_params(model_without_ddp, optimizer, lr_scheduler, args, args.output_dir, task_idx, int(args.Task), epoch)
-            if last_task == False:
-                save_rehearsal_for_combine(task_idx, args.Rehearsal_file, rehearsal_classes, epoch)
-                dist.barrier()
-                rehearsal_classes = multigpu_rehearsal(args.Rehearsal_file, args.Memory, 4, task_idx, epoch, *list_CC)
-                if utils.is_main_process():
-                    save_rehearsal(rehearsal_classes, args.Rehearsal_file, task_idx, args.Memory)
+            if last_task == False and args.Rehearsal and epoch + 1 == args.Task_Epochs:
+                rehearsal_classes = construct_combined_rehearsal(task=task_idx, dir=args.Rehearsal_file, rehearsal=rehearsal_classes,
+                                                                 epoch=epoch, limit_memory_size=args.Memory, gpu_counts=4, list_CC=list_CC)
+                print(f"complete save replay's data process")
+                #for wandb checker
+                if utils.is_main_process() and epoch + 1 == args.Task_Epochs:
+                    buffer_checker(rehearsal_classes, epoch)
 
-            dist.barrier()
+                dist.barrier()
 
         save_model_params(model_without_ddp, optimizer, lr_scheduler, args, args.output_dir, task_idx, int(args.Task), -1)
         load_replay.extend(Divided_Classes[task_idx])

@@ -38,7 +38,7 @@ def decompose_dataset(no_use_count: int, samples: utils.NestedTensor, targets: D
 
 
 def train_one_epoch(args, last_task, epo, model: torch.nn.Module, teacher_model, criterion: torch.nn.Module,
-                    data_loader: Iterable, optimizer: torch.optim.Optimizer, 
+                    data_loader: Iterable, optimizer: torch.optim.Optimizer, lr_scheduler: ContinualStepLR,
                     device: torch.device, MosaicBatch: Boolean,  
                     current_classes: List = [], rehearsal_classes: Dict = {}):
     ex_device = torch.device("cpu")
@@ -56,58 +56,30 @@ def train_one_epoch(args, last_task, epo, model: torch.nn.Module, teacher_model,
     trainable=True
     for idx in tqdm(range(len(data_loader))): #targets 
         with torch.no_grad():
-            torch.cuda.empty_cache()
             samples, targets, origin_samples, origin_targets = prefetcher.next()
-            #print(f"target value: {targets}")
-            if idx > 100000:
-                break
-        
-            if early_stopping_count > 40 :
-                dist.barrier()
-                print(f"too many stopping index.")
-                break
             
             train_check = True
             samples = samples.to(ex_device)
             targets = [{k: v.to(ex_device) for k, v in t.items()} for t in targets]
         
-            #TODO : one samples no over / one samples over solve this ! 
-            
-            #* because MosaicAugmentation Data has not original data
-            if args.CL_Limited is not False:
-                no_use, yes_use, label_dict = check_class(args.verbose, args.LG , targets, label_dict, current_classes, CL_Limited=args.CL_Limited) #! Original에 한해서만 Limited Training(현재 Task의 데이터에 대해서만 가정)
-                samples, targets, origin_samples, origin_targets, train_check = decompose_dataset(no_use_count=len(no_use), samples= samples, targets = targets, origin_samples=origin_samples, origin_targets= origin_targets ,used_number= yes_use)
-                trainable = check_training_gpu(train_check=train_check)
-                if trainable == False :
-                    del samples, targets, origin_samples, origin_targets, train_check
-                    torch.cuda.empty_cache()
-                    early_stopping_count += 1
-                    if MosaicBatch == True :
-                        _, _, _, _ = prefetcher.next(new = True)
-                        
-                    continue
-                
-    
         if trainable == True:
         #contruct rehearsal buffer in main training
             rehearsal_classes, sum_loss, count = Original_training(args, last_task, epo, idx, count, sum_loss, samples, targets, origin_samples, origin_targets, 
                                                 model, teacher_model, criterion, optimizer, rehearsal_classes, train_check, current_classes)
 
-        early_stopping_count = 0
-        #* For Mosaic Training method
+
         if MosaicBatch == True and trainable == True:
             samples, targets, _, _ = prefetcher.next() #* Different
+            # lr_scheduler.replay_step()
             count, sum_loss = Mosaic_training(args, last_task, epo, idx, count, sum_loss, samples, targets, model, teacher_model, criterion, optimizer, current_classes, "currentmosaic")
             
             if args.Continual_Batch_size == 3: 
                 samples, targets, _, _ = prefetcher.next() #* Next samples
                 count, sum_loss = Mosaic_training(args, epo, idx, count, sum_loss, samples, targets, model, criterion, optimizer, current_classes, "FlipBatch")
+            # lr_scheduler.original_step()
             
         del samples, targets, train_check
-        torch.cuda.empty_cache()
         
-    #for checking limited Classes Learning
-    check_components("Limited", label_dict, args.verbose)
     if utils.is_main_process():
         print("Total Time : ", time.time() - set_tm)
     return rehearsal_classes

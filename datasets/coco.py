@@ -157,36 +157,16 @@ def make_coco_transforms(image_set):
 
     normalize = T.Compose([
         T.ToTensor(),
-        #T.Normalize([0.312, 0.315, 0.294], [0.120, 0.122, 0.131]) # For LG
-        T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])# third (11.14 ~ )
+        T.Normalize([0.312, 0.315, 0.294], [0.120, 0.122, 0.131]) # For LG
+        #T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])# third (11.14 ~ )
     ])
 
     scales = [480, 512, 544, 576, 608, 640, 672, 704]
 
-
-    if image_set == 'LG':
-        return T.Compose([
-            T.RandomHorizontalFlip(),
-            # T.RandomAdjustSharpness(), # Random apply ( p = 0.5 )
-            # T.ColorJitter(),
-            # #T.RandomAugmetation(),
-            T.RandomSelect(   
-                T.RandomResize(scales, max_size=1333),
-                T.Compose([
-                    T.RandomResize([400, 500, 600]),
-                    T.RandomSizeCrop(384, 600),
-                    T.RandomResize(scales, max_size=1333),
-                ])
-            ),
-            normalize,
-        ])
         
     if image_set == 'train':
         return T.Compose([
             T.RandomHorizontalFlip(),
-            # T.RandomAdjustSharpness(), # Random apply ( p = 0.5 )
-            # T.ColorJitter(),
-            # #T.RandomAugmetation(),
             T.RandomSelect(   
                 T.RandomResize(scales, max_size=1200),
                 T.Compose([
@@ -217,8 +197,8 @@ def build(image_set, args, img_ids = None, class_ids = None):
     #     "val": (root / "images", root / 'output_json' / 'train.json'),
     # }
     PATHS = {
-        "train": (root / "train2017", root / 'annotations' / 'instances_train2017.json'),
-        "val": (root / "val2017", root / 'annotations' / 'instances_val2017.json'),
+        "train": (root / "images", root / 'output_json' / 'train.json'),
+        "val": (root / "images", root / 'output_json' / 'train.json'),
     }
 
     img_folder, ann_file = PATHS[image_set]

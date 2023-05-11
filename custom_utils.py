@@ -7,7 +7,7 @@ import util.misc as utils
 import numpy as np
 from typing import Tuple, Dict, List, Optional
 import os
-from custom_prints import over_label_checker
+from custom_prints import over_label_checker, check_components
 
 def decompose(func):
     def wrapper(no_use_count: int, samples: utils.NestedTensor, targets: Dict, 
@@ -319,92 +319,6 @@ def _rearrange_targets(no_use_count: int, samples: utils.NestedTensor, targets: 
     batch_size = 2
     return (batch_size, no_use_count, samples, targets, origin_samples, origin_targets, used_number)
 
-from pympler import asizeof, summary
-def contruct_rehearsal(losses_value: float, lower_limit: float, upper_limit: float, targets,
-                       rehearsal_classes: List, Current_Classes: List[int], Rehearsal_Memory: int = 300) -> Dict:
-    # Check if losses_value is within the specified range
-    Rehearsal_Memory = Rehearsal_Memory * 4
-    if losses_value > lower_limit and losses_value < upper_limit : 
-        ex_device = torch.device("cpu")
-        #TODO : Loss change staratgy.
-        number_of_labels = sum([ torch.count_nonzero(t['labels']).item()  for t in targets ])
-        each_loss = losses_value / number_of_labels #loss value of each instances.
-        for enum, target in enumerate(targets): #! 배치 개수 ex) 4개 
-            # Get the unique labels and the count of each label
-            label_tensor = target['labels']
-            number_of_label = torch.count_nonzero(label_tensor).item()
-            sample_loss = each_loss * number_of_label #The number of label in image * loss value of each label instance = loss value of one image 
-            image_id = target['image_id'].item()
-            label_tensor_unique = torch.unique(label_tensor)
-            label_tensor_unique_list = label_tensor_unique.tolist()
-            if set(label_tensor_unique_list).issubset(Current_Classes) is False: #if unique tensor composed by Old Dataset, So then pass iteration
-                continue
-            
-            label_tensor_count = label_tensor.numpy()
-            bin = np.bincount(label_tensor_count)
-            if image_id in rehearsal_classes.keys():
-                temp = set(rehearsal_classes[image_id][-1])
-                temp = temp.union(set(label_tensor_unique_list))
-                rehearsal_classes[image_id][-1] = list(temp)
-                rehearsal_classes[image_id][0] = sample_loss #change loss value. because still model updated for optimizing something.
-                continue
-            
-            
-            if _check_rehearsal_size(Rehearsal_Memory, rehearsal_classes, *label_tensor_unique_list) == True:
-                rehearsal_classes[image_id] = [sample_loss, label_tensor_unique_list]
-            else:
-                print(f"**** Memory over ****")
-                high_loss_rehearsal = _change_rehearsal_size(Rehearsal_Memory, rehearsal_classes, *label_tensor_unique_list)
-                if high_loss_rehearsal == False: 
-                    #!얘를들어 unique index를 모두 포함하고 있는 rehearsal 데이터 애들이 존재하지 않는 경우에 해당 상황이 발생할 수 있다.
-                    #It will be result in confusion replay dataset for downgrade.
-                    continue
-                
-                if high_loss_rehearsal[1][0] > sample_loss:
-                    print(f"chagne rehearsal value")
-                    del rehearsal_classes[high_loss_rehearsal[0]]
-                    rehearsal_classes[image_id] = [sample_loss, label_tensor_unique_list]
-    
-    return rehearsal_classes
-
-def _check_rehearsal_size(limit_memory_size, rehearsal_classes, *args, ):
-    if len(rehearsal_classes.keys()) == 0:
-        return True
-    
-    check_list = [len(list(filter(lambda x: index in x[1], list(rehearsal_classes.values())))) for index in args]
-    
-    check = all([value < limit_memory_size for value in check_list])
-    return check
-
-def _change_rehearsal_size(limit_memory_size, rehearsal_classes, *args, ): 
-    check_list = [len(list(filter(lambda x: index in x[1], list(rehearsal_classes.values())))) for index in args]
-    temp_array = np.array(check_list)
-    temp_array = temp_array < limit_memory_size 
-    
-    over_list = []
-    for t, arg in zip(temp_array, args):
-        if t == False:
-            over_list.append(arg)
-            
-    check_list = list(filter(lambda x: all(item in x[1][1] for item in over_list), list(rehearsal_classes.items())))
-    sorted_result = sorted(check_list, key = lambda x : x[1][0])
-    if len(sorted_result) == 0 :
-        return False
-    
-    sorted_result = sorted_result[-1]
-
-    return sorted_result
-
-def rearrange_rehearsal(rehearsal_classes: dict, current_classes: list) -> dict:
-    '''
-        delete bincount, loss_value in Current class 
-    '''
-    for key, contents in rehearsal_classes.items():
-        if key in current_classes:
-            for content in contents:
-                del content[:2]
-            
-    return rehearsal_classes
 
 def load_model_params(mode, model: model,
                       dir: str = "/home/user/Desktop/jjunsss/CL_DDETR/baseline_ddetr.pth"):
@@ -462,23 +376,6 @@ def save_model_params(model_without_ddp:model, optimizer:torch.optim, lr_schedul
         'args': args,
     }, checkpoint_paths)
 
-import pickle
-import copy
-def save_rehearsal_for_combine(task, dir, rehearsal, epoch):
-    #* save the capsulated dataset(Boolean, image_id:int)
-    if not os.path.exists(dir):
-        os.mkdir(dir)
-        print(f"Directroy created")
-
-    temp_dict = copy.deepcopy(rehearsal)
-    for key, value in rehearsal.items():
-        if len(value[-1]) == 0:
-            del temp_dict[key]
-            
-    dir = dir + str(dist.get_rank()) + "_gpu_rehearsal_task_" + str(task) + "_ep_" + str(epoch)
-    with open(dir, 'wb') as f:
-        pickle.dump(temp_dict, f)
-
 
 import torch.distributed as dist
 def check_training_gpu(train_check):
@@ -502,88 +399,10 @@ def check_training_gpu(train_check):
         return False
 
     return True
-    
-    
-def memory_usage_check(byte_usage):
-    """
-        for checking memory usage in instace. 
-        output : x.xx MB usage
-    """
-    instances_bytes = asizeof.asizeof(byte_usage) 
-    memory_usage_MB = instances_bytes * 0.00000095367432
-    
-    return memory_usage_MB
 
-import pickle
-import os
-def save_rehearsal(rehearsal, dir, task, memory):
-    all_memory = memory * 4
-    all_dir = dir  + "ALL_gpu_rehearsal_task_" + str(task) +"_" + str(all_memory)
-    if not os.path.exists(dir):
-        os.mkdir(dir)
-        print(f"Directroy created")
-
-    with open(all_dir, 'wb') as f:
-        if utils.is_main_process():
-            pickle.dump(rehearsal, f)
-    
-    
-def load_rehearsal(dir, task, memory):
-    all_memory = memory * 4
-    all_dir = dir  + "ALL_gpu_rehearsal_task_" + str(task) + "_" + str(all_memory)
-    print(f"load replay file name : {all_dir}")
-    #all_dir = "/data/LG/real_dataset/total_dataset/test_dir/Continaul_DETR/Rehearsal_dict/0_gpu_rehearsal_task_0_ep_9"
-    if os.path.exists(all_dir) :
-        with open(all_dir, 'rb') as f :
-            temp = pickle.load(f)
-            print(f"********** Done Combined replay data ***********")
-            return temp
-        
-def multigpu_rehearsal(dir, limit_memory_size, gpu_counts, task, epoch, *args):
-    '''
-        limit_memory_size : args.memory
-        rehearsal_classes: Rehearsal classes
-        gpu_counts : the number of all GPUs
-        args : old classes or current classes 
-        epoch : now epoch
-        task : now task
-    '''
-    limit_memory_size = limit_memory_size * gpu_counts
-
-        
-    dir_list = [dir + str(num) +"_gpu_rehearsal_task_" + str(task) + "_ep_" + str(epoch) for num in range(gpu_counts)]
-    for each_dir in dir_list:
-        if os.path.exists(each_dir) == False:
-            raise Exception("No rehearsal file")
-        
-    merge_dict = {}
-    for idx, dictionary_dir in enumerate(dir_list):
-        with open(dictionary_dir, 'rb') as f :
-            temp = pickle.load(f)
-            merge_dict = {**merge_dict, **temp}
-    
-    while True:
-        check_list = [len(list(filter(lambda x: index in x[1], list(merge_dict.values())))) for index in args]
-        temp_array = np.array(check_list)
-        temp_array = temp_array < limit_memory_size
-        if all(temp_array) == True:
-            print(f"********** Done Combined replay data ***********")
-            return merge_dict
-
-        over_list = []
-        for t, arg in zip(temp_array, args):
-            if t == False:
-                over_list.append(arg)
-                
-        check_list = list(filter(lambda x: all(item in x[1][1] for item in over_list), list(merge_dict.items())))
-        sorted_result = sorted(check_list, key = lambda x : x[1][0])
-        if len(sorted_result) == 0 :
-            check_list = list(filter(lambda x: any(item in x[1][1] for item in over_list), list(merge_dict.items())))
-            sorted_result = sorted(check_list, key = lambda x : x[1][0])
-            del merge_dict[sorted_result[-1][0]]
-            continue
-        
-        del merge_dict[sorted_result[-1][0]]
+def buffer_checker(rehearsal, epoch):
+    #print text file
+    check_components(rehearsal, True)
         
         
 def control_lr_backbone(args, optimizer, frozen):
@@ -595,3 +414,34 @@ def control_lr_backbone(args, optimizer, frozen):
     optimizer.param_groups[-1]['lr'] = lr
             
     return optimizer
+
+import torch.optim as optim
+from torch.optim.lr_scheduler import StepLR
+import copy
+
+class ContinualStepLR(StepLR):
+    def __init__(self, optimizer, step_size, gamma=0.1, task_gamma=0.5, last_epoch=-1, verbose=False):
+        super(ContinualStepLR, self).__init__(optimizer, step_size, gamma, last_epoch, verbose)
+        self.task_gamma = task_gamma
+        self.base_lr = None
+        
+    def task_change(self):
+        for i, param_group in enumerate(self.optimizer.param_groups):
+            param_group['lr'] = param_group['lr'] * self.task_gamma
+            if self.verbose:
+                print(f'Task changed: Decreasing Group {i} lr to {param_group["lr"]:.4e}')
+        # Save different learning rate in changed task.
+        self.base_lr = copy.deepcopy(self.optimizer)
+        print(f"base learning rate : {self.base_lr}")
+        
+    def replay_step(self):
+        if self.base_lr is None:
+            raise Exception("First, use the original learning rate and then you can use the replay learning rate.")
+        replay_gamma = float(1.0 / self.task_gamma)
+        for i, (param_group, base_param_group) in enumerate(zip(self.optimizer.param_groups, self.base_lr.param_groups)):
+            param_group['lr'] = base_param_group['lr'] * replay_gamma
+            if self.verbose:
+                print(f'Task changed: Increasing Group {i} lr to {param_group["lr"]:.4e}')
+                
+    def original_step(self):
+        self.optimizer = copy.deepcopy(self.base_lr)

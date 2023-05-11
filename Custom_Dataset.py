@@ -55,8 +55,8 @@ def DivideTask_for_incre(Task_Counts: int, Total_Classes: int, DivisionOfNames: 
     if DivisionOfNames is True:
         Divided_Classes = []
         Divided_Classes.append([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21]) #DID
-        Divided_Classes.append([28, 32, 35, 41, 56]) #photozone
-        Divided_Classes.append([22, 23, 24, 25, 26, 27, 29, 30, 31, 33,34,36, 37, 38, 39, 40,42,43,44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 57, 58, 59]) #VE
+        Divided_Classes.append([28, 32, 35, 41, 56]) #photozone ,
+        #Divided_Classes.append([22, 23, 24, 25, 26, 27, 29, 30, 31, 33,34,36, 37, 38, 39, 40,42,43,44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 57, 58, 59]) #VE
         return Divided_Classes
     
     classes = [idx+1 for idx in range(Total_Classes)]
@@ -139,27 +139,21 @@ class BatchMosaicAug(torch.utils.data.Dataset):
         self.AugReplay = AugReplay
         self.old_length = old_length
         self.OldDataset_weights = OldDataset_weights
-        self.Count = 0
-        # if self.Mosaic == True: 
-        #     #self._CCB = CCB_augmentation(self.img_size, self.Continual_Batch)
+
         
     def __len__(self):
             return len(self.Datasets)    
-        
-    def __getitem__(self, index):
-        img, target, origin_img, origin_target = self.Datasets[index] #No normalize pixel, Normed Targets
-        
-        if self.Mosaic == True :
-            self.Count += 1
-            if self.Count > (len(self.Rehearsal_dataset)-1):
-                Replay_index = self.Count % len(self.Rehearsal_dataset)
-                O_img, O_target, _, _ = self.Rehearsal_dataset[Replay_index] #No shuffle because weight sorting.
-                return img, target, origin_img, origin_target, O_img, O_target
-            
-            O_img, O_target, _, _ = self.Rehearsal_dataset[self.Count]
-            
-            return img, target, origin_img, origin_target, O_img, O_target
 
+    def __getitem__(self, index): #! How Can I do this?? 
+        img, target, origin_img, origin_target = self.Datasets[index] #No normalize pixel, Normed Targets
+
+        if self.AugReplay == True :
+            if index > (len(self.Rehearsal_dataset)-1):
+                index = index % len(self.Rehearsal_dataset)
+                O_img, O_target, _, _ = self.Rehearsal_dataset[index] #No shuffle because weight sorting.
+                return img, target, origin_img, origin_target, O_img, O_target
+            O_img, O_target, _, _ = self.Rehearsal_dataset[index]
+            return img, target, origin_img, origin_target, O_img, O_target
         else:
             return img, target, origin_img, origin_target
     
@@ -176,10 +170,9 @@ def CombineDataset(args, RehearsalData, CurrentDataset, Worker, Batch_size, old_
         CombinedDataset = ConcatDataset([OldDataset, CurrentDataset])
         NewTaskTraining = BatchMosaicAug(CombinedDataset, OldDataset, Old_length, OldDataset_weights, False) 
         
-    print(f"current Dataset length : {len(CurrentDataset)} -> Rehearsal + Current length : {len(NewTaskTraining)}")
-    print(f"current Dataset length : {len(CurrentDataset)} -> old dataset length : {len(OldDataset)}")
+    print(f"current Dataset length : {len(CurrentDataset)}")
+    print(f"Total Dataset length : {len(CurrentDataset)} +  old dataset length : {len(OldDataset)}")
     print(f"********** sucess combined Dataset ***********")
-    print(NewTaskTraining[0])
     
     if args.distributed:
         if args.cache_mode:

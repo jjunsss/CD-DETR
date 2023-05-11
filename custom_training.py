@@ -10,6 +10,7 @@ import torch.distributed as dist
 import torch
 import util.misc as utils
 from custom_utils import *
+from custom_buffer_manager import *
 from custom_prints import check_losses
 import os
 from typing import Tuple, Collection, Dict, List
@@ -17,6 +18,7 @@ import torch
 import util.misc as utils
 import numpy as np
 from typing import Tuple, Dict, List, Optional
+
 from torch.cuda.amp import autocast
 from custom_fake_target import normal_query_selc_to_target, only_oldset_mosaic_query_selc_to_target
 
@@ -34,6 +36,7 @@ def Original_training(args, last_task, epo, idx, count, sum_loss, samples, targe
         Only Training Original Data or (Transformed image, Transformed Target).
         This is not Mosaic Data.
     '''
+    last_epoch_check = epo == (args.Task_Epochs - 1)
     if train_check :
         model.train()
     else:
@@ -43,7 +46,7 @@ def Original_training(args, last_task, epo, idx, count, sum_loss, samples, targe
     ex_device = torch.device("cpu")
     criterion.train()
     model.to(device)
-    torch.cuda.empty_cache()
+    # torch.cuda.empty_cache()
     #if args.verbose :
         #print(f"NEw target : {[ t['labels']  for t in targets ]} ")
         # print(f"target : {[ t['size']  for t in targets ]} ")
@@ -92,7 +95,7 @@ def Original_training(args, last_task, epo, idx, count, sum_loss, samples, targe
             losses = losses + location_loss * 0.2 #alpha
             
     with torch.no_grad():
-        if train_check and args.Rehearsal and last_task == False: #* I will use this code line. No delete.
+        if train_check and args.Rehearsal and last_task == False and last_epoch_check == True: #* I will use this code line. No delete.
             targets = [{k: v.to(ex_device) for k, v in t.items()} for t in targets]
             rehearsal_classes = contruct_rehearsal(losses_value=losses_value, lower_limit=0.1, upper_limit=10, 
                                                 targets=targets,
@@ -121,7 +124,7 @@ def Original_training(args, last_task, epo, idx, count, sum_loss, samples, targe
     #dist.barrier()
     
     del origin_sam, origin_tar, losses_reduced_scaled, loss_dict_reduced_scaled, loss_dict, outputs, loss_dict_reduced, losses
-    torch.cuda.empty_cache()
+    # torch.cuda.empty_cache()
     return rehearsal_classes, sum_loss, count
 
 def Mosaic_training(args, last_task, epo, idx, count, sum_loss, samples, targets, 
@@ -132,44 +135,44 @@ def Mosaic_training(args, last_task, epo, idx, count, sum_loss, samples, targets
         It's composed by only old dataset buffer.
         but matched same quantity to new buffer data.
     '''
-    torch.cuda.empty_cache()
+    # torch.cuda.empty_cache()
     device = torch.device("cuda")
     ex_device = torch.device("cpu")
     model.train()
     criterion.train()
-    location_loss = torch.tensor(0.0)
-    if args.verbose :
-        print(f"old target : {[ t['labels']  for t in targets ]} ")
+    # location_loss = torch.tensor(0.0)
+    # if args.verbose :
+    #     print(f"old target : {[ t['labels']  for t in targets ]} ")
 
     samples = samples.to(device)
     targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
     with autocast(False):
-        # if last_task == True and args.Distill:
-        #     teacher_model.eval()
-        #     teacher_model.to(device)
-        #     with torch.no_grad():
-        #         t_encoder = []
-        #         hook = teacher_model.transformer.encoder.layers[-1].self_attn.attention_weights.register_forward_hook(
-        #             lambda module, input, output: t_encoder.append(output)
-        #         )
+        if last_task == True and args.Distill:
+            teacher_model.eval()
+            teacher_model.to(device)
+            with torch.no_grad():
+                t_encoder = []
+                hook = teacher_model.transformer.encoder.layers[-1].self_attn.attention_weights.register_forward_hook(
+                    lambda module, input, output: t_encoder.append(output)
+                )
                 
-        #         _ = teacher_model(samples)
-        #         teacher_model.to(ex_device)
-        #         hook.remove()
-        #         pre_encodre = t_encoder[0]
+                _ = teacher_model(samples)
+                teacher_model.to(ex_device)
+                hook.remove()
+                pre_encodre = t_encoder[0]
                 
-        #     s_encoder = []
-        #     hook = model.module.transformer.encoder.layers[-1].self_attn.attention_weights.register_forward_hook(
-        #             lambda module, input, output: s_encoder.append(output)
-        #         )
-        #     outputs = model(samples)
-        #     hook.remove()
-        #     new_encoder = s_encoder[0]
+            s_encoder = []
+            hook = model.module.transformer.encoder.layers[-1].self_attn.attention_weights.register_forward_hook(
+                    lambda module, input, output: s_encoder.append(output)
+                )
+            outputs = model(samples)
+            hook.remove()
+            new_encoder = s_encoder[0]
             
-        #     location_loss = torch.nn.functional.mse_loss(new_encoder.detach(), pre_encodre)
-        #     del t_encoder, s_encoder, new_encoder, pre_encodre
-        # else :
-        outputs = model(samples)
+            location_loss = torch.nn.functional.mse_loss(new_encoder.detach(), pre_encodre)
+            del t_encoder, s_encoder, new_encoder, pre_encodre
+        else :
+            outputs = model(samples)
             
         if args.Fake_Query == True:
             targets = only_oldset_mosaic_query_selc_to_target(outputs, targets, current_classes)
@@ -177,9 +180,10 @@ def Mosaic_training(args, last_task, epo, idx, count, sum_loss, samples, targets
         weight_dict = criterion.weight_dict
         losses = sum(loss_dict[k] * weight_dict[k] for k in loss_dict.keys() if k in weight_dict)
         
-    # if last_task == True and args.Distill:  
-    #     print(f"distillation loss : {location_loss}")
-    #     losses = losses + location_loss * 0.2 #alpha
+    if last_task == True and args.Distill:  
+        print(f"distillation loss : {location_loss}")
+        losses = losses + location_loss * 0.2 #alpha
+        
     count += 1
         
     loss_dict_reduced = utils.reduce_dict(loss_dict, True)
@@ -203,6 +207,6 @@ def Mosaic_training(args, last_task, epo, idx, count, sum_loss, samples, targets
     #dist.barrier()
 
     del samples, targets, loss_dict, outputs, losses,  losses_reduced_scaled, loss_dict_reduced_scaled,  loss_dict_reduced 
-    torch.cuda.empty_cache()
+    # torch.cuda.empty_cache()
     
     return count, sum_loss

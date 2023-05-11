@@ -465,6 +465,7 @@ def build(args):
         with_box_refine=args.with_box_refine,
         two_stage=args.two_stage,
     )
+    
     if args.masks:
         model = DETRsegm(model, freeze_detr=(args.frozen_weights is not None))
     matcher = build_matcher(args)
