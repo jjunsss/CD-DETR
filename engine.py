@@ -52,8 +52,6 @@ def train_one_epoch(args, last_task, epo, model: torch.nn.Module, teacher_model,
     sum_loss = 0.0
     count = 0
     label_dict = {} #* 하나의 에포크에서 계속해서 Class Check을 위한 딕셔너리 생성
-    early_stopping_count = 0
-    trainable=True
     for idx in tqdm(range(len(data_loader))): #targets 
         with torch.no_grad():
             samples, targets, origin_samples, origin_targets = prefetcher.next()
@@ -62,21 +60,20 @@ def train_one_epoch(args, last_task, epo, model: torch.nn.Module, teacher_model,
             samples = samples.to(ex_device)
             targets = [{k: v.to(ex_device) for k, v in t.items()} for t in targets]
         
-        if trainable == True:
         #contruct rehearsal buffer in main training
-            rehearsal_classes, sum_loss, count = Original_training(args, last_task, epo, idx, count, sum_loss, samples, targets, origin_samples, origin_targets, 
+        rehearsal_classes, sum_loss, count = Original_training(args, last_task, epo, idx, count, sum_loss, samples, targets, origin_samples, origin_targets, 
                                                 model, teacher_model, criterion, optimizer, rehearsal_classes, train_check, current_classes)
 
 
-        if MosaicBatch == True and trainable == True:
+        if MosaicBatch == True:
             samples, targets, _, _ = prefetcher.next() #* Different
-            # lr_scheduler.replay_step()
+            lr_scheduler.replay_step(idx)
             count, sum_loss = Mosaic_training(args, last_task, epo, idx, count, sum_loss, samples, targets, model, teacher_model, criterion, optimizer, current_classes, "currentmosaic")
             
             if args.Continual_Batch_size == 3: 
                 samples, targets, _, _ = prefetcher.next() #* Next samples
                 count, sum_loss = Mosaic_training(args, epo, idx, count, sum_loss, samples, targets, model, criterion, optimizer, current_classes, "FlipBatch")
-            # lr_scheduler.original_step()
+            lr_scheduler.original_step(idx)
             
         del samples, targets, train_check
         

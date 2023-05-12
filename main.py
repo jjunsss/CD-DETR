@@ -212,8 +212,8 @@ def main(args):
     else:
         optimizer = torch.optim.AdamW(param_dicts, lr=args.lr,
                                       weight_decay=args.weight_decay)
-    # lr_scheduler = ContinualStepLR(optimizer, args.lr_drop, gamma = 0.5)
-    lr_scheduler = StepLR(optimizer, args.lr_drop, gamma = 0.5)
+    lr_scheduler = ContinualStepLR(optimizer, args.lr_drop, gamma = 0.5)
+    #lr_scheduler = StepLR(optimizer, args.lr_drop, gamma = 0.5)
 
     if args.distributed:
         model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu])
@@ -290,7 +290,7 @@ def main(args):
                                                                              args.batch_size, old_classes=load_replay) #rehearsal + New task dataset (rehearsal Dataset은 유지하도록 설정)
             
             # Learning rate control in task change
-            # lr_scheduler.task_change()
+            lr_scheduler.task_change()
         
         
         for epoch in range(start_epoch, args.Task_Epochs): #어차피 Task마다 훈련을 진행해야 하고, 중간점음 없을 것이므로 TASK마다 훈련이 되도록 만들어도 상관이 없음
