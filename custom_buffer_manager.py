@@ -221,7 +221,7 @@ def contruct_replay_extra_epoch(args, Divided_Classes, model, criterion, device)
     # 2. Extra epoch를 통해서 모든 이미지들의 Loss를 측정
     rehearsal_classes = train_one_epoch(args, last_task = False, epo = 0, model=model, teacher_model=None,
                                         criterion=criterion, data_loader=data_loader_train, optimizer=None,
-                                        lr_scheduler=None, device=device, dataset_name=None, current_classes=list_CC, 
+                                        lr_scheduler=None, device=device, dataset_name="", current_classes=list_CC, 
                                         rehearsal_classes=rehearsal_classes)
     
     # 3. Extra epoch를 통해 수집된 replay data(multi-gpu로 각각 생성)를 합치고 통합하는 과정

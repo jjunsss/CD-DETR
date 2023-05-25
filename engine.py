@@ -47,18 +47,22 @@ def _extra_epoch_for_replay(args, data_loader, prefetcher, model, criterion, reh
     
     return rehearsal_classes
 
+def create_prefetcher(dataset_name: str, data_loader: Iterable, device: torch.device, args: any) \
+        -> data_prefetcher:
+    if dataset_name == "Original":    
+        return data_prefetcher(data_loader, device, prefetch=True, Mosaic=False)
+    elif dataset_name == "AugReplay":
+        return data_prefetcher(data_loader, device, prefetch=True, Mosaic=True, Continual_Batch=args.Continual_Batch_size)
+    else:
+        return data_prefetcher(data_loader, device, prefetch=True, Mosaic=False)
+    
 def train_one_epoch(args, last_task, epo, model: torch.nn.Module, teacher_model, criterion: torch.nn.Module,
                     data_loader: Iterable, optimizer: torch.optim.Optimizer, lr_scheduler: ContinualStepLR,
                     device: torch.device, dataset_name: str,  
                     current_classes: List = [], rehearsal_classes: Dict = {}):
     ex_device = torch.device("cpu")
-    if dataset_name == "Original":    
-        prefetcher = data_prefetcher(data_loader, device, prefetch=True, Mosaic=False)
-    elif dataset_name == "AugReplay":
-        prefetcher = data_prefetcher(data_loader, device, prefetch=True, Mosaic=True, Continual_Batch=args.Continual_Batch_size)
-    else :
-        prefetcher = data_prefetcher(data_loader, device, prefetch=True, Mosaic=False)
-
+    
+    prefetcher = create_prefetcher(dataset_name, data_loader, device, args)
     if args.Construct_Replay :
         rehearsal_classes = _extra_epoch_for_replay(args, data_loader=data_loader, prefetcher=prefetcher, model=model, criterion=criterion,
                                 rehearsal_classes=rehearsal_classes, current_classes=current_classes)
@@ -69,7 +73,7 @@ def train_one_epoch(args, last_task, epo, model: torch.nn.Module, teacher_model,
     count = 0
     for idx in tqdm(range(len(data_loader))): #targets
         with torch.no_grad():
-            samples, targets, origin_samples, origin_targets = prefetcher.next()
+            samples, targets, _, _ = prefetcher.next()
             
             train_check = True
             samples = samples.to(ex_device)
@@ -77,19 +81,16 @@ def train_one_epoch(args, last_task, epo, model: torch.nn.Module, teacher_model,
         
         #Stage 1 -> T1에 대한 모든 훈련
         #Stage 2 -> T2에 대한 모든 훈련, AugReplay 사용하지 않을 때에는 일반적인 Replay 전략과 동일한 형태로 훈련을 수행
-        rehearsal_classes, sum_loss, count = Original_training(args, last_task, epo, idx, count, sum_loss, samples, targets, origin_samples, origin_targets, 
-                                                model, teacher_model, criterion, optimizer, rehearsal_classes, train_check, current_classes)
+        rehearsal_classes, sum_loss, count = Original_training(args, last_task, epo, idx, count, sum_loss, samples, targets,  
+                                                               model, teacher_model, criterion, optimizer,
+                                                               rehearsal_classes, train_check, current_classes)
 
         if dataset_name == "AugReplay":
             samples, targets, _, _ = prefetcher.next() #* Different
             # lr_scheduler.replay_step(idx)
-            count, sum_loss = Mosaic_training(args, last_task, epo, idx, count, sum_loss, samples, targets, model, teacher_model, criterion, optimizer, current_classes, "currentmosaic")
-            
-            if args.Continual_Batch_size == 3: 
-                samples, targets, _, _ = prefetcher.next() #* Next samples
-                count, sum_loss = Mosaic_training(args, epo, idx, count, sum_loss, samples, targets, model, criterion, optimizer, current_classes, "FlipBatch")
-            # lr_scheduler.original_step(idx)
-            
+            count, sum_loss = Circular_training(args, last_task, epo, idx, count, sum_loss, samples, targets,
+                                                model, teacher_model, criterion, optimizer,
+                                                current_classes)
         del samples, targets, train_check
         
     if utils.is_main_process():

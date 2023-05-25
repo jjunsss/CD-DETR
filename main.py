@@ -30,7 +30,7 @@ from custom_training import rehearsal_training
 from datasets import build_dataset, get_coco_api_from_dataset
 from engine import evaluate, train_one_epoch
 from models import build_model
-
+from main_component import TrainingPipeline
 
 def get_args_parser():
     parser = argparse.ArgumentParser('Deformable DETR Detector', add_help=False)
@@ -154,208 +154,60 @@ def get_args_parser():
     return parser
 
 def main(args):
-    utils.init_distributed_mode(args)
-    print("git:\n  {}\n".format(utils.get_sha()))
-    
-    if args.frozen_weights is not None:
-        assert args.masks, "Frozen training is meant for segmentation only"
-    print(args)
+    # Initializing
+    pipeline = TrainingPipeline(args)
+    args = pipeline.args 
 
-    device = torch.device(args.device)
+    # Constructing only the replay buffer
+    if args.Construct_Replay :
+        pipeline.construct_replay_buffer()
 
-    # fix the seed for reproducibility
-    seed = args.seed + utils.get_rank()
-    torch.manual_seed(seed)
-    np.random.seed(seed)
-    random.seed(seed)
-
-    model, criterion, postprocessors = build_model(args)
-    pre_model = copy.deepcopy(model)
-    model.to(device)
-    if args.pretrained_model is not None:
-        model = load_model_params("main", model, args.pretrained_model)
-    
-    teacher_model = None
-    if args.Distill:    
-        teacher_model = load_model_params("teacher", pre_model, args.teacher_model)
-        print(f"teacher model load complete !!!!")
-    
-    model_without_ddp = model
-    
-    #* collate_fn : 최종 출력시에 모든 배치값에 할당해주는 함수를 말함. 여기서는 Nested Tensor 호출을 의미함.
-    # lr_backbone_names = ["backbone.0", "backbone.neck", "input_proj", "transformer.encoder"]
-    def match_name_keywords(n, name_keywords):
-        out = False
-        for b in name_keywords:
-            if b in n:
-                out = True
-                break
-        return out
-    
-
-    param_dicts = [
-        {
-            "params":
-                [p for n, p in model_without_ddp.named_parameters()
-                 if not match_name_keywords(n, args.lr_backbone_names) and not match_name_keywords(n, args.lr_linear_proj_names) and p.requires_grad],
-            "lr": args.lr,
-        },
-        {
-            "params": [p for n, p in model_without_ddp.named_parameters() if match_name_keywords(n, args.lr_linear_proj_names) and p.requires_grad],
-            "lr": args.lr * args.lr_linear_proj_mult,
-        },
-        {
-            "params": [p for n, p in model_without_ddp.named_parameters() if match_name_keywords(n, args.lr_backbone_names) and p.requires_grad],
-            "lr": args.lr_backbone,
-        },
-    ]
-    if args.sgd:
-        optimizer = torch.optim.SGD(param_dicts, lr=args.lr, momentum=0.9,
-                                    weight_decay=args.weight_decay)
-    else:
-        optimizer = torch.optim.AdamW(param_dicts, lr=args.lr,
-                                      weight_decay=args.weight_decay)
-    lr_scheduler = ContinualStepLR(optimizer, args.lr_drop, gamma = 0.5)
-    # lr_scheduler = StepLR(optimizer, args.lr_drop, gamma = 0.5)
-
-    if args.distributed:
-        model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu])
-        model_without_ddp = model.module
-
-    if args.frozen_weights is not None:
-        checkpoint = torch.load(args.frozen_weights, map_location='cpu')
-        model_without_ddp.detr.load_state_dict(checkpoint['model'])
-    output_dir = Path(args.output_dir)
-    
+    # Evaluation mode
+    if args.eval:
+        pipeline.evaluation_only_mode()
+        
     print("Start training")
     start_time = time.time()
-    file_name = args.file_name + "_" + str(0)
 
-    Divided_Classes = DivideTask_for_incre(args.Task, args.Total_Classes, args.Total_Classes_Names)
-    if args.Total_Classes_Names == True :
-        args.Task = len(Divided_Classes)    
-    start_epoch = 0
-    start_task = 0
+    # Training loop over tasks ( for incremental learning )
+    for task_idx in range(pipeline.start_task, pipeline.tasks):
+        # Check whether it's the first or last task
+        first_training = (task_idx == 0)
+        last_task = (task_idx+1 == pipeline.tasks)
 
-    DIR = './mAP_TEST.txt'
-    if args.eval:
-        expand_classes = []
-        for task_idx in range(int(args.Task)):
-            expand_classes.extend(Divided_Classes[task_idx])
-            print(f"trained task classes: {Divided_Classes[task_idx]}\t  we check all classes {expand_classes}")
-            dataset_val, data_loader_val, sampler_val, current_classes  = Incre_Dataset(task_idx, args, expand_classes, False)
-            base_ds = get_coco_api_from_dataset(dataset_val)
-            with open(DIR, 'a') as f:
-                f.write(f"NOW TASK num : {task_idx}, checked classes : {expand_classes} \t file_name : {str(os.path.basename(args.pretrained_model))} \n")
-            test_stats, coco_evaluator = evaluate(model, criterion, postprocessors,
-                                            data_loader_val, base_ds, device, args.output_dir, DIR)
+        # Generate new dataset
+        dataset_train, data_loader_train, sampler_train, list_CC = Incre_Dataset(task_idx, args, pipeline.Divided_Classes)
 
-        return
-    
-    if args.start_epoch != 0:
-        start_epoch = args.start_epoch
-    
-    if args.start_task != 0:
-        start_task = args.start_task
-        
-    load_replay = []
-    for idx in range(start_task):
-        load_replay.extend(Divided_Classes[idx])
-    
-    #* Load for Replay
-    if args.Rehearsal and (start_task >= 1):
-        rehearsal_classes = load_rehearsal(args.Rehearsal_file, 0, args.Memory)
-    
-        if len(rehearsal_classes)  == 0:
-            print(f"No rehearsal file")
-            rehearsal_classes = dict()
-    else:
-        rehearsal_classes = dict()
-    
-    last_task = False
-    AugReplay = False
-    dataset_name = "Original"
-    if args.AugReplay == True:
-        dataset_name = "AugReplay"
-        
-    if args.Construct_Replay :
-        # This is only conduction replay data in buffer
-        contruct_replay_extra_epoch(args=args, Divided_Classes=Divided_Classes, model=model,
-                                    criterion=criterion, device=device)
-        return
-    
-    for task_idx in range(start_task, args.Task):
-        if task_idx+1 == args.Task and not args.Construct_Replay:
-            last_task = True
-        print(f"old class list : {load_replay}")
-        
-
-        
-        #New task dataset
-        dataset_train, data_loader_train, sampler_train, list_CC = Incre_Dataset(task_idx, args, Divided_Classes) #rehearsal + New task dataset (rehearsal Dataset은 유지하도록 설정)
-        
-        if task_idx >= 1 and args.Rehearsal:
+        # Ready for replay training strategy 
+        if first_training is False and args.Rehearsal is True:
             if args.verbose :
-                check_components("replay", rehearsal_classes, args.verbose)
-            replay_dataset = copy.deepcopy(rehearsal_classes)
-            original_dataset, original_loader, original_sampler = CombineDataset(args, replay_dataset, dataset_train, 
-                                                                     args.num_workers, args.batch_size, old_classes=load_replay, MixReplay="Original") #rehearsal + New task dataset (rehearsal Dataset은 유지하도록 설정)
-    
-            AugRplay_dataset, AugRplay_loader, AugRplay_sampler = CombineDataset(args, replay_dataset, dataset_train,
-                                                                     args.num_workers, args.batch_size, old_classes=load_replay, MixReplay="AugReplay") 
-            dataset_train, data_loader_train, sampler_train = dataset_configuration(args, original_dataset, original_loader, original_sampler,
-                                                                                    AugRplay_dataset, AugRplay_loader, AugRplay_sampler)
-        if task_idx >= 1 :
-            # Learning rate control in task change
-            lr_scheduler.task_change()
-        if isinstance(dataset_train, list):
-            temp_dataset, temp_loader, temp_sampler = copy.deepcopy(dataset_train), copy.deepcopy(data_loader_train), copy.deepcopy(sampler_train)
-        for epoch in range(start_epoch, args.Task_Epochs): #어차피 Task마다 훈련을 진행해야 하고, 중간점음 없을 것이므로 TASK마다 훈련이 되도록 만들어도 상관이 없음
-            if args.MixReplay and args.Rehearsal and task_idx >= 1:
-                dataset_index = epoch % 2 
-                dataset_name = ["AugReplay", "Original"]
-                dataset_train = temp_dataset[dataset_index]
-                data_loader_train = temp_loader[dataset_index]
-                sampler_train = temp_sampler[dataset_index]
-                dataset_name = dataset_name[dataset_index]
-                
-            if args.distributed:
-                sampler_train.set_epoch(epoch)#TODO: 추후에 epoch를 기준으로 batch sampler를 추출하는 행위 자체가 오류를 일으킬 가능성이 있음 Incremental Learning에서                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
-            print(f"task id : {task_idx}")
-            print(f"each epoch id : {epoch} , Dataset length : {len(dataset_train)}, current classes :{list_CC}")
-            print(f"Task is Last : {last_task}")
-            print(f"args task : : {args.Task}")
-            
-            # Training process
-            rehearsal_classes = train_one_epoch(args, last_task, epoch, model, teacher_model, criterion, 
-                                                data_loader_train, optimizer, lr_scheduler,
-                                                device, dataset_name, list_CC, rehearsal_classes)
-            
-            # set a lr scheduler.
-            if args.Construct_Replay is False:
-                lr_scheduler.step()
+                check_components(pipeline.rehearsal_classes, args.verbose)
 
-            if last_task == False and args.Rehearsal:
-                print(f"replay data : {rehearsal_classes}")
-                rehearsal_classes = construct_combined_rehearsal(args=args, task=task_idx, dir=args.Rehearsal_file, rehearsal=rehearsal_classes,
-                                                                 epoch=epoch, limit_memory_size=args.Memory, gpu_counts=4, list_CC=list_CC)
-                print(f"complete save replay's data process")
-                print(f"replay dataset : {rehearsal_classes}")
-                #for wandb checker
-                if utils.is_main_process() and epoch + 1 == args.Task_Epochs:
-                    buffer_checker(rehearsal_classes)
-                dist.barrier()
-                
-            # Save model each epoch
-            save_model_params(model_without_ddp, optimizer, lr_scheduler, args, args.output_dir, task_idx, int(args.Task), epoch)
+            replay_dataset = copy.deepcopy(pipeline.rehearsal_classes)
 
-        save_model_params(model_without_ddp, optimizer, lr_scheduler, args, args.output_dir, task_idx, int(args.Task), -1)
-        load_replay.extend(Divided_Classes[task_idx])
-        teacher_model = model_without_ddp #Trained Model Change in change TASK 
-        teacher_model = teacher_model_freeze(teacher_model)
+            # Combine dataset for original and AugReplay(Circular)
+            original_dataset, original_loader, original_sampler = CombineDataset(
+                args, replay_dataset, dataset_train, args.num_workers, args.batch_size, old_classes=pipeline.load_replay, MixReplay="Original")
+
+            AugRplay_dataset, AugRplay_loader, AugRplay_sampler = CombineDataset(
+                args, replay_dataset, dataset_train, args.num_workers, args.batch_size, old_classes=pipeline.load_replay, MixReplay="AugReplay") 
+
+            # Set a certain configuration
+            dataset_train, data_loader_train, sampler_train = dataset_configuration(
+                args, original_dataset, original_loader, original_sampler, AugRplay_dataset, AugRplay_loader, AugRplay_sampler)
+
+            # Task change for learning rate scheduler
+            pipeline.lr_scheduler.task_change()
+            
+            # Incremental training for each epoch
+            pipeline.incremental_train_epoch(task_idx=task_idx, last_task=last_task, dataset_train=dataset_train,
+                                              data_loader_train=data_loader_train, sampler_train=sampler_train,
+                                              list_CC=list_CC)
+            
+    # Calculate and print the total time taken for training
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
-    print('Training time {}'.format(total_time_str))
+    print("Training completed in: ", total_time_str)
 
     
 if __name__ == '__main__':
