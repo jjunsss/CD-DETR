@@ -28,7 +28,37 @@ def decompose_dataset(no_use_count: int, samples: utils.NestedTensor, targets: D
     batch_size = len(targets)
     return (batch_size, no_use_count, samples, targets, origin_samples, origin_targets, used_number)
 
+def rehearsal_training(args, samples, targets, model: torch.nn.Module,criterion: torch.nn.Module, 
+                       rehearsal_classes, current_classes):
+    '''
+        replay를 위한 데이터를 수집 시에 모델은 영향을 받지 않도록 설정
+    '''
+    model.eval()
+    criterion.eval()
+    device = torch.device("cuda")
+    ex_device = torch.device("cpu")
+    model.to(device)
+    samples = samples.to(device)
+    targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
+    outputs = model(samples)
+    
+    loss_dict = criterion(outputs, targets)
+    if loss_dict is not False:
+        weight_dict = criterion.weight_dict
+        losses = sum(loss_dict[k] * weight_dict[k] for k in loss_dict.keys() if k in weight_dict)
+        losses_value = losses.item()
+        
+    with torch.no_grad():
+        targets = [{k: v.to(ex_device) for k, v in t.items()} for t in targets]
+        rehearsal_classes = contruct_rehearsal(losses_value=losses_value, lower_limit=0.0, upper_limit=10.0, 
+                                                targets=targets,
+                                                rehearsal_classes=rehearsal_classes, 
+                                                Current_Classes=current_classes, 
+                                                Rehearsal_Memory=args.Memory)
+        
+    return rehearsal_classes
 
+        
 def Original_training(args, last_task, epo, idx, count, sum_loss, samples, targets, origin_sam, origin_tar, 
                       model: torch.nn.Module, teacher_model, criterion: torch.nn.Module, optimizer: torch.optim.Optimizer,  
                       rehearsal_classes, train_check, current_classes): 
@@ -98,10 +128,10 @@ def Original_training(args, last_task, epo, idx, count, sum_loss, samples, targe
         if train_check and args.Rehearsal and last_task == False and last_epoch_check == True: #* I will use this code line. No delete.
             targets = [{k: v.to(ex_device) for k, v in t.items()} for t in targets]
             rehearsal_classes = contruct_rehearsal(losses_value=losses_value, lower_limit=0.1, upper_limit=10, 
-                                                targets=targets,
-                                                rehearsal_classes=rehearsal_classes, 
-                                                Current_Classes=current_classes, 
-                                                Rehearsal_Memory=args.Memory)
+                                                    targets=targets,
+                                                    rehearsal_classes=rehearsal_classes, 
+                                                    Current_Classes=current_classes, 
+                                                    Rehearsal_Memory=args.Memory)
             
         del samples, targets
         loss_dict_reduced = utils.reduce_dict(loss_dict, train_check)

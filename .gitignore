@@ -182,3 +182,4 @@ Loss_check.txt
 *.ipynb
 Rehearsal*
 wandb
+LG-CL_0514_eBTS_ADStepLR/train_details

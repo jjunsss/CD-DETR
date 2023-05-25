@@ -25,6 +25,7 @@ from Custom_Dataset import *
 from custom_utils import *
 from custom_prints import *
 from custom_buffer_manager import *
+from custom_training import rehearsal_training
 
 from datasets import build_dataset, get_coco_api_from_dataset
 from engine import evaluate, train_one_epoch
@@ -113,8 +114,7 @@ def get_args_parser():
 
     # dataset parameters
     parser.add_argument('--dataset_file', default='coco')
-    #parser.add_argument('--coco_path', default='/data/LG/real_dataset/total_dataset/didvepz/', type=str)
-    parser.add_argument('--coco_path', default='../COCODIR/', type=str)
+    parser.add_argument('--coco_path', default='/home/nextserver/Desktop/jjunsss/LG/LG/plustotal/', type=str)
     parser.add_argument('--file_name', default='./saved_rehearsal', type=str)
     parser.add_argument('--coco_panoptic_path', type=str)
     parser.add_argument('--remove_difficult', action='store_true')
@@ -125,7 +125,7 @@ def get_args_parser():
     
     #* CL Setting 
     parser.add_argument('--pretrained_model', default=None, help='resume from checkpoint')
-    parser.add_argument('--start_epoch', default=0, type=int, metavar='N',help='start epoch')
+    parser.add_argument('--start_epoch', default=15, type=int, metavar='N',help='start epoch')
     parser.add_argument('--start_task', default=0, type=int, metavar='N',help='start task')
     parser.add_argument('--eval', action='store_true')
     parser.add_argument('--verbose', default=False, action='store_true')
@@ -134,19 +134,22 @@ def get_args_parser():
 
     #* Continual Learning 
     parser.add_argument('--Task', default=2, type=int, help='The task is the number that divides the entire dataset, like a domain.') #if Task is 1, so then you could use it for normal training.
-    parser.add_argument('--Task_Epochs', default=15, type=int, help='each Task epoch, e.g. 1 task is 5 of 10 epoch training.. ')
+    parser.add_argument('--Task_Epochs', default=16, type=int, help='each Task epoch, e.g. 1 task is 5 of 10 epoch training.. ')
     parser.add_argument('--Total_Classes', default=90, type=int, help='number of classes in custom COCODataset. e.g. COCO : 80 / LG : 59')
     parser.add_argument('--Total_Classes_Names', default=False, action='store_true', help="division of classes through class names (DID, PZ, VE). This option is available for LG Dataset")
     parser.add_argument('--CL_Limited', default=0, type=int, help='Use Limited Training in CL. If you choose False, you may encounter data imbalance in training.')
+    parser.add_argument('--Construct_Replay', default=False, action='store_true', help="For cunstructing replay dataset")
+    
 
     #* Rehearsal method
     parser.add_argument('--Rehearsal', default=False, action='store_true', help="use Rehearsal strategy in diverse CL method")
     parser.add_argument('--AugReplay', default=False, action='store_true', help="use Our augreplay strategy in step 2")
+    parser.add_argument('--MixReplay', default=False, action='store_true', help="1:1 Mix replay solution, First Circular Training. Second Original Training")
     parser.add_argument('--Fake_Query', default=False, action='store_true', help="retaining previous task target through predict query")
     parser.add_argument('--Distill', default=False, action='store_true', help="retaining previous task target through predict query")
     parser.add_argument('--Memory', default=25, type=int, help='memory capacity for rehearsal training')
     parser.add_argument('--Continual_Batch_size', default=2, type=int, help='continual batch training method')
-    parser.add_argument('--Rehearsal_file', default='/data/LG/real_dataset/total_dataset/test_dir/Continaul_DETR/Rehearsal_dict/', type=str)
+    parser.add_argument('--Rehearsal_file', default='./Rehearsal_LG-CL/', type=str)
     parser.add_argument('--teacher_model', default=None, type=str)
     return parser
 
@@ -213,7 +216,7 @@ def main(args):
         optimizer = torch.optim.AdamW(param_dicts, lr=args.lr,
                                       weight_decay=args.weight_decay)
     lr_scheduler = ContinualStepLR(optimizer, args.lr_drop, gamma = 0.5)
-    #lr_scheduler = StepLR(optimizer, args.lr_drop, gamma = 0.5)
+    # lr_scheduler = StepLR(optimizer, args.lr_drop, gamma = 0.5)
 
     if args.distributed:
         model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu])
@@ -271,13 +274,22 @@ def main(args):
     
     last_task = False
     AugReplay = False
+    dataset_name = "Original"
     if args.AugReplay == True:
-        AugReplay = True        
+        dataset_name = "AugReplay"
         
+    if args.Construct_Replay :
+        # This is only conduction replay data in buffer
+        contruct_replay_extra_epoch(args=args, Divided_Classes=Divided_Classes, model=model,
+                                    criterion=criterion, device=device)
+        return
+    
     for task_idx in range(start_task, args.Task):
-        if task_idx+1 == args.Task:
+        if task_idx+1 == args.Task and not args.Construct_Replay:
             last_task = True
         print(f"old class list : {load_replay}")
+        
+
         
         #New task dataset
         dataset_train, data_loader_train, sampler_train, list_CC = Incre_Dataset(task_idx, args, Divided_Classes) #rehearsal + New task dataset (rehearsal Dataset은 유지하도록 설정)
@@ -286,14 +298,27 @@ def main(args):
             if args.verbose :
                 check_components("replay", rehearsal_classes, args.verbose)
             replay_dataset = copy.deepcopy(rehearsal_classes)
-            dataset_train, data_loader_train, sampler_train = CombineDataset(args, replay_dataset, dataset_train, args.num_workers, 
-                                                                             args.batch_size, old_classes=load_replay) #rehearsal + New task dataset (rehearsal Dataset은 유지하도록 설정)
-            
+            original_dataset, original_loader, original_sampler = CombineDataset(args, replay_dataset, dataset_train, 
+                                                                     args.num_workers, args.batch_size, old_classes=load_replay, MixReplay="Original") #rehearsal + New task dataset (rehearsal Dataset은 유지하도록 설정)
+    
+            AugRplay_dataset, AugRplay_loader, AugRplay_sampler = CombineDataset(args, replay_dataset, dataset_train,
+                                                                     args.num_workers, args.batch_size, old_classes=load_replay, MixReplay="AugReplay") 
+            dataset_train, data_loader_train, sampler_train = dataset_configuration(args, original_dataset, original_loader, original_sampler,
+                                                                                    AugRplay_dataset, AugRplay_loader, AugRplay_sampler)
+        if task_idx >= 1 :
             # Learning rate control in task change
             lr_scheduler.task_change()
-        
-        
+        if isinstance(dataset_train, list):
+            temp_dataset, temp_loader, temp_sampler = copy.deepcopy(dataset_train), copy.deepcopy(data_loader_train), copy.deepcopy(sampler_train)
         for epoch in range(start_epoch, args.Task_Epochs): #어차피 Task마다 훈련을 진행해야 하고, 중간점음 없을 것이므로 TASK마다 훈련이 되도록 만들어도 상관이 없음
+            if args.MixReplay and args.Rehearsal and task_idx >= 1:
+                dataset_index = epoch % 2 
+                dataset_name = ["AugReplay", "Original"]
+                dataset_train = temp_dataset[dataset_index]
+                data_loader_train = temp_loader[dataset_index]
+                sampler_train = temp_sampler[dataset_index]
+                dataset_name = dataset_name[dataset_index]
+                
             if args.distributed:
                 sampler_train.set_epoch(epoch)#TODO: 추후에 epoch를 기준으로 batch sampler를 추출하는 행위 자체가 오류를 일으킬 가능성이 있음 Incremental Learning에서                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
             print(f"task id : {task_idx}")
@@ -304,22 +329,25 @@ def main(args):
             # Training process
             rehearsal_classes = train_one_epoch(args, last_task, epoch, model, teacher_model, criterion, 
                                                 data_loader_train, optimizer, lr_scheduler,
-                                                device, AugReplay, list_CC, rehearsal_classes)
+                                                device, dataset_name, list_CC, rehearsal_classes)
             
             # set a lr scheduler.
-            lr_scheduler.step()
-            
-            # Save model
-            save_model_params(model_without_ddp, optimizer, lr_scheduler, args, args.output_dir, task_idx, int(args.Task), epoch)
-            if last_task == False and args.Rehearsal and epoch + 1 == args.Task_Epochs:
-                rehearsal_classes = construct_combined_rehearsal(task=task_idx, dir=args.Rehearsal_file, rehearsal=rehearsal_classes,
+            if args.Construct_Replay is False:
+                lr_scheduler.step()
+
+            if last_task == False and args.Rehearsal:
+                print(f"replay data : {rehearsal_classes}")
+                rehearsal_classes = construct_combined_rehearsal(args=args, task=task_idx, dir=args.Rehearsal_file, rehearsal=rehearsal_classes,
                                                                  epoch=epoch, limit_memory_size=args.Memory, gpu_counts=4, list_CC=list_CC)
                 print(f"complete save replay's data process")
+                print(f"replay dataset : {rehearsal_classes}")
                 #for wandb checker
                 if utils.is_main_process() and epoch + 1 == args.Task_Epochs:
-                    buffer_checker(rehearsal_classes, epoch)
-
+                    buffer_checker(rehearsal_classes)
                 dist.barrier()
+                
+            # Save model each epoch
+            save_model_params(model_without_ddp, optimizer, lr_scheduler, args, args.output_dir, task_idx, int(args.Task), epoch)
 
         save_model_params(model_without_ddp, optimizer, lr_scheduler, args, args.output_dir, task_idx, int(args.Task), -1)
         load_replay.extend(Divided_Classes[task_idx])

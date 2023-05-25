@@ -54,9 +54,10 @@ def DivideTask_for_incre(Task_Counts: int, Total_Classes: int, DivisionOfNames: 
     '''
     if DivisionOfNames is True:
         Divided_Classes = []
-        Divided_Classes.append([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21]) #DID
-        Divided_Classes.append([28, 32, 35, 41, 56]) #photozone ,
-        #Divided_Classes.append([22, 23, 24, 25, 26, 27, 29, 30, 31, 33,34,36, 37, 38, 39, 40,42,43,44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 57, 58, 59]) #VE
+        #Divided_Classes.append([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 28, 32, 35, 41, 56]) #DID
+        Divided_Classes.append([22 ,36 ,42 ,43 ,48]) #photozone ,
+        Divided_Classes.append([24, 27, 36, 42, 43, 48, 52]) # 야채칸 중 일부(mAP 높은 일부),
+        #Divided_Classes.append([23, 24, 25, 26, 27, 29, 30, 31, 33,34,36, 37, 38, 39, 40,42,43,44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 57, 58, 59]) #VE
         return Divided_Classes
     
     classes = [idx+1 for idx in range(Total_Classes)]
@@ -160,13 +161,24 @@ class BatchMosaicAug(torch.utils.data.Dataset):
 
     
 #For Rehearsal
-def CombineDataset(args, RehearsalData, CurrentDataset, Worker, Batch_size, old_classes):
+def CombineDataset(args, RehearsalData, CurrentDataset, 
+                   Worker, Batch_size, old_classes, MixReplay = None):
+    '''
+        MixReplay arguments is only used in MixReplay. If It is not args.MixReplay, So
+        you can ignore this option.
+    '''
     OldDataset = CustomDataset(args, RehearsalData, old_classes) #oldDatset[idx]:
     Old_length = len(OldDataset)
     OldDataset_weights = OldDataset.weights
-    if args.AugReplay :
-        NewTaskTraining = BatchMosaicAug(CurrentDataset, OldDataset, Old_length, OldDataset_weights, args.AugReplay, )
-    else:
+    if args.MixReplay and MixReplay == "original" :
+        CombinedDataset = ConcatDataset([OldDataset, CurrentDataset])
+        NewTaskTraining = BatchMosaicAug(CombinedDataset, OldDataset, Old_length, OldDataset_weights, False) 
+    elif args.MixReplay and MixReplay == "AugReplay" : 
+        NewTaskTraining = BatchMosaicAug(CurrentDataset, OldDataset, Old_length, OldDataset_weights, args.AugReplay,)
+        
+    if args.AugReplay and ~args.MixReplay :
+        NewTaskTraining = BatchMosaicAug(CurrentDataset, OldDataset, Old_length, OldDataset_weights, args.AugReplay,)
+    elif ~args.AugReplay and ~args.MixReplay :
         CombinedDataset = ConcatDataset([OldDataset, CurrentDataset])
         NewTaskTraining = BatchMosaicAug(CombinedDataset, OldDataset, Old_length, OldDataset_weights, False) 
         

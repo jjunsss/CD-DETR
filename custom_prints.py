@@ -19,7 +19,7 @@ def write_to_addfile(filename):
     return decorator
 
 @write_to_addfile("./check/check_replay_limited.txt")
-def check_components(filesort:str, rehearsal_classes: Dict, print_stat: bool=False):
+def check_components(rehearsal_classes: Dict, print_stat: bool=False):
     '''
         1. check each instance usage capacity
         2. print each classes counts
@@ -29,11 +29,6 @@ def check_components(filesort:str, rehearsal_classes: Dict, print_stat: bool=Fal
     if len(rehearsal_classes) == 0:
         raise Exception("No replay classes")
         
-    
-    if filesort == "Limited":
-        print(rehearsal_classes)
-        return
-        
     temp_list = [index for _, index in list(rehearsal_classes.values())]
     replay_classes = set()
     for value in temp_list:
@@ -42,7 +37,6 @@ def check_components(filesort:str, rehearsal_classes: Dict, print_stat: bool=Fal
     
     if print_stat == True:
         # check each instance usage capacity
-        print(filesort + "\n")
         check_list = [len(list(filter(lambda x: index in x[1], list(rehearsal_classes.values())))) for index in replay_classes]
         
         for i, c in enumerate(replay_classes):

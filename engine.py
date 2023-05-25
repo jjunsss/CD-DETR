@@ -36,23 +36,38 @@ def decompose_dataset(no_use_count: int, samples: utils.NestedTensor, targets: D
     batch_size = len(targets)
     return (batch_size, no_use_count, samples, targets, origin_samples, origin_targets, used_number)
 
+def _extra_epoch_for_replay(args, data_loader, prefetcher, model, criterion, rehearsal_classes, current_classes):
+    with torch.no_grad():
+        for idx in tqdm(range(len(data_loader))): #targets
+            samples, targets, _, _ = prefetcher.next()
+                
+            # extra training을 통해서 replay 데이터를 수집하도록 설정
+            rehearsal_classes = rehearsal_training(args, samples, targets, model, criterion, 
+                                                   rehearsal_classes, current_classes)
+    
+    return rehearsal_classes
 
 def train_one_epoch(args, last_task, epo, model: torch.nn.Module, teacher_model, criterion: torch.nn.Module,
                     data_loader: Iterable, optimizer: torch.optim.Optimizer, lr_scheduler: ContinualStepLR,
-                    device: torch.device, MosaicBatch: Boolean,  
+                    device: torch.device, dataset_name: str,  
                     current_classes: List = [], rehearsal_classes: Dict = {}):
     ex_device = torch.device("cpu")
-    if MosaicBatch == False:    
+    if dataset_name == "Original":    
         prefetcher = data_prefetcher(data_loader, device, prefetch=True, Mosaic=False)
-    else:
+    elif dataset_name == "AugReplay":
         prefetcher = data_prefetcher(data_loader, device, prefetch=True, Mosaic=True, Continual_Batch=args.Continual_Batch_size)
+    else :
+        prefetcher = data_prefetcher(data_loader, device, prefetch=True, Mosaic=False)
 
-
+    if args.Construct_Replay :
+        rehearsal_classes = _extra_epoch_for_replay(args, data_loader=data_loader, prefetcher=prefetcher, model=model, criterion=criterion,
+                                rehearsal_classes=rehearsal_classes, current_classes=current_classes)
+        return rehearsal_classes
+    
     set_tm = time.time()
     sum_loss = 0.0
     count = 0
-    label_dict = {} #* 하나의 에포크에서 계속해서 Class Check을 위한 딕셔너리 생성
-    for idx in tqdm(range(len(data_loader))): #targets 
+    for idx in tqdm(range(len(data_loader))): #targets
         with torch.no_grad():
             samples, targets, origin_samples, origin_targets = prefetcher.next()
             
@@ -60,20 +75,20 @@ def train_one_epoch(args, last_task, epo, model: torch.nn.Module, teacher_model,
             samples = samples.to(ex_device)
             targets = [{k: v.to(ex_device) for k, v in t.items()} for t in targets]
         
-        #contruct rehearsal buffer in main training
+        #Stage 1 -> T1에 대한 모든 훈련
+        #Stage 2 -> T2에 대한 모든 훈련, AugReplay 사용하지 않을 때에는 일반적인 Replay 전략과 동일한 형태로 훈련을 수행
         rehearsal_classes, sum_loss, count = Original_training(args, last_task, epo, idx, count, sum_loss, samples, targets, origin_samples, origin_targets, 
                                                 model, teacher_model, criterion, optimizer, rehearsal_classes, train_check, current_classes)
 
-
-        if MosaicBatch == True:
+        if dataset_name == "AugReplay":
             samples, targets, _, _ = prefetcher.next() #* Different
-            lr_scheduler.replay_step(idx)
+            # lr_scheduler.replay_step(idx)
             count, sum_loss = Mosaic_training(args, last_task, epo, idx, count, sum_loss, samples, targets, model, teacher_model, criterion, optimizer, current_classes, "currentmosaic")
             
             if args.Continual_Batch_size == 3: 
                 samples, targets, _, _ = prefetcher.next() #* Next samples
                 count, sum_loss = Mosaic_training(args, epo, idx, count, sum_loss, samples, targets, model, criterion, optimizer, current_classes, "FlipBatch")
-            lr_scheduler.original_step(idx)
+            # lr_scheduler.original_step(idx)
             
         del samples, targets, train_check
         

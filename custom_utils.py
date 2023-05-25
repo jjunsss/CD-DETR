@@ -400,7 +400,7 @@ def check_training_gpu(train_check):
 
     return True
 
-def buffer_checker(rehearsal, epoch):
+def buffer_checker(rehearsal):
     #print text file
     check_components(rehearsal, True)
         
@@ -418,7 +418,32 @@ def control_lr_backbone(args, optimizer, frozen):
 import torch.optim as optim
 from torch.optim.lr_scheduler import StepLR
 import copy
+from Custom_Dataset import CombineDataset
 
+def dataset_configuration(args, original_dataset, original_loader, original_sampler,
+                          AugRplay_dataset, AugRplay_loader, AugRplay_sampler):
+    
+    if args.AugReplay :
+        return AugRplay_dataset, AugRplay_loader, AugRplay_sampler
+    
+    elif args.MixReplay:
+        return [AugRplay_dataset, original_dataset], [AugRplay_loader, original_loader], [AugRplay_sampler, original_sampler] 
+    
+    else :
+        return original_dataset, original_loader, original_sampler    
+
+#* Just CL_StepLR(CLStepLR)
+class ContinualStepLR(StepLR):
+    def __init__(self, optimizer, step_size, gamma=0.1, task_gamma=0.5, replay_gamma=10, last_epoch=-1, verbose=False):
+        super(ContinualStepLR, self).__init__(optimizer, step_size, gamma, last_epoch, verbose)
+        self.task_gamma = task_gamma
+
+        
+    def task_change(self):
+        for i, param_group in enumerate(self.optimizer.param_groups):
+            param_group['lr'] = param_group['lr'] * self.task_gamma
+            if self.verbose:
+                print(f'Task changed: Decreasing Group {i} lr to {param_group["lr"]:.4e}')
 
 #* for adaptive lR 
 # class ContinualStepLR(StepLR):
@@ -449,38 +474,38 @@ import copy
 #     def original_step(self):
 #         self.optimizer = copy.deepcopy(self.base_lr)
 
-#* For Diff StepLR between step 1 and step2 -> 
-class ContinualStepLR(StepLR):
-    def __init__(self, optimizer, step_size, gamma=0.1, task_gamma=0.5, replay_gamma=10, last_epoch=-1, verbose=False):
-        super(ContinualStepLR, self).__init__(optimizer, step_size, gamma, last_epoch, verbose)
-        self.task_gamma = task_gamma
-        self.replay_gamma =  replay_gamma
-        self.base_lr = None
-        self.replay_lr = None
+# # #* For Diff StepLR between step 1 and step2 -> ADStepLR in Training process
+# class ContinualStepLR(StepLR):
+#     def __init__(self, optimizer, step_size, gamma=0.1, task_gamma=1, replay_gamma=2, last_epoch=-1, verbose=False):
+#         super(ContinualStepLR, self).__init__(optimizer, step_size, gamma, last_epoch, verbose)
+#         self.task_gamma = task_gamma
+#         self.replay_gamma =  replay_gamma
+#         self.base_lr = None
+#         self.replay_lr = None
         
-    def task_change(self):
-        for i, param_group in enumerate(self.optimizer.param_groups):
-            param_group['lr'] = param_group['lr'] * self.task_gamma
-            if self.verbose:
-                print(f'Task changed: Decreasing Group {i} lr to {param_group["lr"]:.4e}')
-        # Save different learning rate in changed task.
-        self.base_lr = copy.deepcopy(self.optimizer)
-        print(f"base learning rate : {self.base_lr}")
+#     def task_change(self):
+#         for i, param_group in enumerate(self.optimizer.param_groups):
+#             param_group['lr'] = param_group['lr'] * self.task_gamma
+#             if self.verbose:
+#                 print(f'Task changed: Decreasing Group {i} lr to {param_group["lr"]:.4e}')
+#         # Save different learning rate in changed task.
+#         self.base_lr = copy.deepcopy(self.optimizer)
+#         print(f"base learning rate : {self.base_lr}")
         
-    def replay_step(self, idx):
-        if self.replay_lr is None :
-            for i, param_group in enumerate(self.optimizer.param_groups):
-                param_group['lr'] = param_group['lr'] * self.replay_gamma
+#     def replay_step(self, idx):
+#         if self.replay_lr is None :
+#             for i, param_group in enumerate(self.optimizer.param_groups):
+#                 param_group['lr'] = param_group['lr'] * self.replay_gamma
                 
-                if self.verbose:
-                    print(f'Task changed: Increasing Group {i} lr to {param_group["lr"]:.4e}')
-            self.replay_lr = copy.deepcopy(self.optimizer)
-        else:
-            self.optimizer = self.replay_lr
-            if self.verbose and (idx % 30) == 0:
-                print(f"optimizer group setting is {self.optimizer}")
+#                 if self.verbose:
+#                     print(f'Task changed: Increasing Group {i} lr to {param_group["lr"]:.4e}')
+#             self.replay_lr = copy.deepcopy(self.optimizer)
+#         else:
+#             self.optimizer = self.replay_lr
+#             if self.verbose and (idx % 30) == 0:
+#                 print(f"optimizer group setting is {self.optimizer}")
             
-    def original_step(self, idx):
-        self.optimizer = self.base_lr
-        if self.verbose and (idx % 30) == 0:
-            print(f"optimizer group setting is {self.optimizer}")
+#     def original_step(self, idx):
+#         self.optimizer = self.base_lr
+#         if self.verbose and (idx % 30) == 0:
+#             print(f"optimizer group setting is {self.optimizer}")
