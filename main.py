@@ -114,7 +114,7 @@ def get_args_parser():
 
     # dataset parameters
     parser.add_argument('--dataset_file', default='coco')
-    parser.add_argument('--coco_path', default='/home/nextserver/Desktop/jjunsss/LG/LG/plustotal/', type=str)
+    parser.add_argument('--coco_path', default='/data/LG/real_dataset/total_dataset/didvepz/plustotal/', type=str)
     parser.add_argument('--file_name', default='./saved_rehearsal', type=str)
     parser.add_argument('--coco_panoptic_path', type=str)
     parser.add_argument('--remove_difficult', action='store_true')
@@ -135,7 +135,7 @@ def get_args_parser():
     #* Continual Learning 
     parser.add_argument('--Task', default=2, type=int, help='The task is the number that divides the entire dataset, like a domain.') #if Task is 1, so then you could use it for normal training.
     parser.add_argument('--Task_Epochs', default=16, type=int, help='each Task epoch, e.g. 1 task is 5 of 10 epoch training.. ')
-    parser.add_argument('--Total_Classes', default=90, type=int, help='number of classes in custom COCODataset. e.g. COCO : 80 / LG : 59')
+    parser.add_argument('--Total_Classes', default=59, type=int, help='number of classes in custom COCODataset. e.g. COCO : 80 / LG : 59')
     parser.add_argument('--Total_Classes_Names', default=False, action='store_true', help="division of classes through class names (DID, PZ, VE). This option is available for LG Dataset")
     parser.add_argument('--CL_Limited', default=0, type=int, help='Use Limited Training in CL. If you choose False, you may encounter data imbalance in training.')
     parser.add_argument('--Construct_Replay', default=False, action='store_true', help="For cunstructing replay dataset")
@@ -165,6 +165,10 @@ def main(args):
     # Evaluation mode
     if args.eval:
         pipeline.evaluation_only_mode()
+    
+    # No incremental learning process
+    if pipeline.tasks == 1 :
+        pipeline.only_one_task_training()
         
     print("Start training")
     start_time = time.time()
@@ -199,10 +203,10 @@ def main(args):
             # Task change for learning rate scheduler
             pipeline.lr_scheduler.task_change()
             
-            # Incremental training for each epoch
-            pipeline.incremental_train_epoch(task_idx=task_idx, last_task=last_task, dataset_train=dataset_train,
-                                              data_loader_train=data_loader_train, sampler_train=sampler_train,
-                                              list_CC=list_CC)
+        # Incremental training for each epoch
+        pipeline.incremental_train_epoch(task_idx=task_idx, last_task=last_task, dataset_train=dataset_train,
+                                        data_loader_train=data_loader_train, sampler_train=sampler_train,
+                                        list_CC=list_CC)
             
     # Calculate and print the total time taken for training
     total_time = time.time() - start_time

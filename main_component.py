@@ -229,3 +229,14 @@ class TrainingPipeline:
     def construct_replay_buffer(self):
         contruct_replay_extra_epoch(args=self.args, Divided_Classes=self.Divided_Classes, model=self.model,
                                     criterion=self.criterion, device=self.device)
+        
+    def only_one_task_training(self):
+        dataset_train, data_loader_train, sampler_train, list_CC = Incre_Dataset(0, self.args, self.Divided_Classes)
+        
+        print(f"Normal Training Process \n \
+                Classes : {self.Divided_Classes}")
+        
+        # Normal training with each epoch
+        self.incremental_train_epoch(task_idx=0, last_task=True, dataset_train=dataset_train,
+                                         data_loader_train=data_loader_train, sampler_train=sampler_train,
+                                         list_CC=list_CC)
