@@ -92,6 +92,11 @@ def train_one_epoch(args, last_task, epo, model: torch.nn.Module, teacher_model,
                                                 model, teacher_model, criterion, optimizer,
                                                 current_classes)
         del samples, targets, train_check
+
+        # 정완 디버그
+        if args.debug:
+            if count == args.num_debug_dataset:
+                break
         
     if utils.is_main_process():
         print("Total Time : ", time.time() - set_tm)
