@@ -212,8 +212,7 @@ from Custom_Dataset import *
 from custom_prints import *
 from engine import train_one_epoch
 from custom_utils import buffer_checker
-def contruct_replay_extra_epoch(args, Divided_Classes, model, criterion, device):
-    rehearsal_classes = {}
+def contruct_replay_extra_epoch(args, Divided_Classes, model, criterion, device, rehearsal_classes={}, data_loader_train=None, list_CC=None):
     
     # 1. 현재 테스크에 맞는 적절한 데이터 셋 호출 (학습한 테스크, 0번 테스크에 해당하는 내용을 가져와야 함)
     _, data_loader_train, _, list_CC = Incre_Dataset(0, args, Divided_Classes) 
@@ -230,7 +229,9 @@ def contruct_replay_extra_epoch(args, Divided_Classes, model, criterion, device)
                                                      epoch=0, limit_memory_size=args.Memory, gpu_counts=4, list_CC=list_CC)
     
     # 4. 수집된 replay buffer 데이터를 정리해서 확인
-    buffer_checker(rehearsal=rehearsal_classes)
+    if utils.is_main_process():
+        buffer_checker(rehearsal=rehearsal_classes)
+    dist.barrier()
+    print(f"Extra process for gemerating buffer that affected to gradient(loss)")
     
-    
-    print(f"Extra training process, for conducting replay dataset")
+    return rehearsal_classes

@@ -203,21 +203,20 @@ class TrainingPipeline:
             # set a lr scheduler.
             self.lr_scheduler.step()
 
-            if last_task == False and args.Rehearsal:
-                print(f"replay data : {self.rehearsal_classes}")
-                self.rehearsal_classes = construct_combined_rehearsal(args=args, task=task_idx, dir=args.Rehearsal_file, rehearsal=self.rehearsal_classes,
-                                                                 epoch=epoch, limit_memory_size=args.Memory, gpu_counts=4, list_CC=list_CC)
-                print(f"complete save replay's data process")
-                print(f"replay dataset : {self.rehearsal_classes}")
-                #for wandb checker
-                if utils.is_main_process() and epoch + 1 == args.Task_Epochs:
-                    buffer_checker(self.rehearsal_classes)
-                    
-                dist.barrier()
-                
             # Save model each epoch
             save_model_params(self.model_without_ddp, self.optimizer, self.lr_scheduler, args, args.output_dir, 
                               task_idx, int(self.tasks), epoch)
+        
+        # For generating buffer with extra epoch
+        if last_task == False and args.Rehearsal:
+            print(f"previous buffer lists : {self.rehearsal_classes.keys()}")
+            self.rehearsal_classes = contruct_replay_extra_epoch(args=self.args, Divided_Classes=self.Divided_Classes, model=self.model,
+                                                                criterion=self.criterion, device=self.device, rehearsal_classes=self.rehearsal_classes,
+                                                                data_loader_train=data_loader_train, list_CC=list_CC)
+            print(f"complete save and merge replay's buffer process")
+            print(f"next replay buffer list : {self.rehearsal_classes.keys()}")
+                
+
             
         # For task information
         save_model_params(self.model_without_ddp, self.optimizer, self.lr_scheduler, args, args.output_dir, 
@@ -228,7 +227,7 @@ class TrainingPipeline:
         
     def construct_replay_buffer(self):
         contruct_replay_extra_epoch(args=self.args, Divided_Classes=self.Divided_Classes, model=self.model,
-                                    criterion=self.criterion, device=self.device)
+                                    criterion=self.criterion, device=self.device, rehearsal_classes=self.rehearsal_classes)
         
     def only_one_task_training(self):
         dataset_train, data_loader_train, sampler_train, list_CC = Incre_Dataset(0, self.args, self.Divided_Classes)

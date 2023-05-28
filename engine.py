@@ -71,7 +71,7 @@ def train_one_epoch(args, last_task, epo, model: torch.nn.Module, teacher_model,
     set_tm = time.time()
     sum_loss = 0.0
     count = 0
-    for idx in tqdm(range(len(data_loader))): #targets
+    for idx in tqdm(range(len(data_loader)), disable=not utils.is_main_process()): #targets
         with torch.no_grad():
             samples, targets, _, _ = prefetcher.next()
             
@@ -116,7 +116,8 @@ def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, out
         outputs = model(samples)
         loss_dict = criterion(outputs, targets)
         weight_dict = criterion.weight_dict
-
+        
+        
         # reduce losses over all GPUs for logging purposes
         loss_dict_reduced = utils.reduce_dict(loss_dict, True)
         loss_dict_reduced_scaled = {k: v * weight_dict[k]
