@@ -151,6 +151,10 @@ def get_args_parser():
     parser.add_argument('--Continual_Batch_size', default=2, type=int, help='continual batch training method')
     parser.add_argument('--Rehearsal_file', default='./Rehearsal_LG-CL/', type=str)
     parser.add_argument('--teacher_model', default=None, type=str)
+
+    # 정완 디버그
+    parser.add_argument('--debug', default=False, action='store_true')
+    parser.add_argument('--num_debug_dataset', default=10, type=int) # 디버그 데이터셋 개수
     return parser
 
 def main(args):
@@ -174,9 +178,14 @@ def main(args):
     start_time = time.time()
 
     # Training loop over tasks ( for incremental learning )
+    class_len = len(pipeline.Divided_Classes[0])
     for task_idx in range(pipeline.start_task, pipeline.tasks):
         # Check whether it's the first or last task
         first_training = (task_idx == 0)
+        if not first_training:
+            class_len += len(pipeline.Divided_Classes[task_idx])
+            pipeline.make_branch(task_idx, class_len, args)
+        
         last_task = (task_idx+1 == pipeline.tasks)
 
         # Generate new dataset

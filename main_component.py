@@ -40,17 +40,31 @@ class TrainingPipeline:
         init(args)
         self.args = args
         self.device = torch.device(args.device)
-        self.model, self.model_without_ddp, self.criterion, self.postprocessors, self.teacher_model = self._build_and_setup_model()
+        self.Divided_Classes, self.dataset_name, self.start_epoch, self.start_task, self.tasks = self._incremental_setting()
+        self.model, self.model_without_ddp, self.criterion, self.postprocessors, self.teacher_model = self._build_and_setup_model(len(self.Divided_Classes[0]))
         self.optimizer, self.lr_scheduler = self._setup_optimizer_and_scheduler()
         self._load_state()
         self.output_dir = Path(args.output_dir)
-        self.Divided_Classes, self.dataset_name, self.start_epoch, self.start_task, self.tasks = self._incremental_setting()
         self.load_replay, self.rehearsal_classes = self._load_replay_buffer()
         self.DIR = './mAP_TEST.txt'
 
 
-    def _build_and_setup_model(self):
-        model, criterion, postprocessors = build_model(self.args)
+    def make_branch(self, task_idx, class_len, args):
+        self.model, self.model_without_ddp, self.criterion, \
+            self.postprocessors, self.teacher_model = self._build_and_setup_model(class_len)
+        
+        weight_path = os.path.join(args.output_dir, f'cp_{self.tasks:02}_{task_idx:02}.pth')
+        previous_weight = torch.load(weight_path)
+
+        for idx, class_emb in enumerate(self.model.class_embed):
+            init_layer_weight = torch.nn.init.xavier_normal_(class_emb.weight.data)
+            previous_layer_weight = previous_weight['model'][f'class_embed.{idx}.weight']
+            previous_class_len = previous_layer_weight.size(0)
+
+            init_layer_weight[:previous_class_len] = previous_layer_weight
+
+    def _build_and_setup_model(self, num_classes):
+        model, criterion, postprocessors = build_model(self.args, num_classes)
         pre_model = copy.deepcopy(model)
         model.to(self.device)
         if self.args.pretrained_model is not None:
