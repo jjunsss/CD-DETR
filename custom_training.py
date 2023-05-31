@@ -31,27 +31,18 @@ def decompose_dataset(no_use_count: int, samples: utils.NestedTensor, targets: D
 def Original_training(args, last_task, epo, idx, count, sum_loss, samples, targets, 
                       model: torch.nn.Module, teacher_model, criterion: torch.nn.Module, optimizer: torch.optim.Optimizer,  
                       rehearsal_classes, train_check, current_classes): 
-    
+
     last_epoch_check = epo == (args.Task_Epochs - 1)
     device = torch.device("cuda")
     ex_device = torch.device("cpu")
-    losses_value, count, sum_loss = _common_training(args, epo, idx, last_task, count, sum_loss, 
-                                                    samples, targets, model, optimizer,
-                                                    teacher_model, criterion, device, ex_device, current_classes, "original")
+    count, sum_loss = _common_training(args, epo, idx, last_task, count, sum_loss, 
+                                        samples, targets, model, optimizer,
+                                        teacher_model, criterion, device, ex_device, current_classes, "original")
 
-    del samples
-    with torch.no_grad():
-        if train_check and args.Rehearsal and last_task == False and last_epoch_check == True: #* I will use this code line. No delete.
-            targets = [{k: v.to(ex_device) for k, v in t.items()} for t in targets]
-            rehearsal_classes = contruct_rehearsal(losses_value=losses_value, lower_limit=0.1, upper_limit=10, 
-                                                    targets=targets,
-                                                    rehearsal_classes=rehearsal_classes, 
-                                                    Current_Classes=current_classes, 
-                                                    Rehearsal_Memory=args.Memory)
+    del samples, targets
 
-    del targets  
-    return rehearsal_classes, sum_loss, count
-        
+    return sum_loss, count
+
 def Circular_training(args, last_task, epo, idx, count, sum_loss, samples, targets, 
                     model: torch.nn.Module, teacher_model, criterion: torch.nn.Module, optimizer: torch.optim.Optimizer, 
                     current_classes): 
@@ -59,9 +50,9 @@ def Circular_training(args, last_task, epo, idx, count, sum_loss, samples, targe
     last_epoch_check = epo == (args.Task_Epochs - 1)
     device = torch.device("cuda")
     ex_device = torch.device("cpu")
-    _, count, sum_loss = _common_training(args, epo, idx, last_task, count, sum_loss, 
-                                          samples, targets, model, optimizer,
-                                          teacher_model, criterion, device, ex_device, current_classes, "circular")
+    count, sum_loss = _common_training(args, epo, idx, last_task, count, sum_loss, 
+                                        samples, targets, model, optimizer,
+                                        teacher_model, criterion, device, ex_device, current_classes, "circular")
 
     del samples, targets  
     return count, sum_loss
@@ -112,7 +103,7 @@ def _common_training(args, epo, idx, last_task, count, sum_loss,
         losses_value = losses.item()
         
     if last_task and args.Distill:  
-        losses = losses + location_loss * 0.2  # alpha
+        losses = losses + location_loss * 0.5  # alpha
         
     loss_dict_reduced = utils.reduce_dict(loss_dict, train_check=True)
     if loss_dict_reduced != False:
@@ -130,7 +121,7 @@ def _common_training(args, epo, idx, last_task, count, sum_loss,
     torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip_max_norm)
     optimizer.step()
 
-    return losses_value, count, sum_loss
+    return count, sum_loss
 
 def rehearsal_training(args, samples, targets, model: torch.nn.Module, criterion: torch.nn.Module, 
                        rehearsal_classes, current_classes):
@@ -146,15 +137,21 @@ def rehearsal_training(args, samples, targets, model: torch.nn.Module, criterion
     outputs = model(samples)
     
     loss_dict = criterion(outputs, targets)
+    batch_loss_dict = {}
     if loss_dict is not False:
         weight_dict = criterion.weight_dict
         losses = sum(loss_dict[k] * weight_dict[k] for k in loss_dict.keys() if k in weight_dict)
         losses_value = losses.item()
         
+        # Transform tensor to scarlar value for rehearsal step
+        # TODO : Undecided, but whether to input Term to control Loss factors
+        batch_loss_dict["loss_bbox"] = [loss.item() for loss in criterion.losses_for_replay["loss_bbox"]]
+        batch_loss_dict["loss_giou"] = [loss.item() for loss in criterion.losses_for_replay["loss_giou"]]
+        batch_loss_dict["loss_labels"] = [loss.item() for loss in criterion.losses_for_replay["loss_labels"]]
+        
     with torch.no_grad():
         targets = [{k: v.to(ex_device) for k, v in t.items()} for t in targets]
-        rehearsal_classes = contruct_rehearsal(losses_value=losses_value, lower_limit=0.0, upper_limit=10.0, 
-                                                targets=targets,
+        rehearsal_classes = contruct_rehearsal(args, losses_dict=batch_loss_dict, targets=targets,
                                                 rehearsal_classes=rehearsal_classes, 
                                                 Current_Classes=current_classes, 
                                                 Rehearsal_Memory=args.Memory)

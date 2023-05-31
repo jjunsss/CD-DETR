@@ -141,6 +141,7 @@ class TrainingPipeline:
             criteria : task >= 2
         '''
         load_replay = []
+        rehearsal_classes = {}
         args = self.args
         for idx in range(self.start_task):
             load_replay.extend(self.Divided_Classes[idx])
@@ -149,11 +150,14 @@ class TrainingPipeline:
         if args.Rehearsal and (self.start_task >= 1):
             rehearsal_classes = load_rehearsal(args.Rehearsal_file, 0, args.Memory)
         
-            if len(rehearsal_classes)  == 0:
-                print(f"No rehearsal file")
+            try:
+                if len(rehearsal_classes) == 0:
+                    print(f"No rehearsal file. Initialization rehearsal dict")
+                    rehearsal_classes = {}
+            except:
+                print(f"Rehearsal File Error. Generate new empty rehearsal dict.")
                 rehearsal_classes = {}
-        else:
-            rehearsal_classes = {}
+
         
         print(f"old class list : {load_replay}")
         return load_replay, rehearsal_classes
@@ -196,9 +200,9 @@ class TrainingPipeline:
             print(f"args task : : {self.tasks}")
             
             # Training process
-            self.rehearsal_classes = train_one_epoch(args, last_task, epoch, self.model, self.teacher_model, self.criterion, 
-                                                data_loader_train, self.optimizer, self.lr_scheduler,
-                                                self.device, self.dataset_name, list_CC, self.rehearsal_classes)
+            train_one_epoch(args, last_task, epoch, self.model, self.teacher_model, self.criterion, 
+                            data_loader_train, self.optimizer, self.lr_scheduler,
+                            self.device, self.dataset_name, list_CC, self.rehearsal_classes)
             
             # set a lr scheduler.
             self.lr_scheduler.step()

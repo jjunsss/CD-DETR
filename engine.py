@@ -55,7 +55,7 @@ def create_prefetcher(dataset_name: str, data_loader: Iterable, device: torch.de
         return data_prefetcher(data_loader, device, prefetch=True, Mosaic=True, Continual_Batch=args.Continual_Batch_size)
     else:
         return data_prefetcher(data_loader, device, prefetch=True, Mosaic=False)
-    
+
 def train_one_epoch(args, last_task, epo, model: torch.nn.Module, teacher_model, criterion: torch.nn.Module,
                     data_loader: Iterable, optimizer: torch.optim.Optimizer, lr_scheduler: ContinualStepLR,
                     device: torch.device, dataset_name: str,  
@@ -81,7 +81,7 @@ def train_one_epoch(args, last_task, epo, model: torch.nn.Module, teacher_model,
         
         #Stage 1 -> T1에 대한 모든 훈련
         #Stage 2 -> T2에 대한 모든 훈련, AugReplay 사용하지 않을 때에는 일반적인 Replay 전략과 동일한 형태로 훈련을 수행
-        rehearsal_classes, sum_loss, count = Original_training(args, last_task, epo, idx, count, sum_loss, samples, targets,  
+        sum_loss, count = Original_training(args, last_task, epo, idx, count, sum_loss, samples, targets,  
                                                                model, teacher_model, criterion, optimizer,
                                                                rehearsal_classes, train_check, current_classes)
 
@@ -95,7 +95,6 @@ def train_one_epoch(args, last_task, epo, model: torch.nn.Module, teacher_model,
         
     if utils.is_main_process():
         print("Total Time : ", time.time() - set_tm)
-    return rehearsal_classes
 
 @torch.no_grad()
 def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, output_dir, DIR) :

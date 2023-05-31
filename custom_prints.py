@@ -1,5 +1,3 @@
-from pympler import summary
-from pympler import asizeof
 from typing import Tuple, Dict, List, Optional
 import os
 import sys

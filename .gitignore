@@ -183,3 +183,10 @@ Loss_check.txt
 Rehearsal*
 wandb
 LG-CL_0514_eBTS_ADStepLR/train_details
+*.json
+*.conf
+LG*
+Conf
+check
+.vscode
+.vscode/launch.json

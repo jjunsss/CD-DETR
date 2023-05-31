@@ -5,7 +5,6 @@ from torch.utils.data import DataLoader, ConcatDataset
 import datasets.samplers as samplers
 import torch
 import numpy as np
-import albumentations as A
 
 def Incre_Dataset(Task_Num, args, Incre_Classes):    
     current_classes = Incre_Classes[Task_Num]
@@ -54,7 +53,7 @@ def DivideTask_for_incre(Task_Counts: int, Total_Classes: int, DivisionOfNames: 
     '''
     if DivisionOfNames is True:
         Divided_Classes = []
-        #Divided_Classes.append([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 28, 32, 35, 41, 56]) #DID
+        Divided_Classes.append([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 28, 32, 35, 41, 56]) #DID + PZ
         #Divided_Classes.append([28, 32, 35, 41, 56]) #photozone ,
         Divided_Classes.append([24, 27, 36, 42, 43, 48, 52]) # 야채칸 중 일부(mAP 높은 일부),
         #Divided_Classes.append([23, 24, 25, 26, 27, 29, 30, 31, 33,34,36, 37, 38, 39, 40,42,43,44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 57, 58, 59]) #VE

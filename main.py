@@ -31,6 +31,8 @@ from datasets import build_dataset, get_coco_api_from_dataset
 from engine import evaluate, train_one_epoch
 from models import build_model
 from main_component import TrainingPipeline
+# from omegaconf import DictConfig
+# import hydra
 
 def get_args_parser():
     parser = argparse.ArgumentParser('Deformable DETR Detector', add_help=False)
@@ -138,21 +140,26 @@ def get_args_parser():
     parser.add_argument('--Total_Classes', default=59, type=int, help='number of classes in custom COCODataset. e.g. COCO : 80 / LG : 59')
     parser.add_argument('--Total_Classes_Names', default=False, action='store_true', help="division of classes through class names (DID, PZ, VE). This option is available for LG Dataset")
     parser.add_argument('--CL_Limited', default=0, type=int, help='Use Limited Training in CL. If you choose False, you may encounter data imbalance in training.')
-    parser.add_argument('--Construct_Replay', default=False, action='store_true', help="For cunstructing replay dataset")
     
 
     #* Rehearsal method
     parser.add_argument('--Rehearsal', default=False, action='store_true', help="use Rehearsal strategy in diverse CL method")
     parser.add_argument('--AugReplay', default=False, action='store_true', help="use Our augreplay strategy in step 2")
     parser.add_argument('--MixReplay', default=False, action='store_true', help="1:1 Mix replay solution, First Circular Training. Second Original Training")
+    parser.add_argument('--Memory', default=25, type=int, help='memory capacity for rehearsal training')
+    parser.add_argument('--Rehearsal_file', default='./LG-Replay-DIDPZ+VE/', type=str)
+    parser.add_argument('--Construct_Replay', default=False, action='store_true', help="For cunstructing replay dataset")
+    parser.add_argument('--Sampling_strategy', default='low_loss', type=str,
+                            help="low_loss, high_uniq, random")
+    
+    #* CL Strategy
     parser.add_argument('--Fake_Query', default=False, action='store_true', help="retaining previous task target through predict query")
     parser.add_argument('--Distill', default=False, action='store_true', help="retaining previous task target through predict query")
-    parser.add_argument('--Memory', default=25, type=int, help='memory capacity for rehearsal training')
-    parser.add_argument('--Continual_Batch_size', default=2, type=int, help='continual batch training method')
-    parser.add_argument('--Rehearsal_file', default='./Rehearsal_LG-CL/', type=str)
     parser.add_argument('--teacher_model', default=None, type=str)
+    parser.add_argument('--Continual_Batch_size', default=2, type=int, help='continual batch training method')
     return parser
 
+# @hydra.main(version_base=None, config_path="conf", config_name = "config")
 def main(args):
     # Initializing
     pipeline = TrainingPipeline(args)
@@ -161,18 +168,20 @@ def main(args):
     # Constructing only the replay buffer
     if args.Construct_Replay :
         pipeline.construct_replay_buffer()
+        return
 
     # Evaluation mode
     if args.eval:
         pipeline.evaluation_only_mode()
+        return
     
     # No incremental learning process
     if pipeline.tasks == 1 :
         pipeline.only_one_task_training()
+        return
         
     print("Start training")
     start_time = time.time()
-
     # Training loop over tasks ( for incremental learning )
     for task_idx in range(pipeline.start_task, pipeline.tasks):
         # Check whether it's the first or last task
