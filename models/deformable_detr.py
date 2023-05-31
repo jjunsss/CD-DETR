@@ -486,10 +486,10 @@ class MLP(nn.Module):
         return x
 
 
-def build(args):
-    num_classes = 60 if args.LG else 91
-    if args.dataset_file == "coco_panoptic":
-        num_classes = 250
+def build(args, num_classes):
+    # num_classes = 60 if args.LG else 91
+    # if args.dataset_file == "coco_panoptic":
+    #     num_classes = 250
     device = torch.device(args.device)
 
     backbone = build_backbone(args)
