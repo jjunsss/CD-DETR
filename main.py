@@ -155,10 +155,11 @@ def get_args_parser():
     #* CL Strategy
     parser.add_argument('--Fake_Query', default=False, action='store_true', help="retaining previous task target through predict query")
     parser.add_argument('--Distill', default=False, action='store_true', help="retaining previous task target through predict query")
+    parser.add_argument('--Branch_Incremental', default=False, action='store_true', help="MLP or something incremental with class")
     parser.add_argument('--teacher_model', default=None, type=str)
     parser.add_argument('--Continual_Batch_size', default=2, type=int, help='continual batch training method')
 
-    # 정완 디버그
+    #* 정완 디버그
     parser.add_argument('--debug', default=False, action='store_true')
     parser.add_argument('--num_debug_dataset', default=10, type=int) # 디버그 데이터셋 개수
     return parser
@@ -191,7 +192,7 @@ def main(args):
     for task_idx in range(pipeline.start_task, pipeline.tasks):
         # Check whether it's the first or last task
         first_training = (task_idx == 0)
-        if not first_training:
+        if not first_training and args.Branch_Incremental:
             class_len += len(pipeline.Divided_Classes[task_idx])
             pipeline.make_branch(task_idx, class_len, args)
         

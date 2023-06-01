@@ -8,6 +8,7 @@ import numpy as np
 from typing import Tuple, Dict, List, Optional
 import os
 from custom_prints import over_label_checker, check_components
+from termcolor import colored
 
 def decompose(func):
     def wrapper(no_use_count: int, samples: utils.NestedTensor, targets: Dict, 
@@ -346,7 +347,7 @@ def load_model_params(mode, model: model,
             if mode == "teacher":
                 params.requires_grad = False
     
-    print(f"$$$$$$$ Done every model params $$$$$$$$$$")
+    print(colored(f"Done every model params", "red", "on_yellow"))
             
     return model
 

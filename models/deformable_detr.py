@@ -26,7 +26,7 @@ from .segmentation import (DETRsegm, PostProcessPanoptic, PostProcessSegm,
                            dice_loss, sigmoid_focal_loss)
 from .deformable_transformer import build_deforamble_transformer
 import copy
-
+from termcolor import colored
 
 def _get_clones(module, N):
     return nn.ModuleList([copy.deepcopy(module) for i in range(N)])
@@ -281,12 +281,14 @@ class SetCriterion(nn.Module):
         """
         assert 'pred_boxes' in outputs
         idx = self._get_src_permutation_idx(indices)
+
         for i in range(len(indices)):
             # each batch's idx value to new tuple function
             i_idx = (idx[0][idx[0] == i], idx[1][idx[0] == i])
             if indices[1][0].nelement() == 0:
-                self.losses_for_replay['loss_bbox'].append(torch.tensor(10., device=targets[0]['boxes'].device))
-                self.losses_for_replay['loss_giou'].append(torch.tensor(10., device=targets[0]['boxes'].device))
+                self.losses_for_replay['loss_bbox'].append(torch.tensor(100., device=targets[0]['boxes'].device))
+                self.losses_for_replay['loss_giou'].append(torch.tensor(100., device=targets[0]['boxes'].device))
+                print(colored(f"high loss input to each loss in batch, becuase no target", "red", "on_yellow"))
                 continue
             
             src_boxes = outputs['pred_boxes'][i_idx]
@@ -299,15 +301,22 @@ class SetCriterion(nn.Module):
             loss_bbox /= each_bbox_count
             self.losses_for_replay['loss_bbox'].append(loss_bbox)
 
+            
             loss_giou = 1 - torch.diag(box_ops.generalized_box_iou(
                 box_ops.box_cxcywh_to_xyxy(src_boxes),
                 box_ops.box_cxcywh_to_xyxy(target_boxes)))
+            
+            if indices[1][0].nelement() == 0 :
+                # If not calc each loss both bbox or giou, so then we put high loss to temporary var
+                self.losses_for_replay['loss_bbox'].append(torch.tensor(100., device=targets[0]['boxes'].device))
+                self.losses_for_replay['loss_giou'].append(torch.tensor(100., device=targets[0]['boxes'].device))
+                print(colored(f"high loss input to each loss in batch, because no giou", "red", "on_yellow"))
+                continue
             
             loss_giou = loss_giou.sum()
             loss_giou /= each_bbox_count
             # Save the un-reduced GIoU losses for each image
             self.losses_for_replay['loss_giou'].append(loss_giou)
-            
         idx = self._get_src_permutation_idx(indices)
         src_boxes = outputs['pred_boxes'][idx]
         target_boxes = torch.cat([t['boxes'][i] for t, (_, i) in zip(targets, indices)], dim=0)

@@ -85,7 +85,8 @@ def train_one_epoch(args, last_task, epo, model: torch.nn.Module, teacher_model,
                                                                model, teacher_model, criterion, optimizer,
                                                                rehearsal_classes, train_check, current_classes)
 
-        if dataset_name == "AugReplay":
+        if dataset_name == "AugReplay" and args.Rehearsal and last_task:
+            # this process only replay strategy, AugReplay is same to "Circular Training"
             samples, targets, _, _ = prefetcher.next() #* Different
             # lr_scheduler.replay_step(idx)
             count, sum_loss = Circular_training(args, last_task, epo, idx, count, sum_loss, samples, targets,

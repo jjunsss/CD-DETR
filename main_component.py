@@ -64,6 +64,10 @@ class TrainingPipeline:
             init_layer_weight[:previous_class_len] = previous_layer_weight
 
     def _build_and_setup_model(self, num_classes):
+        if self.args.Branch_Incremental is False:
+            # Because original classes(whole classes) is 60 to LG, COCO is 91.
+            num_classes = 60 if self.args.LG else 91 
+            
         model, criterion, postprocessors = build_model(self.args, num_classes)
         pre_model = copy.deepcopy(model)
         model.to(self.device)

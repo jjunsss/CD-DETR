@@ -153,7 +153,7 @@ def _save_rehearsal_for_combine(task, dir, rehearsal, epoch):
     if not os.path.exists(dir) : 
         with open(dir, 'wb') as f:
             pickle.dump(temp_dict, f)
-        
+            print(colored(f"{get_world_size()} replay buffer save", "red", "on_yellow"))
 
 import pickle
 import os
@@ -198,7 +198,7 @@ def _handle_rehearsal(args, dir, limit_memory_size, gpu_counts, task, epoch, cur
                 over_dict[arg] = excess
         return over_dict
 
-    limit_memory_size *= gpu_counts
+    limit_memory_size *= get_world_size()
 
     dir_list = [dir + str(num) +"_gpu_rehearsal_task_" + str(task) + "_ep_" + str(epoch) for num in range(gpu_counts)]
 
@@ -224,12 +224,13 @@ def _handle_rehearsal(args, dir, limit_memory_size, gpu_counts, task, epoch, cur
             return merge_dict
 
         over_dict = get_over_dict(check_dict, limit_memory_size, current_classes)
-        sorted_over_list = sorted(over_dict.items(), key=lambda x: x[1]) # Ascending sorting 
+        sorted_over_list = sorted(over_dict.items(), key=lambda x: x[1]) # excess by Ascending sorting 
         
         # 제일 적게 초과한 클래스를 찾아서 제거
         del_classes = sorted_over_list[0][0]
         del_counts = sorted_over_list[0][1]
         print("del_indexes", del_classes)
+        print("del_counts ", del_counts)
         
         if args.Sampling_strategy == "low_loss": 
             # among the items that include the class del_classes, find the one with the highest loss value(Ours)
@@ -239,8 +240,6 @@ def _handle_rehearsal(args, dir, limit_memory_size, gpu_counts, task, epoch, cur
             # among the items that include the class del_classes, find the one with the smallest unique class count (RODEO paper method)
             sorted_result = sorted(filter(lambda x: del_classes in x[1][1], list(merge_dict.items())), key=lambda x: len(x[1][1])) 
             
-        del merge_dict[sorted_result[0]]
-        
         deleted_count = 0
         for img_index, _ in sorted_result:
             if deleted_count >= del_counts:
