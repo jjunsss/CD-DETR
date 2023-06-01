@@ -1,15 +1,10 @@
-# ------------------------------------------------------------------------
-# Deformable DETR
-# Copyright (c) 2020 SenseTime. All Rights Reserved.
-# Licensed under the Apache License, Version 2.0 [see LICENSE for details]
-# ------------------------------------------------------------------------
-# Modified from DETR (https://github.com/facebookresearch/detr)
-# Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
-# ------------------------------------------------------------------------
+def get_models(model_name, args, num_classes):
+    # build model
+    if model_name == 'deform_detr':
+        from .deform_detr import build_model
+    elif model_name == 'dn_detr':
+        from .dn_detr import build_model
+    # elif model_name == ...:
+    #     모델 계속 추가
 
-from .deformable_detr import build
-
-
-def build_model(args, num_classes):
-    return build(args, num_classes)
-
+    return build_model(args, num_classes)

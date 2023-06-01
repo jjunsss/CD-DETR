@@ -21,7 +21,7 @@ from custom_training import rehearsal_training
 
 from datasets import build_dataset, get_coco_api_from_dataset
 from engine import evaluate, train_one_epoch
-from models import build_model
+from models import get_models
 
 def init(args):
         utils.init_distributed_mode(args)
@@ -67,8 +67,8 @@ class TrainingPipeline:
         if self.args.Branch_Incremental is False:
             # Because original classes(whole classes) is 60 to LG, COCO is 91.
             num_classes = 60 if self.args.LG else 91 
-            
-        model, criterion, postprocessors = build_model(self.args, num_classes)
+        
+        model, criterion, postprocessors = get_models(self.args.model_name, self.args, num_classes)
         pre_model = copy.deepcopy(model)
         model.to(self.device)
         if self.args.pretrained_model is not None:
