@@ -30,6 +30,8 @@ from tqdm import tqdm
 from custom_training import *
 from custom_prints import check_components
 
+from models import _prepare_denoising_args
+
 @decompose
 def decompose_dataset(no_use_count: int, samples: utils.NestedTensor, targets: Dict, origin_samples: utils.NestedTensor, origin_targets: Dict, 
                       used_number: List) -> Tuple[int, List, utils.NestedTensor, Dict, utils.NestedTensor, Dict, List]:
@@ -75,13 +77,13 @@ def train_one_epoch(args, last_task, epo, model: torch.nn.Module, teacher_model,
         with torch.no_grad():
             samples, targets, _, _ = prefetcher.next()
 
-            # drop class
-            for target in targets:
-                is_allowed = target['labels'] < max(current_classes)
+            # # drop class
+            # for target in targets:
+            #     is_allowed = target['labels'] < max(current_classes)
 
-                # drop 'boxes', 'labels', 'area', 'iscrowd'
-                for drop_item in ['boxes', 'labels', 'area', 'iscrowd']:
-                    target[drop_item] = target[drop_item][is_allowed]
+            #     # drop 'boxes', 'labels', 'area', 'iscrowd'
+            #     for drop_item in ['boxes', 'labels', 'area', 'iscrowd']:
+            #         target[drop_item] = target[drop_item][is_allowed]
             
             train_check = True
             samples = samples.to(ex_device)
@@ -111,7 +113,7 @@ def train_one_epoch(args, last_task, epo, model: torch.nn.Module, teacher_model,
         print("Total Time : ", time.time() - set_tm)
 
 @torch.no_grad()
-def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, output_dir, DIR) :
+def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, output_dir, DIR, args) :
     model.eval()
     criterion.eval()
 
@@ -126,6 +128,11 @@ def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, out
     for samples, targets, _, _ in metric_logger.log_every(data_loader, 10, header):
         samples = samples.to(device)
         targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
+
+        # Add denoising arguments
+        if args.model_name == 'dn_detr':
+            model = _prepare_denoising_args(model, targets, eval=True)
+
         outputs = model(samples)
         loss_dict = criterion(outputs, targets)
         weight_dict = criterion.weight_dict

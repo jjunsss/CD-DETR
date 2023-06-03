@@ -21,6 +21,7 @@ from typing import Tuple, Dict, List, Optional
 
 from torch.cuda.amp import autocast
 from custom_fake_target import normal_query_selc_to_target, only_oldset_mosaic_query_selc_to_target
+from models import _prepare_denoising_args
 
 @decompose
 def decompose_dataset(no_use_count: int, samples: utils.NestedTensor, targets: Dict, origin_samples: utils.NestedTensor, 
@@ -69,7 +70,7 @@ def _common_training(args, epo, idx, last_task, count, sum_loss,
 
     # Add denoising arguments
     if args.model_name == 'dn_detr':
-        model = _prepare_denoising_args(model, targets, args)
+        model = _prepare_denoising_args(model, targets, args=args)
 
     with autocast(False):
         if last_task and args.Distill:
@@ -144,7 +145,7 @@ def rehearsal_training(args, samples, targets, model: torch.nn.Module, criterion
 
     # Add denoising arguments
     if args.model_name == 'dn_detr':
-        model = _prepare_denoising_args(model, targets, args)
+        model = _prepare_denoising_args(model, targets, args=args)
 
     outputs = model(samples)
     
@@ -175,10 +176,3 @@ def _process_samples_and_targets(samples, targets, device):
     samples = samples.to(device)
     targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
     return samples, targets
-
-def _prepare_denoising_args(model, targets, args):
-    dn_args=(targets, args.scalar, args.label_noise_scale, args.box_noise_scale, args.num_patterns)
-    if args.contrastive is not False:
-        dn_args += (args.contrastive,)
-    model.dn_args = dn_args # dn_detr & teacher_model도 고려?
-    return model
