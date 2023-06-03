@@ -66,7 +66,8 @@ def main(args):
         if not first_training and args.Branch_Incremental:
             class_len += len(pipeline.Divided_Classes[task_idx])
             pipeline.make_branch(task_idx, class_len, args)
-        
+        # print(f'Out features : {pipeline.model.class_embed[0].out_features}')
+
         last_task = (task_idx+1 == pipeline.tasks)
 
         # Generate new dataset
@@ -106,7 +107,7 @@ def main(args):
     
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('Training and evaluation script', parents=[get_args_parser()])
-    parent_args = parser.parse_args()
+    parent_args = parser.parse_known_args()[0]
 
     # set parser
     if parent_args.model_name == 'dn_detr':

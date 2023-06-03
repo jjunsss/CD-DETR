@@ -66,6 +66,11 @@ def _common_training(args, epo, idx, last_task, count, sum_loss,
     criterion.train()
 
     samples, targets = _process_samples_and_targets(samples, targets, device)
+
+    # Add denoising arguments
+    if args.model_name == 'dn_detr':
+        model = _prepare_denoising_args(model, targets, args)
+
     with autocast(False):
         if last_task and args.Distill:
             teacher_model.eval()
@@ -93,23 +98,12 @@ def _common_training(args, epo, idx, last_task, count, sum_loss,
             del t_encoder, s_encoder, new_encoder, pre_encodre
 
         else:
-            if args.model_name == 'deform_detr':
-                outputs = model(samples)
-            elif args.model_name == 'dn_detr':
-                dn_args=(targets, args.scalar, args.label_noise_scale, args.box_noise_scale, args.num_patterns)
-                if args.contrastive is not False:
-                    dn_args += (args.contrastive,)
-
-                outputs, mask_dict = model(samples, dn_args=dn_args)
-                
+            outputs = model(samples)
 
         if args.Fake_Query:
             targets = normal_query_selc_to_target(outputs, targets, current_classes)  # Adjust this line as necessary
 
-        if args.model_name == 'deform_detr':
-            loss_dict = criterion(outputs, targets)
-        elif args.model_name == 'dn_detr':
-            loss_dict = criterion(outputs, targets, mask_dict)
+        loss_dict = criterion(outputs, targets)
             
         weight_dict = criterion.weight_dict
         losses = sum(loss_dict[k] * weight_dict[k] for k in loss_dict.keys() if k in weight_dict)
@@ -147,6 +141,11 @@ def rehearsal_training(args, samples, targets, model: torch.nn.Module, criterion
     ex_device = torch.device("cpu")
     model.to(device)
     samples, targets = _process_samples_and_targets(samples, targets, device)
+
+    # Add denoising arguments
+    if args.model_name == 'dn_detr':
+        model = _prepare_denoising_args(model, targets, args)
+
     outputs = model(samples)
     
     loss_dict = criterion(outputs, targets)
@@ -176,3 +175,10 @@ def _process_samples_and_targets(samples, targets, device):
     samples = samples.to(device)
     targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
     return samples, targets
+
+def _prepare_denoising_args(model, targets, args):
+    dn_args=(targets, args.scalar, args.label_noise_scale, args.box_noise_scale, args.num_patterns)
+    if args.contrastive is not False:
+        dn_args += (args.contrastive,)
+    model.dn_args = dn_args # dn_detr & teacher_model도 고려?
+    return model

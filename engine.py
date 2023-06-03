@@ -74,6 +74,14 @@ def train_one_epoch(args, last_task, epo, model: torch.nn.Module, teacher_model,
     for idx in tqdm(range(len(data_loader)), disable=not utils.is_main_process()): #targets
         with torch.no_grad():
             samples, targets, _, _ = prefetcher.next()
+
+            # drop class
+            for target in targets:
+                is_allowed = target['labels'] < max(current_classes)
+
+                # drop 'boxes', 'labels', 'area', 'iscrowd'
+                for drop_item in ['boxes', 'labels', 'area', 'iscrowd']:
+                    target[drop_item] = target[drop_item][is_allowed]
             
             train_check = True
             samples = samples.to(ex_device)

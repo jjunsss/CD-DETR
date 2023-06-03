@@ -146,7 +146,8 @@ class DABDETR(nn.Module):
             nn.init.constant_(self.bbox_embed.layers[-1].bias.data, 0)
 
 
-    def forward(self, samples: NestedTensor, dn_args=None):
+    # def forward(self, samples: NestedTensor, dn_args=None):
+    def forward(self, samples: NestedTensor):
         """
             Add two functions prepare_for_dn and dn_post_process to implement dn
             The forward expects a NestedTensor, which consists of:
@@ -173,8 +174,10 @@ class DABDETR(nn.Module):
         embedweight = self.refpoint_embed.weight
         # prepare for dn
         input_query_label, input_query_bbox, attn_mask, mask_dict = \
-            prepare_for_dn(dn_args, embedweight, src.size(0), self.training, self.num_queries, self.num_classes,
-                           self.hidden_dim, self.label_enc)
+            prepare_for_dn(self.dn_args, embedweight, src.size(0), self.training, self.num_queries, self.num_classes,
+                           self.hidden_dim, self.label_enc)        
+            # prepare_for_dn(dn_args, embedweight, src.size(0), self.training, self.num_queries, self.num_classes,
+            #                self.hidden_dim, self.label_enc)
 
         hs, reference = self.transformer(self.input_proj(src), mask, input_query_bbox, pos[-1], tgt=input_query_label,
                                          attn_mask=attn_mask)
@@ -200,7 +203,9 @@ class DABDETR(nn.Module):
         out = {'pred_logits': outputs_class[-1], 'pred_boxes': outputs_coord[-1]}
         if self.aux_loss:
             out['aux_outputs'] = self._set_aux_loss(outputs_class, outputs_coord)
-        return out, mask_dict
+
+        # return out, mask_dict
+        return [out, mask_dict]
 
     @torch.jit.unused
     def _set_aux_loss(self, outputs_class, outputs_coord):
@@ -351,7 +356,8 @@ class SetCriterion(nn.Module):
         assert loss in loss_map, f'do you really want to compute {loss} loss?'
         return loss_map[loss](outputs, targets, indices, num_boxes, **kwargs)
 
-    def forward(self, outputs, targets, mask_dict=None, return_indices=False):
+    # def forward(self, outputs, targets, mask_dict=None, return_indices=False):
+    def forward(self, model_output, targets, return_indices=False):
         """
         Add a function prep_for_dn to prepare for dn loss components.
         Add dn loss calculation tgt_loss_label and tgt_loss_box.
@@ -364,6 +370,9 @@ class SetCriterion(nn.Module):
              return_indices: used for vis. if True, the layer0-5 indices will be returned as well.
 
         """
+        # new
+        outputs = model_output[0]
+        mask_dict = model_output[1]
 
         outputs_without_aux = {k: v for k, v in outputs.items() if k != 'aux_outputs'}
 
