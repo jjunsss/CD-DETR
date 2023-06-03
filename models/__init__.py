@@ -1,4 +1,4 @@
-def get_models(model_name, args, num_classes):
+def get_models(model_name, args, num_classes, current_class):
     # build model
     if model_name == 'deform_detr':
         from .deform_detr import build_model
@@ -7,7 +7,7 @@ def get_models(model_name, args, num_classes):
     # elif model_name == ...:
     #     모델 계속 추가
 
-    return build_model(args, num_classes)
+    return build_model(args, num_classes, current_class)
 
 def _prepare_denoising_args(model, targets, args=None, eval=False):
     if eval:

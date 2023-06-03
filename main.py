@@ -59,13 +59,11 @@ def main(args):
     print("Start training")
     start_time = time.time()
     # Training loop over tasks ( for incremental learning )
-    class_len = len(pipeline.Divided_Classes[0])
     for task_idx in range(pipeline.start_task, pipeline.tasks):
         # Check whether it's the first or last task
         first_training = (task_idx == 0)
         if not first_training and args.Branch_Incremental:
-            class_len += len(pipeline.Divided_Classes[task_idx])
-            pipeline.make_branch(task_idx, class_len, args)
+            pipeline.make_branch(task_idx, args)
         # print(f'Out features : {pipeline.model.class_embed[0].out_features}')
 
         last_task = (task_idx+1 == pipeline.tasks)

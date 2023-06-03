@@ -10,6 +10,6 @@
 from .deformable_detr import build
 
 
-def build_model(args, num_classes):
-    return build(args, num_classes)
+def build_model(args, num_classes, current_class):
+    return build(args, num_classes, current_class)
 

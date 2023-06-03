@@ -41,7 +41,7 @@ class TrainingPipeline:
         self.args = args
         self.device = torch.device(args.device)
         self.Divided_Classes, self.dataset_name, self.start_epoch, self.start_task, self.tasks = self._incremental_setting()
-        self.model, self.model_without_ddp, self.criterion, self.postprocessors, self.teacher_model = self._build_and_setup_model(len(self.Divided_Classes[0]))
+        self.model, self.model_without_ddp, self.criterion, self.postprocessors, self.teacher_model = self._build_and_setup_model(task_idx=0)
         self.optimizer, self.lr_scheduler = self._setup_optimizer_and_scheduler()
         self._load_state()
         self.output_dir = Path(args.output_dir)
@@ -49,9 +49,9 @@ class TrainingPipeline:
         self.DIR = './mAP_TEST.txt'
 
 
-    def make_branch(self, task_idx, class_len, args):
+    def make_branch(self, task_idx, args):
         self.model, self.model_without_ddp, self.criterion, \
-            self.postprocessors, self.teacher_model = self._build_and_setup_model(class_len)
+            self.postprocessors, self.teacher_model = self._build_and_setup_model(task_idx=task_idx)
         
         weight_path = os.path.join(args.output_dir, f'cp_{self.tasks:02}_{task_idx:02}.pth')
         previous_weight = torch.load(weight_path)
@@ -71,12 +71,15 @@ class TrainingPipeline:
             
             init_layer_weight[:previous_class_len] = previous_layer_weight            
 
-    def _build_and_setup_model(self, num_classes):
+    def _build_and_setup_model(self, task_idx):
         if self.args.Branch_Incremental is False:
             # Because original classes(whole classes) is 60 to LG, COCO is 91.
             num_classes = 60 if self.args.LG else 91
-        
-        model, criterion, postprocessors = get_models(self.args.model_name, self.args, num_classes+1)
+        else:
+            current_class = sum(self.Divided_Classes[:task_idx+1], [])
+            num_classes = len(current_class) + 1
+
+        model, criterion, postprocessors = get_models(self.args.model_name, self.args, num_classes, current_class)
         pre_model = copy.deepcopy(model)
         model.to(self.device)
         if self.args.pretrained_model is not None:

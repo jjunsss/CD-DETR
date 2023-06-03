@@ -35,7 +35,7 @@ def _get_clones(module, N):
 class DeformableDETR(nn.Module):
     """ This is the Deformable DETR module that performs object detection """
     def __init__(self, backbone, transformer, num_classes, num_queries, num_feature_levels,
-                 aux_loss=True, with_box_refine=False, two_stage=False):
+                 aux_loss=True, with_box_refine=False, two_stage=False, current_class=None):
         """ Initializes the model.
         Parameters:
             backbone: torch module of the backbone to be used. See backbone.py
@@ -110,6 +110,9 @@ class DeformableDETR(nn.Module):
             self.transformer.decoder.class_embed = self.class_embed
             for box_embed in self.bbox_embed:
                 nn.init.constant_(box_embed.layers[-1].bias.data[2:], 0.0)
+
+        if current_class:
+            self.gt = current_class
 
 
     def forward(self, samples: NestedTensor, pre_att=None):
@@ -189,6 +192,8 @@ class DeformableDETR(nn.Module):
         if self.two_stage:
             enc_outputs_coord = enc_outputs_coord_unact.sigmoid()
             out['enc_outputs'] = {'pred_logits': enc_outputs_class, 'pred_boxes': enc_outputs_coord}
+
+        out['gt'] = self.gt
         return out
 
     @torch.jit.unused
@@ -411,6 +416,7 @@ class SetCriterion(nn.Module):
         # In case of auxiliary losses, we repeat this process with the output of each intermediate layer.
         if 'aux_outputs' in outputs:
             for i, aux_outputs in enumerate(outputs['aux_outputs']):
+                aux_outputs['gt'] = outputs['gt']
                 indices = self.matcher(aux_outputs, targets)
                 for loss in self.losses:
                     if loss == 'masks':
@@ -426,6 +432,7 @@ class SetCriterion(nn.Module):
 
         if 'enc_outputs' in outputs:
             enc_outputs = outputs['enc_outputs']
+            enc_outputs['gt'] = outputs['gt']
             bin_targets = copy.deepcopy(targets)
             for bt in bin_targets:
                 bt['labels'] = torch.zeros_like(bt['labels'])
@@ -495,7 +502,7 @@ class MLP(nn.Module):
         return x
 
 
-def build(args, num_classes):
+def build(args, num_classes, current_class):
     # num_classes = 60 if args.LG else 91
     # if args.dataset_file == "coco_panoptic":
     #     num_classes = 250
@@ -513,6 +520,7 @@ def build(args, num_classes):
         aux_loss=args.aux_loss,
         with_box_refine=args.with_box_refine,
         two_stage=args.two_stage,
+        current_class=current_class
     )
     
     if args.masks:
