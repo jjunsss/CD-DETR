@@ -135,13 +135,14 @@ def rehearsal_training(args, samples, targets, model: torch.nn.Module, criterion
     model.to(device)
     samples, targets = _process_samples_and_targets(samples, targets, device)
     outputs = model(samples)
+    if utils.is_main_process() is False :
+        del samples, targets, outputs
     
-    loss_dict = criterion(outputs, targets)
-    batch_loss_dict = {}
-    if loss_dict is not False:
+    if utils.is_main_process():
+        loss_dict = criterion(outputs, targets)
+        batch_loss_dict = {}
         weight_dict = criterion.weight_dict
         losses = sum(loss_dict[k] * weight_dict[k] for k in loss_dict.keys() if k in weight_dict)
-        losses_value = losses.item()
         
         # Transform tensor to scarlar value for rehearsal step
         # TODO : Undecided, but whether to input Term to control Loss factors
@@ -149,13 +150,14 @@ def rehearsal_training(args, samples, targets, model: torch.nn.Module, criterion
         batch_loss_dict["loss_giou"] = [loss.item() for loss in criterion.losses_for_replay["loss_giou"]]
         batch_loss_dict["loss_labels"] = [loss.item() for loss in criterion.losses_for_replay["loss_labels"]]
         
-    with torch.no_grad():
-        targets = [{k: v.to(ex_device) for k, v in t.items()} for t in targets]
-        rehearsal_classes = contruct_rehearsal(args, losses_dict=batch_loss_dict, targets=targets,
-                                                rehearsal_classes=rehearsal_classes, 
-                                                Current_Classes=current_classes, 
-                                                Rehearsal_Memory=args.Memory)
-        
+        with torch.no_grad():
+            targets = [{k: v.to(ex_device) for k, v in t.items()} for t in targets]
+            rehearsal_classes = contruct_rehearsal(args, losses_dict=batch_loss_dict, targets=targets,
+                                                    rehearsal_classes=rehearsal_classes, 
+                                                    Current_Classes=current_classes, 
+                                                    Rehearsal_Memory=args.Memory)
+    dist.barrier()
+    
     return rehearsal_classes
 
 

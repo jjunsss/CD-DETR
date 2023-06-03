@@ -146,7 +146,7 @@ def origin_transform(image_set):
             T.RandomResize([608], max_size=1333),
         ])
             
-    if image_set == 'custom':
+    if image_set == 'extra':
         return T.Compose([
             # [
             T.RandomResize(scales, max_size=1200),
@@ -178,6 +178,12 @@ def make_coco_transforms(image_set):
             normalize,
         ])
         
+    if image_set == 'extra':
+        return T.Compose([
+            T.RandomResize([576], max_size=1200),
+            normalize,
+        ])
+        
         
     if image_set == 'val':
         return T.Compose([
@@ -199,6 +205,7 @@ def build(image_set, args, img_ids = None, class_ids = None):
     PATHS = {
         "train": (root / "images", root / 'output_json' / 'train.json'),
         "val": (root / "images", root / 'output_json' / 'train.json'),
+        "extra": (root / "images", root / 'output_json' / 'train.json'), # same thing train path
     }
 
     img_folder, ann_file = PATHS[image_set]

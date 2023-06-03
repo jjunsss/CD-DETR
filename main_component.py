@@ -123,6 +123,7 @@ class TrainingPipeline:
 
     def _load_state(self):
         args = self.args
+        # For extra epoch training, because It's not affected to DDP.
         if args.distributed:
             self.model = torch.nn.parallel.DistributedDataParallel(self.model, device_ids=[args.gpu])
             self.model_without_ddp = self.model.module
@@ -231,14 +232,12 @@ class TrainingPipeline:
         
         # For generating buffer with extra epoch
         if last_task == False and args.Rehearsal:
-            print(f"previous buffer lists : {self.rehearsal_classes.keys()}")
+            print(f"model update for generating buffer list")
             self.rehearsal_classes = contruct_replay_extra_epoch(args=self.args, Divided_Classes=self.Divided_Classes, model=self.model,
                                                                 criterion=self.criterion, device=self.device, rehearsal_classes=self.rehearsal_classes,
                                                                 data_loader_train=data_loader_train, list_CC=list_CC)
             print(f"complete save and merge replay's buffer process")
             print(f"next replay buffer list : {self.rehearsal_classes.keys()}")
-                
-
             
         # For task information
         save_model_params(self.model_without_ddp, self.optimizer, self.lr_scheduler, args, args.output_dir, 

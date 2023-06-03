@@ -38,7 +38,7 @@ def decompose_dataset(no_use_count: int, samples: utils.NestedTensor, targets: D
 
 def _extra_epoch_for_replay(args, data_loader, prefetcher, model, criterion, rehearsal_classes, current_classes):
     with torch.no_grad():
-        for idx in tqdm(range(len(data_loader))): #targets
+        for idx in tqdm(range(len(data_loader)), disable=not utils.is_main_process()): #targets
             samples, targets, _, _ = prefetcher.next()
                 
             # extra training을 통해서 replay 데이터를 수집하도록 설정

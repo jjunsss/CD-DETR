@@ -17,7 +17,7 @@ def _sampling_strategy(args, loss_value, targeted, rehearsal_classes,
     if args.Sampling_strategy == "low_loss" : 
         if ( targeted[1][0] > loss_value ): #Low buffer construct
             print(f"change rehearsal value")
-            print(f"low-loss based buffer change strategy")
+            print(colored(f"low-loss based buffer change strategy", "blue"))
             del rehearsal_classes[targeted[0]]
             rehearsal_classes[image_id] = [loss_value, label_tensor_unique_list]
             return rehearsal_classes
@@ -25,14 +25,14 @@ def _sampling_strategy(args, loss_value, targeted, rehearsal_classes,
     if args.Sampling_strategy  == "high_uniq":
         if ( len(targeted[1][1]) < len(label_tensor_unique_list) ): #Low buffer construct
             print(f"change rehearsal value")
-            print(f"high-unique counts based buffer change strategy")
+            print(colored(f"high-unique counts based buffer change strategy", "blue"))
             del rehearsal_classes[targeted[0]]
             rehearsal_classes[image_id] = [loss_value, label_tensor_unique_list]
             return rehearsal_classes
             
     if args.Sampling_strategy  == "random" :
         print(f"change rehearsal value")
-        print(f"random counts based buffer change strategy")
+        print(colored(f"random counts based buffer change strategy", "blue"))
         key_to_delete = random.choice(list(rehearsal_classes.keys()))
         del rehearsal_classes[key_to_delete]
         rehearsal_classes[image_id] = [loss_value, label_tensor_unique_list]
@@ -48,8 +48,7 @@ def contruct_rehearsal(args, losses_dict: dict, targets, rehearsal_classes: List
     ex_device = torch.device("cpu")
     loss_value = 0.0
     
-    # Rehearsal_Memory is whole memory size whit ddp
-    Rehearsal_Memory *= get_world_size()
+
     for enum, target in enumerate(targets): #! 배치 개수 ex) 4개 
         loss_value = losses_dict["loss_bbox"][enum] + losses_dict["loss_giou"][enum] + losses_dict["loss_labels"][enum]
         if loss_value > 10.0 :
@@ -76,7 +75,7 @@ def contruct_rehearsal(args, losses_dict: dict, targets, rehearsal_classes: List
                 rehearsal_classes[image_id] = [loss_value, label_tensor_unique_list]
         else:
             # Over working part, replacement strategy operation
-            print(colored(f"MEMORY OVER", "blue"))
+            # print(colored(f"MEMORY OVER", "blue"))
             targeted = _calc_to_be_changed_target(limit_memory_size=Rehearsal_Memory, rehearsal_classes=rehearsal_classes,
                        replace_strategy=args.Sampling_strategy, args=label_tensor_unique_list)
             
@@ -153,13 +152,11 @@ def _save_rehearsal_for_combine(task, dir, rehearsal, epoch):
     if not os.path.exists(dir) : 
         with open(dir, 'wb') as f:
             pickle.dump(temp_dict, f)
-            print(colored(f"{get_world_size()} replay buffer save", "red", "on_yellow"))
 
 import pickle
 import os
 def _save_rehearsal(rehearsal, dir, task, memory):
-    all_memory = memory * get_world_size()
-    all_dir = dir  + "ALL_gpu_rehearsal_task_" + str(task) +"_" + str(all_memory)
+    all_dir = dir  + "rehearsal_task_" + str(task) +"_" + str(memory)
     if not os.path.exists(dir):
         os.mkdir(dir)
         print(f"Directroy created")
@@ -170,8 +167,7 @@ def _save_rehearsal(rehearsal, dir, task, memory):
 
 
 def load_rehearsal(dir, task, memory):
-    all_memory = memory * get_world_size()
-    all_dir = dir  + "ALL_gpu_rehearsal_task_" + str(task) + "_" + str(all_memory)
+    all_dir = dir  + "rehearsal_task_" + str(task) + "_" + str(memory)
     print(f"load replay file name : {all_dir}")
     #all_dir = "/data/LG/real_dataset/total_dataset/test_dir/Continaul_DETR/Rehearsal_dict/0_gpu_rehearsal_task_0_ep_9"
     if os.path.exists(all_dir) :
@@ -180,126 +176,126 @@ def load_rehearsal(dir, task, memory):
             print(colored(f"********** Done Combined replay data ***********", "light_red", "on_yellow"))
             return temp
 
-def _handle_rehearsal(args, dir, limit_memory_size, gpu_counts, task, epoch, current_classes, include_all=False):
-    def load_dictionaries_from_files(dir_list):
-        merged_dict = {}
-        for dictionary_dir in dir_list:
-            with open(dictionary_dir, 'rb') as f :
-                temp = pickle.load(f)
-                merged_dict = {**merged_dict, **temp}
-        return merged_dict
+# def _handle_rehearsal(args, dir, limit_memory_size, gpu_counts, task, epoch, current_classes, include_all=False):
+#     def load_dictionaries_from_files(dir_list):
+#         merged_dict = {}
+#         for dictionary_dir in dir_list:
+#             with open(dictionary_dir, 'rb') as f :
+#                 temp = pickle.load(f)
+#                 merged_dict = {**merged_dict, **temp}
+#         return merged_dict
 
-    def get_over_dict(temp_dict, limit_memory_size, current_classes):
-        over_dict = {}
-        for arg in current_classes:
-            value = temp_dict[arg] if arg in temp_dict.keys() else 0
-            excess = value - limit_memory_size
-            if excess > 0:
-                over_dict[arg] = excess
-        return over_dict
+#     def get_over_dict(temp_dict, limit_memory_size, current_classes):
+#         over_dict = {}
+#         for arg in current_classes:
+#             value = temp_dict[arg] if arg in temp_dict.keys() else 0
+#             excess = value - limit_memory_size
+#             if excess > 0:
+#                 over_dict[arg] = excess
+#         return over_dict
 
-    limit_memory_size *= get_world_size()
+#     dir_list = [dir + str(num) +"_gpu_rehearsal_task_" + str(task) + "_ep_" + str(epoch) for num in range(gpu_counts)]
 
-    dir_list = [dir + str(num) +"_gpu_rehearsal_task_" + str(task) + "_ep_" + str(epoch) for num in range(gpu_counts)]
+#     if include_all:
+#         all_dir = dir  + "ALL_gpu_rehearsal_task_" + str(task) + "_" + str(limit_memory_size)
+#         dir_list.append(all_dir)
 
-    if include_all:
-        all_dir = dir  + "ALL_gpu_rehearsal_task_" + str(task) + "_" + str(limit_memory_size)
-        dir_list.append(all_dir)
-
-    for each_dir in dir_list:
-        if not os.path.exists(each_dir):
-            raise Exception("No rehearsal file")
+#     for each_dir in dir_list:
+#         if not os.path.exists(each_dir):
+#             raise Exception("No rehearsal file")
             
-    merge_dict = load_dictionaries_from_files(dir_list)
+#     merge_dict = load_dictionaries_from_files(dir_list)
     
-    while True:
-        # Check over classes in buffer that collected in 4 GPUs
-        check_dict = {index: len(list(filter(lambda x: index in x[1], list(merge_dict.values())))) for index in current_classes}
-        print(f"check dict : {check_dict}")
+#     while True:
+#         # Check over classes in buffer that collected in 4 GPUs
+#         check_dict = {index: len(list(filter(lambda x: index in x[1], list(merge_dict.values())))) for index in current_classes}
+#         print(f"check dict : {check_dict}")
         
-        temp_array_bool = np.fromiter(check_dict.values(), dtype=int) <= limit_memory_size
+#         temp_array_bool = np.fromiter(check_dict.values(), dtype=int) <= limit_memory_size
         
-        if all(temp_array_bool):
-            print(colored(f"********** Done combine 4 buffer process ***********", "light_red", "on_yellow"))
-            return merge_dict
+#         if all(temp_array_bool):
+#             print(colored(f"********** Done combine 4 buffer process ***********", "light_red", "on_yellow"))
+#             return merge_dict
 
-        over_dict = get_over_dict(check_dict, limit_memory_size, current_classes)
-        sorted_over_list = sorted(over_dict.items(), key=lambda x: x[1]) # excess by Ascending sorting 
+#         over_dict = get_over_dict(check_dict, limit_memory_size, current_classes)
+#         sorted_over_list = sorted(over_dict.items(), key=lambda x: x[1]) # excess by Ascending sorting 
         
-        # 제일 적게 초과한 클래스를 찾아서 제거
-        del_classes = sorted_over_list[0][0]
-        del_counts = sorted_over_list[0][1]
-        print("del_indexes", del_classes)
-        print("del_counts ", del_counts)
+#         # 제일 적게 초과한 클래스를 찾아서 제거
+#         del_classes = sorted_over_list[0][0]
+#         del_counts = sorted_over_list[0][1]
+#         print("del_indexes", del_classes)
+#         print("del_counts ", del_counts)
         
-        if args.Sampling_strategy == "low_loss": 
-            # among the items that include the class del_classes, find the one with the highest loss value(Ours)
-            sorted_result = sorted(filter(lambda x: del_classes in x[1][1], list(merge_dict.items())), key=lambda x: x[1][0], reverse=True)
+#         if args.Sampling_strategy == "low_loss": 
+#             # among the items that include the class del_classes, find the one with the highest loss value(Ours)
+#             sorted_result = sorted(filter(lambda x: del_classes in x[1][1], list(merge_dict.items())), key=lambda x: x[1][0], reverse=True)
             
-        elif args.Sampling_strategy == "high_uniq":
-            # among the items that include the class del_classes, find the one with the smallest unique class count (RODEO paper method)
-            sorted_result = sorted(filter(lambda x: del_classes in x[1][1], list(merge_dict.items())), key=lambda x: len(x[1][1])) 
+#         elif args.Sampling_strategy == "high_uniq":
+#             # among the items that include the class del_classes, find the one with the smallest unique class count (RODEO paper method)
+#             sorted_result = sorted(filter(lambda x: del_classes in x[1][1], list(merge_dict.items())), key=lambda x: len(x[1][1])) 
             
-        deleted_count = 0
-        for img_index, _ in sorted_result:
-            if deleted_count >= del_counts:
-                break
+#         deleted_count = 0
+#         for img_index, _ in sorted_result:
+#             if deleted_count >= del_counts:
+#                 break
             
-            del merge_dict[img_index]
-            deleted_count += 1
+#             del merge_dict[img_index]
+#             deleted_count += 1
 
-def _multigpu_rehearsal(args, dir, limit_memory_size, gpu_counts, task, epoch, current_classes):
-    return _handle_rehearsal(args, dir, limit_memory_size, gpu_counts, task, epoch, current_classes, include_all=False)
+# def _multigpu_rehearsal(args, dir, limit_memory_size, gpu_counts, task, epoch, current_classes):
+#     return _handle_rehearsal(args, dir, limit_memory_size, gpu_counts, task, epoch, current_classes, include_all=False)
 
-def _merge_replay_for_multigpu(args, dir, limit_memory_size, gpu_counts, task, epoch, current_classes):
-    return _handle_rehearsal(args, dir, limit_memory_size, gpu_counts, task, epoch, current_classes, include_all=True)
+# def _merge_replay_for_multigpu(args, dir, limit_memory_size, gpu_counts, task, epoch, current_classes):
+    # return _handle_rehearsal(args, dir, limit_memory_size, gpu_counts, task, epoch, current_classes, include_all=True)
     
 
 def construct_combined_rehearsal(args, task:int ,dir:str ,rehearsal:dict ,epoch:int 
                                  ,limit_memory_size:int ,list_CC:list, gpu_counts:int, ) -> dict:
-    all_memory = limit_memory_size * get_world_size()
-    all_dir = dir  + "ALL_gpu_rehearsal_task_" + str(task) +"_" + str(all_memory)
+    all_dir = dir  + "rehearsal_task_" + str(task) +"_" + str(limit_memory_size)
     
     #file save of each GPUs
-    _save_rehearsal_for_combine(task, dir, rehearsal, epoch)
+    # _save_rehearsal_for_combine(task, dir, rehearsal, epoch)
 
-    if os.path.isfile(all_dir):
-        # Constructing all gpu (기존에 존재하는 replay 데이터와 합치기 위해)
-        rehearsal_classes = _merge_replay_for_multigpu(args, dir, limit_memory_size, gpu_counts, task, epoch, list_CC)
-    else :    
-        # 기존에 만들어진 합성 replay 데이터가 없을 때, 새롭게 만들어야 하는 상황을 가정
-        rehearsal_classes = _multigpu_rehearsal(args, dir, limit_memory_size, gpu_counts, task, epoch, list_CC)
+    # if os.path.isfile(all_dir):
+    #     # Constructing all gpu (기존에 존재하는 replay 데이터와 합치기 위해)
+    #     rehearsal_classes = _merge_replay_for_multigpu(args, dir, limit_memory_size, gpu_counts, task, epoch, list_CC)
+    # else :    
+    #     # 기존에 만들어진 합성 replay 데이터가 없을 때, 새롭게 만들어야 하는 상황을 가정
+    #     rehearsal_classes = _multigpu_rehearsal(args, dir, limit_memory_size, gpu_counts, task, epoch, list_CC)
 
     #save combined replay buffer data for next training
-    if utils.is_main_process():
-        _save_rehearsal(rehearsal_classes, dir, task, limit_memory_size)
+    _save_rehearsal(rehearsal, dir, task, limit_memory_size)
     
-    return rehearsal_classes
+    return rehearsal
 
 from Custom_Dataset import *
 from custom_prints import *
 from engine import train_one_epoch
 from custom_utils import buffer_checker
 def contruct_replay_extra_epoch(args, Divided_Classes, model, criterion, device, rehearsal_classes={}, data_loader_train=None, list_CC=None):
-    
     # 1. 현재 테스크에 맞는 적절한 데이터 셋 호출 (학습한 테스크, 0번 테스크에 해당하는 내용을 가져와야 함)
-    _, data_loader_train, _, list_CC = Incre_Dataset(0, args, Divided_Classes) 
+    #    하나의 GPU로 Buffer 구성하기 위해서(더 정확함) 모든 데이터 호출
+    _, data_loader_train, _, list_CC = Incre_Dataset(0, args, Divided_Classes, extra_dataset=True) 
     
     # 2. Extra epoch, 모든 이미지들의 Loss를 측정
     rehearsal_classes = train_one_epoch(args, last_task=False, epo=0, model=model, teacher_model=None,
                                         criterion=criterion, data_loader=data_loader_train, optimizer=None,
                                         lr_scheduler=None, device=device, dataset_name="", current_classes=list_CC, 
                                         rehearsal_classes=rehearsal_classes)
-    
-    # 3. Extra epoch를 통해 수집된 replay data(multi-gpu로 각각 생성)를 합치고 통합하는 과정
-    # TODO : 기존에 만들어진 merge dict가 있다면 합치는 동작을 해야하는데 이 부분 자동화하는 작업 수행해야 함.
-    rehearsal_classes = construct_combined_rehearsal(args=args, task=0, dir=args.Rehearsal_file, rehearsal=rehearsal_classes,
-                                                     epoch=0, limit_memory_size=args.Memory, gpu_counts=4, list_CC=list_CC)
-    
-    # 4. 수집된 replay buffer 데이터를 정리해서 확인
+
     if utils.is_main_process():
+        # 3. 수집된 Buffer를 특정 파일에 저장
+        _save_rehearsal(rehearsal_classes, args.Rehearsal_file, 0, args.Memory)
+        
+        # 4. 수집된 replay buffer 데이터를 정리해서 확인
         buffer_checker(rehearsal=rehearsal_classes)
-    dist.barrier()
-    print(f"Extra process for gemerating buffer that affected to gradient(loss)")
     
+    # # TODO : 기존에 만들어진 merge dict가 있다면 합치는 동작을 해야하는데 이 부분 자동화하는 작업 수행해야 함.
+    # rehearsal_classes = construct_combined_rehearsal(args=args, task=0, dir=args.Rehearsal_file, rehearsal=rehearsal_classes,
+    #                                                 epoch=0, limit_memory_size=args.Memory, gpu_counts=4, list_CC=list_CC)
+    dist.barrier()
+    
+    # All GPUs ready replay dataset
+    rehearsal_classes = load_rehearsal(dir=args.Rehearsal_file, task=0, momory=args.Memory)
+    print(colored(f"Only one GPU Extra process for constructing buffer","red", "on_yellow"))
     return rehearsal_classes

@@ -6,29 +6,27 @@ import datasets.samplers as samplers
 import torch
 import numpy as np
 
-def Incre_Dataset(Task_Num, args, Incre_Classes):    
+def Incre_Dataset(Task_Num, args, Incre_Classes, extra_dataset = False):    
     current_classes = Incre_Classes[Task_Num]
     print(f"current_classes : {current_classes}")
-    
-    if len(Incre_Classes) == 1:
-        dataset_train = build_dataset(image_set='train', args=args, class_ids=None) #* Task ID에 해당하는 Class들만 Dataset을 통해서 불러옴
-    else: 
-        if Task_Num == 0 : #* First Task training
-            dataset_train = build_dataset(image_set='train', args=args, class_ids=current_classes)
-        else:
-            dataset_train = build_dataset(image_set='train', args=args, class_ids=current_classes)
-    dataset_val = build_dataset(image_set='val', args=args, class_ids=current_classes)
-    
-    if args.distributed:
+    if extra_dataset is False :
+        # For real model traning
+        dataset_train = build_dataset(image_set='train', args=args, class_ids=current_classes)
+    else :
+        # For generating buffer with whole dataset
+        dataset_train = build_dataset(image_set='extra', args=args, class_ids=current_classes)
+    # dataset_val = build_dataset(image_set='val', args=args, class_ids=current_classes)
+        
+    if args.distributed and extra_dataset == False:
         if args.cache_mode:
             sampler_train = samplers.NodeDistributedSampler(dataset_train)
-            sampler_val = samplers.NodeDistributedSampler(dataset_val, shuffle=False)
+            # sampler_val = samplers.NodeDistributedSampler(dataset_val, shuffle=False)
         else:
             sampler_train = samplers.DistributedSampler(dataset_train)
-            sampler_val = samplers.DistributedSampler(dataset_val, shuffle=True)
+            # sampler_val = samplers.DistributedSampler(dataset_val, shuffle=True)
     else:
         sampler_train = torch.utils.data.RandomSampler(dataset_train)
-        sampler_val = torch.utils.data.SequentialSampler(dataset_val)
+        # sampler_val = torch.utils.data.SequentialSampler(dataset_val)
         
     batch_sampler_train = torch.utils.data.BatchSampler(
         sampler_train, args.batch_size, drop_last=True)
@@ -36,9 +34,9 @@ def Incre_Dataset(Task_Num, args, Incre_Classes):
     data_loader_train = DataLoader(dataset_train, batch_sampler=batch_sampler_train,
                                 collate_fn=utils.collate_fn, num_workers=args.num_workers,
                                 pin_memory=True)
-    data_loader_val = DataLoader(dataset_val, args.batch_size, sampler=sampler_val,
-                                 drop_last=False, collate_fn=utils.collate_fn, num_workers=args.num_workers,
-                                 pin_memory=True)
+    # data_loader_val = DataLoader(dataset_val, args.batch_size, sampler=sampler_val,
+    #                              drop_last=False, collate_fn=utils.collate_fn, num_workers=args.num_workers,
+    #                              pin_memory=True)
     
     return dataset_train, data_loader_train, sampler_train, current_classes
 

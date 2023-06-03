@@ -280,7 +280,6 @@ def check_class(verbose, LG_Dataset: bool, targets: Dict, label_dict: Dict, curr
 from torch.utils.data import DataLoader
 from datasets import build_dataset, get_coco_api_from_dataset
 def new_dataLoader(saved_dict, args):
-    #print(f"{dist.get_rank()}gpu training saved dict : {saved_dict}")
     dataset_idx_list = []
     for _, value in saved_dict.items():
         if len(value) > 0 :
