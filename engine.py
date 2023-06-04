@@ -61,11 +61,12 @@ def create_prefetcher(dataset_name: str, data_loader: Iterable, device: torch.de
 def train_one_epoch(args, last_task, epo, model: torch.nn.Module, teacher_model, criterion: torch.nn.Module,
                     data_loader: Iterable, optimizer: torch.optim.Optimizer, lr_scheduler: ContinualStepLR,
                     device: torch.device, dataset_name: str,  
-                    current_classes: List = [], rehearsal_classes: Dict = {}):
+                    current_classes: List = [], rehearsal_classes: Dict = {},
+                    task_end: bool = False):
     ex_device = torch.device("cpu")
     
     prefetcher = create_prefetcher(dataset_name, data_loader, device, args)
-    if args.Construct_Replay :
+    if args.Construct_Replay or task_end:
         rehearsal_classes = _extra_epoch_for_replay(args, data_loader=data_loader, prefetcher=prefetcher, model=model, criterion=criterion,
                                 rehearsal_classes=rehearsal_classes, current_classes=current_classes)
         return rehearsal_classes

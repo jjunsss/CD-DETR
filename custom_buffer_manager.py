@@ -280,7 +280,7 @@ from Custom_Dataset import *
 from custom_prints import *
 from engine import train_one_epoch
 from custom_utils import buffer_checker
-def contruct_replay_extra_epoch(args, Divided_Classes, model, criterion, device, rehearsal_classes={}, data_loader_train=None, list_CC=None):
+def contruct_replay_extra_epoch(args, Divided_Classes, model, criterion, device, rehearsal_classes={}, data_loader_train=None, list_CC=None, task_end=True):
     
     # 1. 현재 테스크에 맞는 적절한 데이터 셋 호출 (학습한 테스크, 0번 테스크에 해당하는 내용을 가져와야 함)
     _, data_loader_train, _, list_CC = Incre_Dataset(0, args, Divided_Classes) 
@@ -289,7 +289,7 @@ def contruct_replay_extra_epoch(args, Divided_Classes, model, criterion, device,
     rehearsal_classes = train_one_epoch(args, last_task=False, epo=0, model=model, teacher_model=None,
                                         criterion=criterion, data_loader=data_loader_train, optimizer=None,
                                         lr_scheduler=None, device=device, dataset_name="", current_classes=list_CC, 
-                                        rehearsal_classes=rehearsal_classes)
+                                        rehearsal_classes=rehearsal_classes, task_end=task_end)
     
     # 3. Extra epoch를 통해 수집된 replay data(multi-gpu로 각각 생성)를 합치고 통합하는 과정
     # TODO : 기존에 만들어진 merge dict가 있다면 합치는 동작을 해야하는데 이 부분 자동화하는 작업 수행해야 함.
