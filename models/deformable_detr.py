@@ -317,6 +317,7 @@ class SetCriterion(nn.Module):
             loss_giou /= each_bbox_count
             # Save the un-reduced GIoU losses for each image
             self.losses_for_replay['loss_giou'].append(loss_giou)
+            
         idx = self._get_src_permutation_idx(indices)
         src_boxes = outputs['pred_boxes'][idx]
         target_boxes = torch.cat([t['boxes'][i] for t, (_, i) in zip(targets, indices)], dim=0)

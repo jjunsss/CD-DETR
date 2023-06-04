@@ -135,14 +135,13 @@ def rehearsal_training(args, samples, targets, model: torch.nn.Module, criterion
     model.to(device)
     samples, targets = _process_samples_and_targets(samples, targets, device)
     outputs = model(samples)
+    loss_dict = criterion(outputs, targets)
+    
     if utils.is_main_process() is False :
         del samples, targets, outputs
-    
-    if utils.is_main_process():
-        loss_dict = criterion(outputs, targets)
+        
+    if utils.is_main_process() :
         batch_loss_dict = {}
-        weight_dict = criterion.weight_dict
-        losses = sum(loss_dict[k] * weight_dict[k] for k in loss_dict.keys() if k in weight_dict)
         
         # Transform tensor to scarlar value for rehearsal step
         # TODO : Undecided, but whether to input Term to control Loss factors
@@ -156,8 +155,8 @@ def rehearsal_training(args, samples, targets, model: torch.nn.Module, criterion
                                                     rehearsal_classes=rehearsal_classes, 
                                                     Current_Classes=current_classes, 
                                                     Rehearsal_Memory=args.Memory)
+        
     dist.barrier()
-    
     return rehearsal_classes
 
 

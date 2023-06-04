@@ -17,7 +17,7 @@ def Incre_Dataset(Task_Num, args, Incre_Classes, extra_dataset = False):
         dataset_train = build_dataset(image_set='extra', args=args, class_ids=current_classes)
     # dataset_val = build_dataset(image_set='val', args=args, class_ids=current_classes)
         
-    if args.distributed and extra_dataset == False:
+    if args.distributed:
         if args.cache_mode:
             sampler_train = samplers.NodeDistributedSampler(dataset_train)
             # sampler_val = samplers.NodeDistributedSampler(dataset_val, shuffle=False)

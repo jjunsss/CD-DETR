@@ -2,6 +2,7 @@ from typing import Tuple, Dict, List, Optional
 import os
 import sys
 import torch
+from datetime import datetime
 
 def write_to_addfile(filename):
     def decorator(func):
@@ -37,6 +38,9 @@ def check_components(rehearsal_classes: Dict, print_stat: bool=False):
         # check each instance usage capacity
         check_list = [len(list(filter(lambda x: index in x[1], list(rehearsal_classes.values())))) for index in replay_classes]
         
+        # To print the current time
+        print(f"--------------------------------------------------------\n")
+        print("Current Time =", datetime.now())
         for i, c in enumerate(replay_classes):
             print(f"**** class num : {c}, counts : {check_list[i]} ****")
             
