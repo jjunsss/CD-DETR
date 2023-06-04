@@ -21,6 +21,7 @@ from typing import Tuple, Dict, List, Optional
 
 from torch.cuda.amp import autocast
 from custom_fake_target import normal_query_selc_to_target, only_oldset_mosaic_query_selc_to_target
+from models import _prepare_denoising_args
 
 @decompose
 def decompose_dataset(no_use_count: int, samples: utils.NestedTensor, targets: Dict, origin_samples: utils.NestedTensor, 
@@ -66,6 +67,11 @@ def _common_training(args, epo, idx, last_task, count, sum_loss,
     criterion.train()
 
     samples, targets = _process_samples_and_targets(samples, targets, device)
+
+    # Add denoising arguments
+    if args.model_name == 'dn_detr':
+        model = _prepare_denoising_args(model, targets, args=args)
+
     with autocast(False):
         if last_task and args.Distill:
             teacher_model.eval()
@@ -97,7 +103,9 @@ def _common_training(args, epo, idx, last_task, count, sum_loss,
 
         if args.Fake_Query:
             targets = normal_query_selc_to_target(outputs, targets, current_classes)  # Adjust this line as necessary
+
         loss_dict = criterion(outputs, targets)
+            
         weight_dict = criterion.weight_dict
         losses = sum(loss_dict[k] * weight_dict[k] for k in loss_dict.keys() if k in weight_dict)
         losses_value = losses.item()
@@ -134,6 +142,11 @@ def rehearsal_training(args, samples, targets, model: torch.nn.Module, criterion
     ex_device = torch.device("cpu")
     model.to(device)
     samples, targets = _process_samples_and_targets(samples, targets, device)
+
+    # Add denoising arguments
+    if args.model_name == 'dn_detr':
+        model = _prepare_denoising_args(model, targets, args=args)
+
     outputs = model(samples)
     if utils.is_main_process() is False :
         del samples, targets, outputs

@@ -30,6 +30,8 @@ from tqdm import tqdm
 from custom_training import *
 from custom_prints import check_components
 
+from models import _prepare_denoising_args
+
 @decompose
 def decompose_dataset(no_use_count: int, samples: utils.NestedTensor, targets: Dict, origin_samples: utils.NestedTensor, origin_targets: Dict, 
                       used_number: List) -> Tuple[int, List, utils.NestedTensor, Dict, utils.NestedTensor, Dict, List]:
@@ -59,11 +61,12 @@ def create_prefetcher(dataset_name: str, data_loader: Iterable, device: torch.de
 def train_one_epoch(args, last_task, epo, model: torch.nn.Module, teacher_model, criterion: torch.nn.Module,
                     data_loader: Iterable, optimizer: torch.optim.Optimizer, lr_scheduler: ContinualStepLR,
                     device: torch.device, dataset_name: str,  
-                    current_classes: List = [], rehearsal_classes: Dict = {}):
+                    current_classes: List = [], rehearsal_classes: Dict = {},
+                    task_end: bool = False):
     ex_device = torch.device("cpu")
     
     prefetcher = create_prefetcher(dataset_name, data_loader, device, args)
-    if args.Construct_Replay :
+    if args.Construct_Replay or task_end:
         rehearsal_classes = _extra_epoch_for_replay(args, data_loader=data_loader, prefetcher=prefetcher, model=model, criterion=criterion,
                                 rehearsal_classes=rehearsal_classes, current_classes=current_classes)
         return rehearsal_classes
@@ -74,6 +77,14 @@ def train_one_epoch(args, last_task, epo, model: torch.nn.Module, teacher_model,
     for idx in tqdm(range(len(data_loader)), disable=not utils.is_main_process()): #targets
         with torch.no_grad():
             samples, targets, _, _ = prefetcher.next()
+
+            # # drop class
+            # for target in targets:
+            #     is_allowed = target['labels'] < max(current_classes)
+
+            #     # drop 'boxes', 'labels', 'area', 'iscrowd'
+            #     for drop_item in ['boxes', 'labels', 'area', 'iscrowd']:
+            #         target[drop_item] = target[drop_item][is_allowed]
             
             train_check = True
             samples = samples.to(ex_device)
@@ -103,7 +114,7 @@ def train_one_epoch(args, last_task, epo, model: torch.nn.Module, teacher_model,
         print("Total Time : ", time.time() - set_tm)
 
 @torch.no_grad()
-def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, output_dir, DIR) :
+def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, output_dir, DIR, args) :
     model.eval()
     criterion.eval()
 
@@ -118,6 +129,11 @@ def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, out
     for samples, targets, _, _ in metric_logger.log_every(data_loader, 10, header):
         samples = samples.to(device)
         targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
+
+        # Add denoising arguments
+        if args.model_name == 'dn_detr':
+            model = _prepare_denoising_args(model, targets, eval=True)
+
         outputs = model(samples)
         loss_dict = criterion(outputs, targets)
         weight_dict = criterion.weight_dict
