@@ -272,7 +272,7 @@ from Custom_Dataset import *
 from custom_prints import *
 from engine import train_one_epoch
 from custom_utils import buffer_checker
-def contruct_replay_extra_epoch(args, Divided_Classes, model, criterion, device, rehearsal_classes={}, data_loader_train=None, list_CC=None):
+def contruct_replay_extra_epoch(args, Divided_Classes, model, criterion, device, rehearsal_classes={}, data_loader_train=None, list_CC=None, task_end=True):
     # 1. 현재 테스크에 맞는 적절한 데이터 셋 호출 (학습한 테스크, 0번 테스크에 해당하는 내용을 가져와야 함)
     #    하나의 GPU로 Buffer 구성하기 위해서(더 정확함) 모든 데이터 호출
     _, data_loader_train, _, list_CC = Incre_Dataset(0, args, Divided_Classes, extra_dataset=True) 
@@ -281,7 +281,7 @@ def contruct_replay_extra_epoch(args, Divided_Classes, model, criterion, device,
     rehearsal_classes = train_one_epoch(args, last_task=False, epo=0, model=model, teacher_model=None,
                                         criterion=criterion, data_loader=data_loader_train, optimizer=None,
                                         lr_scheduler=None, device=device, dataset_name="", current_classes=list_CC, 
-                                        rehearsal_classes=rehearsal_classes)
+                                        rehearsal_classes=rehearsal_classes, task_end=task_end)
 
     if utils.is_main_process():
         # 3. 수집된 Buffer를 특정 파일에 저장
