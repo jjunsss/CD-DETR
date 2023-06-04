@@ -54,6 +54,7 @@ class DeformableDETR(nn.Module):
         self.class_embed = nn.Linear(hidden_dim, num_classes)
         self.bbox_embed = MLP(hidden_dim, hidden_dim, 4, 3)
         self.num_feature_levels = num_feature_levels
+        self.current_class = current_class
         if not two_stage:
             self.query_embed = nn.Embedding(num_queries, hidden_dim*2) #300, 512
         if num_feature_levels > 1:
@@ -111,7 +112,7 @@ class DeformableDETR(nn.Module):
             for box_embed in self.bbox_embed:
                 nn.init.constant_(box_embed.layers[-1].bias.data[2:], 0.0)
 
-        if current_class:
+        if current_class is not None:
             self.gt = current_class
 
 
@@ -193,7 +194,11 @@ class DeformableDETR(nn.Module):
             enc_outputs_coord = enc_outputs_coord_unact.sigmoid()
             out['enc_outputs'] = {'pred_logits': enc_outputs_class, 'pred_boxes': enc_outputs_coord}
 
-        out['gt'] = self.gt
+        if self.current_class is not None :
+            out['gt'] = self.gt
+        else :
+            out['gt'] = None
+            
         return out
 
     @torch.jit.unused
@@ -231,6 +236,7 @@ class SetCriterion(nn.Module):
         self.losses_for_replay['loss_giou'] = []
         self.losses_for_replay['loss_labels'] = []
         
+        
     def loss_labels(self, outputs, targets, indices, num_boxes, log=True):
         """Classification loss (NLL)
         targets dicts must contain the key "labels" containing a tensor of dim [nb_target_boxes]
@@ -252,14 +258,14 @@ class SetCriterion(nn.Module):
         loss_ce, sample_focalloss_in_batch = sigmoid_focal_loss(src_logits, target_classes_onehot, num_boxes, alpha=self.focal_alpha, gamma=2)
         loss_ce = loss_ce * src_logits.shape[1] # loss scolar value * query counts(300)
 
-        # query multiplication and num_labels normalization term
-        sample_focalloss_in_batch = sample_focalloss_in_batch * src_logits.shape[1] # Query counts = 300
-        sample_focalloss_in_batch = sample_focalloss_in_batch / torch.tensor([t['labels'].shape[0] for t in targets],
-                                                                            device=targets[0]['labels'].device)
+        if self.buffer_construct_loss is True :
+            # query multiplication and num_labels normalization term
+            sample_focalloss_in_batch = sample_focalloss_in_batch * src_logits.shape[1] # Query counts = 300
+            sample_focalloss_in_batch = sample_focalloss_in_batch / torch.tensor([t['labels'].shape[0] for t in targets],
+                                                                                device=targets[0]['labels'].device)
+            self.losses_for_replay['loss_labels'] = [each_loss for each_loss in sample_focalloss_in_batch]
+            
         losses = {'loss_ce': loss_ce}
-
-        self.losses_for_replay['loss_labels'] = [each_loss for each_loss in sample_focalloss_in_batch]
-
         if log:
             # TODO this should probably be a separate loss, not hacked in this one here
             losses['class_error'] = 100 - accuracy(src_logits[idx], target_classes_o)[0]
@@ -286,42 +292,42 @@ class SetCriterion(nn.Module):
         """
         assert 'pred_boxes' in outputs
         idx = self._get_src_permutation_idx(indices)
+        if self.buffer_construct_loss is True :
+            for i in range(len(indices)):
+                # each batch's idx value to new tuple function
+                i_idx = (idx[0][idx[0] == i], idx[1][idx[0] == i])
+                if indices[1][0].nelement() == 0:
+                    self.losses_for_replay['loss_bbox'].append(torch.tensor(100., device=targets[0]['boxes'].device))
+                    self.losses_for_replay['loss_giou'].append(torch.tensor(100., device=targets[0]['boxes'].device))
+                    print(colored(f"high loss input to each loss in batch, becuase no target", "red", "on_yellow"))
+                    continue
+                
+                src_boxes = outputs['pred_boxes'][i_idx]
+                target_boxes = targets[i]['boxes']
+                each_bbox_count = target_boxes.shape[0]
+                
+                loss_bbox = F.l1_loss(src_boxes, target_boxes, reduction='none')
+                # Save the un-reduced L1 losses for each image
+                loss_bbox = loss_bbox.sum()
+                loss_bbox /= each_bbox_count
+                self.losses_for_replay['loss_bbox'].append(loss_bbox)
 
-        for i in range(len(indices)):
-            # each batch's idx value to new tuple function
-            i_idx = (idx[0][idx[0] == i], idx[1][idx[0] == i])
-            if indices[1][0].nelement() == 0:
-                self.losses_for_replay['loss_bbox'].append(torch.tensor(100., device=targets[0]['boxes'].device))
-                self.losses_for_replay['loss_giou'].append(torch.tensor(100., device=targets[0]['boxes'].device))
-                print(colored(f"high loss input to each loss in batch, becuase no target", "red", "on_yellow"))
-                continue
-            
-            src_boxes = outputs['pred_boxes'][i_idx]
-            target_boxes = targets[i]['boxes']
-            each_bbox_count = target_boxes.shape[0]
-            
-            loss_bbox = F.l1_loss(src_boxes, target_boxes, reduction='none')
-            # Save the un-reduced L1 losses for each image
-            loss_bbox = loss_bbox.sum()
-            loss_bbox /= each_bbox_count
-            self.losses_for_replay['loss_bbox'].append(loss_bbox)
-
-            
-            loss_giou = 1 - torch.diag(box_ops.generalized_box_iou(
-                box_ops.box_cxcywh_to_xyxy(src_boxes),
-                box_ops.box_cxcywh_to_xyxy(target_boxes)))
-            
-            if indices[1][0].nelement() == 0 :
-                # If not calc each loss both bbox or giou, so then we put high loss to temporary var
-                self.losses_for_replay['loss_bbox'].append(torch.tensor(100., device=targets[0]['boxes'].device))
-                self.losses_for_replay['loss_giou'].append(torch.tensor(100., device=targets[0]['boxes'].device))
-                print(colored(f"high loss input to each loss in batch, because no giou", "red", "on_yellow"))
-                continue
-            
-            loss_giou = loss_giou.sum()
-            loss_giou /= each_bbox_count
-            # Save the un-reduced GIoU losses for each image
-            self.losses_for_replay['loss_giou'].append(loss_giou)
+                
+                loss_giou = 1 - torch.diag(box_ops.generalized_box_iou(
+                    box_ops.box_cxcywh_to_xyxy(src_boxes),
+                    box_ops.box_cxcywh_to_xyxy(target_boxes)))
+                
+                if indices[1][0].nelement() == 0 :
+                    # If not calc each loss both bbox or giou, so then we put high loss to temporary var
+                    self.losses_for_replay['loss_bbox'].append(torch.tensor(100., device=targets[0]['boxes'].device))
+                    self.losses_for_replay['loss_giou'].append(torch.tensor(100., device=targets[0]['boxes'].device))
+                    print(colored(f"high loss input to each loss in batch, because no giou", "red", "on_yellow"))
+                    continue
+                
+                loss_giou = loss_giou.sum()
+                loss_giou /= each_bbox_count
+                # Save the un-reduced GIoU losses for each image
+                self.losses_for_replay['loss_giou'].append(loss_giou)
             
         idx = self._get_src_permutation_idx(indices)
         src_boxes = outputs['pred_boxes'][idx]
@@ -389,13 +395,14 @@ class SetCriterion(nn.Module):
         assert loss in loss_map, f'do you really want to compute {loss} loss?'
         return loss_map[loss](outputs, targets, indices, num_boxes, **kwargs)
 
-    def forward(self, outputs, targets):
+    def forward(self, outputs, targets, buffer_construct_loss=False):
         """ This performs the loss computation.
         Parameters:
              outputs: dict of tensors, see the output specification of the model for the format
              targets: list of dicts, such that len(targets) == batch_size.
                       The expected keys in each dict depends on the losses applied, see each loss' doc
         """
+        self.buffer_construct_loss = buffer_construct_loss
         outputs_without_aux = {k: v for k, v in outputs.items() if k != 'aux_outputs' and k != 'enc_outputs'}
 
         # Retrieve the matching between the outputs of the last layer and the targets
@@ -503,7 +510,7 @@ class MLP(nn.Module):
         return x
 
 
-def build(args, num_classes, current_class):
+def build(args, num_classes, current_class=None):
     # num_classes = 60 if args.LG else 91
     # if args.dataset_file == "coco_panoptic":
     #     num_classes = 250

@@ -434,7 +434,7 @@ def dataset_configuration(args, original_dataset, original_loader, original_samp
 
 #* Just CL_StepLR(CLStepLR)
 class ContinualStepLR(StepLR):
-    def __init__(self, optimizer, step_size, gamma=0.1, task_gamma=0.5, replay_gamma=10, last_epoch=-1, verbose=False):
+    def __init__(self, optimizer, step_size, gamma=0.1, task_gamma=1, replay_gamma=10, last_epoch=-1, verbose=False):
         super(ContinualStepLR, self).__init__(optimizer, step_size, gamma, last_epoch, verbose)
         self.task_gamma = task_gamma
 
