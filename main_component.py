@@ -21,7 +21,7 @@ from custom_training import rehearsal_training
 
 from datasets import build_dataset, get_coco_api_from_dataset
 from engine import evaluate, train_one_epoch
-from models import build_model
+from models import get_models
 
 def init(args):
         utils.init_distributed_mode(args)
@@ -41,7 +41,7 @@ class TrainingPipeline:
         self.args = args
         self.device = torch.device(args.device)
         self.Divided_Classes, self.dataset_name, self.start_epoch, self.start_task, self.tasks = self._incremental_setting()
-        self.model, self.model_without_ddp, self.criterion, self.postprocessors, self.teacher_model = self._build_and_setup_model(len(self.Divided_Classes[0]))
+        self.model, self.model_without_ddp, self.criterion, self.postprocessors, self.teacher_model = self._build_and_setup_model(task_idx=0)
         self.optimizer, self.lr_scheduler = self._setup_optimizer_and_scheduler()
         self._load_state()
         self.output_dir = Path(args.output_dir)
@@ -49,26 +49,37 @@ class TrainingPipeline:
         self.DIR = './mAP_TEST.txt'
 
 
-    def make_branch(self, task_idx, class_len, args):
+    def make_branch(self, task_idx, args):
         self.model, self.model_without_ddp, self.criterion, \
-            self.postprocessors, self.teacher_model = self._build_and_setup_model(class_len)
+            self.postprocessors, self.teacher_model = self._build_and_setup_model(task_idx=task_idx)
         
         weight_path = os.path.join(args.output_dir, f'cp_{self.tasks:02}_{task_idx:02}.pth')
         previous_weight = torch.load(weight_path)
 
-        for idx, class_emb in enumerate(self.model.class_embed):
+        try:
+            for idx, class_emb in enumerate(self.model.class_embed):
+                init_layer_weight = torch.nn.init.xavier_normal_(class_emb.weight.data)
+                previous_layer_weight = previous_weight['model'][f'class_embed.{idx}.weight']
+                previous_class_len = previous_layer_weight.size(0)
+
+                init_layer_weight[:previous_class_len] = previous_layer_weight
+        except:
+            class_emb = self.model.class_embed
             init_layer_weight = torch.nn.init.xavier_normal_(class_emb.weight.data)
-            previous_layer_weight = previous_weight['model'][f'class_embed.{idx}.weight']
+            previous_layer_weight = previous_weight['model']['class_embed.weight']
             previous_class_len = previous_layer_weight.size(0)
+            
+            init_layer_weight[:previous_class_len] = previous_layer_weight            
 
-            init_layer_weight[:previous_class_len] = previous_layer_weight
-
-    def _build_and_setup_model(self, num_classes):
+    def _build_and_setup_model(self, task_idx):
         if self.args.Branch_Incremental is False:
             # Because original classes(whole classes) is 60 to LG, COCO is 91.
-            num_classes = 60 if self.args.LG else 91 
-            
-        model, criterion, postprocessors = build_model(self.args, num_classes)
+            num_classes = 60 if self.args.LG else 91
+        else:
+            current_class = sum(self.Divided_Classes[:task_idx+1], [])
+            num_classes = len(current_class) + 1
+
+        model, criterion, postprocessors = get_models(self.args.model_name, self.args, num_classes, current_class)
         pre_model = copy.deepcopy(model)
         model.to(self.device)
         if self.args.pretrained_model is not None:
@@ -235,7 +246,7 @@ class TrainingPipeline:
             print(f"model update for generating buffer list")
             self.rehearsal_classes = contruct_replay_extra_epoch(args=self.args, Divided_Classes=self.Divided_Classes, model=self.model,
                                                                 criterion=self.criterion, device=self.device, rehearsal_classes=self.rehearsal_classes,
-                                                                data_loader_train=data_loader_train, list_CC=list_CC)
+                                                                data_loader_train=data_loader_train, list_CC=list_CC, task_end=True)
             print(f"complete save and merge replay's buffer process")
             print(f"next replay buffer list : {self.rehearsal_classes.keys()}")
             

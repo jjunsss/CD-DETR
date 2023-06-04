@@ -1,15 +1,21 @@
-# ------------------------------------------------------------------------
-# Deformable DETR
-# Copyright (c) 2020 SenseTime. All Rights Reserved.
-# Licensed under the Apache License, Version 2.0 [see LICENSE for details]
-# ------------------------------------------------------------------------
-# Modified from DETR (https://github.com/facebookresearch/detr)
-# Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
-# ------------------------------------------------------------------------
+def get_models(model_name, args, num_classes, current_class):
+    # build model
+    if model_name == 'deform_detr':
+        from .deform_detr import build_model
+    elif model_name == 'dn_detr':
+        from .dn_detr import build_model
+    # elif model_name == ...:
+    #     모델 계속 추가
 
-from .deformable_detr import build
+    return build_model(args, num_classes, current_class)
 
+def _prepare_denoising_args(model, targets, args=None, eval=False):
+    if eval:
+        dn_args = 0
+    else:
+        dn_args=(targets, args.scalar, args.label_noise_scale, args.box_noise_scale, args.num_patterns)
+        if args.contrastive is not False:
+            dn_args += (args.contrastive,)
 
-def build_model(args, num_classes):
-    return build(args, num_classes)
-
+    model.dn_args = dn_args # dn_detr & teacher_model도 고려?
+    return model
