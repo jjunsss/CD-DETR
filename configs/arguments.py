@@ -7,7 +7,7 @@ def get_args_parser():
     parser = argparse.ArgumentParser('Parent parser', add_help=False)
 
     # ** Model
-    parser.add_argument('--model_name', type=str, default='dn_detr', choices=['deform_detr', 'dn_detr']) # set model name
+    parser.add_argument('--model_name', type=str, default='deform_detr', choices=['deform_detr', 'dn_detr']) # set model name
     parser.add_argument('--frozen_weights', type=str, default=None, help="Path to the pretrained model. If set, only the mask head will be trained")    
 
     # lr

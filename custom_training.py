@@ -166,8 +166,8 @@ def rehearsal_training(args, samples, targets, model: torch.nn.Module, criterion
             targets = [{k: v.to(ex_device) for k, v in t.items()} for t in targets]
             rehearsal_classes = contruct_rehearsal(args, losses_dict=batch_loss_dict, targets=targets,
                                                     rehearsal_classes=rehearsal_classes, 
-                                                    Current_Classes=current_classes, 
-                                                    Rehearsal_Memory=args.Memory)
+                                                    current_classes=current_classes, 
+                                                    limit_memory=args.Memory)
         
     dist.barrier()
     return rehearsal_classes

@@ -43,7 +43,7 @@ def _sampling_strategy(args, loss_value, targeted, rehearsal_classes,
         
 from util.misc import get_world_size
 def contruct_rehearsal(args, losses_dict: dict, targets, rehearsal_classes: List, 
-                       Current_Classes: List[int], Rehearsal_Memory: int = 300) -> Dict:
+                       current_classes: List[int], limit_memory: int = 300) -> Dict:
     # Check if losses_value is within the specified range
     ex_device = torch.device("cpu")
     loss_value = 0.0
@@ -59,7 +59,7 @@ def contruct_rehearsal(args, losses_dict: dict, targets, rehearsal_classes: List
         image_id = target['image_id'].item()
         label_tensor_unique = torch.unique(label_tensor)
         label_tensor_unique_list = label_tensor_unique.tolist()
-        if set(label_tensor_unique_list).issubset(Current_Classes) is False: #if unique tensor composed by Old Dataset, So then pass iteration
+        if set(label_tensor_unique_list).issubset(current_classes) is False: #if unique tensor composed by Old Dataset, So then pass iteration
             continue
         
         # If image_id is already presented in buffer, so just update unique_class and loss_value
@@ -70,13 +70,13 @@ def contruct_rehearsal(args, losses_dict: dict, targets, rehearsal_classes: List
             continue
         
         # Check replay buffer limit (over or under)
-        if _check_rehearsal_size(Rehearsal_Memory, rehearsal_classes, *label_tensor_unique_list) :
+        if _check_rehearsal_size(limit_memory, rehearsal_classes, *label_tensor_unique_list) :
             # Under working part
                 rehearsal_classes[image_id] = [loss_value, label_tensor_unique_list]
         else:
             # Over working part, replacement strategy operation
             # print(colored(f"MEMORY OVER", "blue"))
-            targeted = _calc_to_be_changed_target(limit_memory_size=Rehearsal_Memory, rehearsal_classes=rehearsal_classes,
+            targeted = _calc_to_be_changed_target(limit_memory_size=limit_memory, rehearsal_classes=rehearsal_classes,
                        replace_strategy=args.Sampling_strategy, args=label_tensor_unique_list)
             
             # Real replacement strategy (loss-based, unique_classe-based, random)
@@ -86,11 +86,11 @@ def contruct_rehearsal(args, losses_dict: dict, targets, rehearsal_classes: List
     
     return rehearsal_classes
 
-def _check_rehearsal_size(limit_memory_size, rehearsal_classes, *args, ):
+def _check_rehearsal_size(limit_memory_size, rehearsal_classes, unique_classes_list, ):
     if len(rehearsal_classes.keys()) == 0:
         return True
     
-    check_list = [len(list(filter(lambda x: index in x[1], list(rehearsal_classes.values())))) for index in args]
+    check_list = [len(list(filter(lambda x: index in x[1], list(rehearsal_classes.values())))) for index in unique_classes_list]
     
     check = all([value < limit_memory_size for value in check_list])
     return check
@@ -100,34 +100,44 @@ def _calc_to_be_changed_target(limit_memory_size, rehearsal_classes, replace_str
         rehearsal_classes : replay data in buffer before change statement
         args : unique classes in a data(image)
     '''
-    check_list = [len(list(filter(lambda x: index in x[1], list(rehearsal_classes.values())))) for index in args]
+    check_list = [len([item for item in rehearsal_classes.values() if index in item]) for index in args]
+    # check_list = [len(list(filter(lambda x: index in x[1], list(rehearsal_classes.values())))) for index in args]
     temp_array = np.array(check_list)
     # compate to each unique class counts (ex. overlist = [1: 100, 2: 50, ...])
-    temp_array = (temp_array < limit_memory_size)
+    check_temp_array = (temp_array < limit_memory_size)
 
     over_list = []
-    for t, arg in zip(temp_array, args):
+    for t, arg in zip(check_temp_array, args):
         if t == False:
             over_list.append(arg)
 
+    # Hier replacement strategy.
+    same_list = list(filter(lambda x: set(x[1][1]) == set(over_list), list(rehearsal_classes.items())))
+    all_check_list = list(filter(lambda x: all(item in x[1][1] for item in over_list), list(rehearsal_classes.items())))
+    any_check_list = list(filter(lambda x: any(item in x[1][1] for item in over_list), list(rehearsal_classes.items())))
+    if len(same_list) > 0 :
+        changed_list = same_list
+    else :
+        if len(all_check_list) > 0 :
+            changed_list = all_check_list
+        else :
+            # find the item(s) with the maximum count of over_classes
+            # if not use this term, so replacement strategy able change any items
+            max_over_count = max([len([item in x[1][1] for item in over_list]) for x in any_check_list])
+            changed_list = list(filter(lambda x: len([item in x[1][1] for item in over_list]) == max_over_count, any_check_list))
+            
     # rehearsal_classes.items() -> [image index, [loss_value, unique object classes]]
     # find all items that include any class from over_list
-    check_list = list(filter(lambda x: any(item in x[1][1] for item in over_list), list(rehearsal_classes.items())))
-    if len(check_list) == 0 :
+    if len(any_check_list) == 0 :
         raise Exception("NO CAHNGED DATA SAMPLE IN BUFFER, PLZ CHECK DICTIONARY")
 
-    # find the item(s) with the maximum count of over_classes
-    # if not use this term, so replacement strategy able change any items
-    max_over_count = max([len([item in x[1][1] for item in over_list]) for x in check_list])
-    max_over_list = list(filter(lambda x: len([item in x[1][1] for item in over_list]) == max_over_count, check_list))
-    
     if replace_strategy == "low_loss":
         # among the items with max_over_count, find the one with the highest loss value
-        sorted_result = max(max_over_list, key=lambda x: x[1][0])
+        sorted_result = max(changed_list, key=lambda x: x[1][0])
         
     elif replace_strategy == "high_uniq":
         # among the items with max_over_count, find the one with the smallest unique class count
-        sorted_result = min(max_over_list, key=lambda x: len(x[1][1]))
+        sorted_result = min(changed_list, key=lambda x: len(x[1][1]))
         
     elif replace_strategy == "random":
         # because we don't need last sample with random sampling.
@@ -205,7 +215,7 @@ def _handle_rehearsal(args, dir, limit_memory_size, gpu_counts, task, epoch, cur
         unique_classes_list = merge_dict[img_idx][1]
                                                 # 0 -> loss value
                                                 # 1 -> unique classes list
-        if _check_rehearsal_size(limit_memory_size, new_buffer_dict, *unique_classes_list):
+        if _check_rehearsal_size(limit_memory_size, new_buffer_dict, unique_classes_list):
             new_buffer_dict[img_idx] = merge_dict[img_idx]
         else : 
             targeted = _calc_to_be_changed_target(limit_memory_size=limit_memory_size, rehearsal_classes=new_buffer_dict,
