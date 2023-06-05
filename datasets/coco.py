@@ -138,7 +138,8 @@ def origin_transform(image_set):
     
     if image_set == 'train':
         return T.Compose([
-            normalize,
+            T.RandomResize([224], max_size=1200),
+            image_normalize,
         ])
 
     if image_set == 'val':

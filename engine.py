@@ -76,21 +76,13 @@ def train_one_epoch(args, last_task, epo, model: torch.nn.Module, teacher_model,
     sum_loss = 0.0
     count = 0
     for idx in tqdm(range(len(data_loader)), disable=not utils.is_main_process()): #targets
-        with torch.no_grad():
-            samples, targets, _, _ = prefetcher.next()
+        if idx % 100 == 0:
+            torch.cuda.empty_cache()
+        samples, targets, _, _ = prefetcher.next()
 
-            # # drop class
-            # for target in targets:
-            #     is_allowed = target['labels'] < max(current_classes)
-
-            #     # drop 'boxes', 'labels', 'area', 'iscrowd'
-            #     for drop_item in ['boxes', 'labels', 'area', 'iscrowd']:
-            #         target[drop_item] = target[drop_item][is_allowed]
-            
-            train_check = True
-            samples = samples.to(ex_device)
-            targets = [{k: v.to(ex_device) for k, v in t.items()} for t in targets]
-        
+        train_check = True
+        samples = samples.to(ex_device)
+        targets = [{k: v.to(ex_device) for k, v in t.items()} for t in targets]
         #Stage 1 -> T1에 대한 모든 훈련
         #Stage 2 -> T2에 대한 모든 훈련, AugReplay 사용하지 않을 때에는 일반적인 Replay 전략과 동일한 형태로 훈련을 수행
         sum_loss, count = Original_training(args, last_task, epo, idx, count, sum_loss, samples, targets,  
