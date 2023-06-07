@@ -70,7 +70,7 @@ def contruct_rehearsal(args, losses_dict: dict, targets, rehearsal_classes: List
             continue
         
         # Check replay buffer limit (over or under)
-        if _check_rehearsal_size(limit_memory, rehearsal_classes, *label_tensor_unique_list) :
+        if _check_rehearsal_size(limit_memory, rehearsal_classes, label_tensor_unique_list) :
             # Under working part
                 rehearsal_classes[image_id] = [loss_value, label_tensor_unique_list]
         else:
@@ -100,7 +100,7 @@ def _calc_to_be_changed_target(limit_memory_size, rehearsal_classes, replace_str
         rehearsal_classes : replay data in buffer before change statement
         args : unique classes in a data(image)
     '''
-    check_list = [len([item for item in rehearsal_classes.values() if index in item]) for index in args]
+    check_list = [len([item for _, item in rehearsal_classes.values() if index in item]) for index in args]
     # check_list = [len(list(filter(lambda x: index in x[1], list(rehearsal_classes.values())))) for index in args]
     temp_array = np.array(check_list)
     # compate to each unique class counts (ex. overlist = [1: 100, 2: 50, ...])

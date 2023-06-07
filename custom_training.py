@@ -142,6 +142,7 @@ def rehearsal_training(args, samples, targets, model: torch.nn.Module, criterion
     ex_device = torch.device("cpu")
     model.to(device)
     samples, targets = _process_samples_and_targets(samples, targets, device)
+    for_replay = True
 
     # Add denoising arguments
     if args.model_name == 'dn_detr':
@@ -149,7 +150,7 @@ def rehearsal_training(args, samples, targets, model: torch.nn.Module, criterion
 
     outputs = model(samples)
     # TODO : new input to model. plz change dn-detr model input (self.buffer_construct_loss)
-    loss_dict = criterion(outputs, targets)
+    loss_dict = criterion(outputs, targets, for_replay)
     
     if utils.is_main_process() is False :
         del samples, targets, outputs
@@ -170,7 +171,7 @@ def rehearsal_training(args, samples, targets, model: torch.nn.Module, criterion
                                                     current_classes=current_classes, 
                                                     limit_memory=args.Memory)
         
-    dist.barrier()
+    # dist.barrier()
     return rehearsal_classes
 
 

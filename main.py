@@ -39,7 +39,7 @@ from configs.arguments import get_args_parser, deform_detr_parser, dn_detr_parse
 def main(args):
     # Initializing
     pipeline = TrainingPipeline(args)
-    args = pipeline.args 
+    args = pipeline.args
 
     # Constructing only the replay buffer
     if args.Construct_Replay :
