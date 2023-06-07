@@ -111,25 +111,24 @@ def _calc_to_be_changed_target(limit_memory_size, rehearsal_classes, replace_str
         if t == False:
             over_list.append(arg)
 
-    # Hier replacement strategy.
+    # Hierarchcal replacement strategy.
+    ## First, all same unique class list 
     same_list = list(filter(lambda x: set(x[1][1]) == set(over_list), list(rehearsal_classes.items())))
-    all_check_list = list(filter(lambda x: all(item in x[1][1] for item in over_list), list(rehearsal_classes.items())))
+    
+    ## sec, any unique classes that included a over unique classes at least
     any_check_list = list(filter(lambda x: any(item in x[1][1] for item in over_list), list(rehearsal_classes.items())))
-    if len(same_list) > 0 :
-        changed_list = same_list
-    else :
-        if len(all_check_list) > 0 :
-            changed_list = all_check_list
-        else :
-            # find the item(s) with the maximum count of over_classes
-            # if not use this term, so replacement strategy able change any items
-            max_over_count = max([len([item in x[1][1] for item in over_list]) for x in any_check_list])
-            changed_list = list(filter(lambda x: len([item in x[1][1] for item in over_list]) == max_over_count, any_check_list))
-            
     # rehearsal_classes.items() -> [image index, [loss_value, unique object classes]]
     # find all items that include any class from over_list
     if len(any_check_list) == 0 :
         raise Exception("NO CAHNGED DATA SAMPLE IN BUFFER, PLZ CHECK DICTIONARY")
+    
+    if len(same_list) > 0 :
+        changed_list = same_list
+    else :
+        # find the item(s) with the maximum count of over_classes
+        # if not use this term, so replacement strategy able change any items
+        max_over_count = max([len([item in x[1][1] for item in over_list]) for x in any_check_list])
+        changed_list = list(filter(lambda x: len([item in x[1][1] for item in over_list]) == max_over_count, any_check_list))
 
     if replace_strategy == "low_loss":
         # among the items with max_over_count, find the one with the highest loss value
