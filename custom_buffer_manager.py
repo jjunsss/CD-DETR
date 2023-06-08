@@ -9,6 +9,7 @@ from typing import Tuple, Dict, List, Optional
 import os
 import torch.distributed as dist
 import random
+from util.misc import get_world_size
 from termcolor import colored
 
 #TODO : Change calc each iamage loss and tracking each object loss avg.
@@ -40,14 +41,46 @@ def _sampling_strategy(args, loss_value, targeted, rehearsal_classes,
 
     print(f"no changed")
     return rehearsal_classes
+
+def _limit_classes(mode, classes, limit_image):
+    '''
+        각 유니크 객체의 개수를 세어 제한하는 것은 그에 맞는 이미지가 존재해야만 모일수도 있기때문에 모두 모을 수 없을 수도 있게되는 불상사가 있다.
+        따라서 객체의 개수를 제한하는 것보다는 그에 맞게 비율을 따져서 이미지를 제한하는 방법이 더 와닿을 수 있다.
+    '''
+    if mode == "normal":
+        num_classes = len(classes)
+        initial_limit = limit_image // num_classes
+        limit_memory = {class_index: initial_limit for class_index in classes}
         
-from util.misc import get_world_size
+    if mode == "random":
+        limit_memory = None
+        
+    if mode == "rate":
+        num_classes = len(classes)
+        initial_limit = limit_image // num_classes
+        limit_memory = {class_index: initial_limit for class_index in classes}
+        
+    return limit_memory
+
 def contruct_rehearsal(args, losses_dict: dict, targets, rehearsal_classes: List, 
-                       current_classes: List[int], limit_memory: int = 300) -> Dict:
-    # Check if losses_value is within the specified range
-    ex_device = torch.device("cpu")
+                       current_classes: List[int], limit_memory: int = 300, limit_image:int = 100) -> Dict:
+    # TODO 1: COCO 데이터셋 전체에서의 각 클래스별 객체의 비율을 계산 -> 이건 데이터셋 호출하는 부분에서 진행해야함
+    # TODO 1-2: 전체 객체들의 개수로 Normalize 진행
+    # TODO 1-3: Normalize한 비율을 각 클래스들을 제한할 Dictionary에 저장
+    # limit_memory = {"class index" : limit number}
     loss_value = 0.0
+    increment_value = 2 # hyper parameters
+    limit_memory = _limit_classes(args.Limit_strategy, current_classes, limit_image)
     
+    # Function to update class limit
+    def update_class_limits(limit_memory, increment):
+        for class_index in limit_memory.keys():
+            limit_memory[class_index] += increment
+        return limit_memory
+        
+    # Function to check if there's space in buffer
+    def buffer_has_space(rehearsal_classes, limit_image):
+        return len(rehearsal_classes) < limit_image
 
     for enum, target in enumerate(targets): #! 배치 개수 ex) 4개 
         loss_value = losses_dict["loss_bbox"][enum] + losses_dict["loss_giou"][enum] + losses_dict["loss_labels"][enum]
@@ -59,23 +92,24 @@ def contruct_rehearsal(args, losses_dict: dict, targets, rehearsal_classes: List
         image_id = target['image_id'].item()
         label_tensor_unique = torch.unique(label_tensor)
         label_tensor_unique_list = label_tensor_unique.tolist()
-        if set(label_tensor_unique_list).issubset(current_classes) is False: #if unique tensor composed by Old Dataset, So then pass iteration
+        
+        #if unique tensor composed by Old Dataset, So then pass iteration [Replay constructig shuld not operate in last task training]
+        if set(label_tensor_unique_list).issubset(current_classes) is False: 
             continue
         
-        # If image_id is already presented in buffer, so just update unique_class and loss_value
-        if image_id in rehearsal_classes.keys():
-            temp = set(rehearsal_classes[image_id][-1])
-            temp = temp.union(set(label_tensor_unique_list))
-            rehearsal_classes[image_id][-1] = list(temp)
-            continue
-        
-        # Check replay buffer limit (over or under)
-        if _check_rehearsal_size(limit_memory, rehearsal_classes, *label_tensor_unique_list) :
-            # Under working part
-                rehearsal_classes[image_id] = [loss_value, label_tensor_unique_list]
-        else:
-            # Over working part, replacement strategy operation
-            # print(colored(f"MEMORY OVER", "blue"))
+        # In your construct_rehearsal loop or any other suitable place
+        while buffer_has_space(rehearsal_classes, limit_image):
+            # If the buffer still has space, increment the class limits
+            if buffer_has_space(rehearsal_classes, limit_image):
+                limit_memory = update_class_limits(limit_memory, increment_value) # increment_value is hyps
+                
+                
+        # 이미지 제한 확인 (정해진 양 만큼은 절대 넘을 수 없도록 설정)
+        if len(rehearsal_classes.keys()) >= limit_image :
+            #! 교체 전략 수행 | TODO : 모든 객체들의 클래스를 대표하는 이미지들을 수집해서 형성
+            # 이미지 제한을 초과한다면 -> 교체전략 혹은 유지 전략
+            # TODO 1: limit_memory를 dictionary로 설정해서 현재 버퍼 내의 클래스별로 개수를 다양하게 설정하도록 만들기 -> 
+                    # 제한값 설정 없음(랜덤)/균등/데이터분포량
             targeted = _calc_to_be_changed_target(limit_memory_size=limit_memory, rehearsal_classes=rehearsal_classes,
                        replace_strategy=args.Sampling_strategy, args=label_tensor_unique_list)
             
@@ -83,6 +117,18 @@ def contruct_rehearsal(args, losses_dict: dict, targets, rehearsal_classes: List
             rehearsal_classes = _sampling_strategy(args=args, loss_value=loss_value, targeted=targeted, 
                                                 rehearsal_classes=rehearsal_classes, label_tensor_unique_list=label_tensor_unique_list,
                                                 image_id=image_id)  
+
+        else : 
+            if _check_rehearsal_size(limit_memory, rehearsal_classes, label_tensor_unique_list) :
+                rehearsal_classes[image_id] = [loss_value, label_tensor_unique_list]
+            else :
+                targeted = _calc_to_be_changed_target(limit_memory_size=limit_memory, rehearsal_classes=rehearsal_classes,
+                       replace_strategy=args.Sampling_strategy, args=label_tensor_unique_list)
+            
+                # Real replacement strategy (loss-based, unique_classe-based, random)
+                rehearsal_classes = _sampling_strategy(args=args, loss_value=loss_value, targeted=targeted, 
+                                                    rehearsal_classes=rehearsal_classes, label_tensor_unique_list=label_tensor_unique_list,
+                                                    image_id=image_id)  
     
     return rehearsal_classes
 
@@ -111,12 +157,13 @@ def _calc_to_be_changed_target(limit_memory_size, rehearsal_classes, replace_str
         if t == False:
             over_list.append(arg)
 
-    # Hierarchcal replacement strategy.
+    # Hierarchcal replacement strategy. (1. all same thing change, 2. the most included changed classes, 3. max loss-based change)
     ## First, all same unique class list 
     same_list = list(filter(lambda x: set(x[1][1]) == set(over_list), list(rehearsal_classes.items())))
     
     ## sec, any unique classes that included a over unique classes at least
     any_check_list = list(filter(lambda x: any(item in x[1][1] for item in over_list), list(rehearsal_classes.items())))
+    
     # rehearsal_classes.items() -> [image index, [loss_value, unique object classes]]
     # find all items that include any class from over_list
     if len(any_check_list) == 0 :
