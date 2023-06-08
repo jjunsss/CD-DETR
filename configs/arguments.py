@@ -87,8 +87,9 @@ def get_args_parser():
     parser.add_argument('--Memory', default=25, type=int, help='memory capacity for rehearsal training')
     parser.add_argument('--Rehearsal_file', default='./LG-Replay-DIDPZ+VE/', type=str)
     parser.add_argument('--Construct_Replay', default=False, action='store_true', help="For cunstructing replay dataset")
-    parser.add_argument('--Sampling_strategy', default='low_loss', type=str, help="low_loss, high_uniq, random")
-    parser.add_argument('--Limit_strategy', default='random', type=str, help="random, normal, adaptive")
+    
+    parser.add_argument('--Sampling_strategy', default='hierarchical', type=str, help="hierarchical(ours), high_uniq, random")
+    parser.add_argument('--Sampling_mode', default='ensure_min', type=str, help="normal, ensure_min(ours), ")
     
     #* CL Strategy
     parser.add_argument('--Fake_Query', default=False, action='store_true', help="retaining previous task target through predict query")
