@@ -47,8 +47,15 @@ class TrainingPipeline:
         self.output_dir = Path(args.output_dir)
         self.load_replay, self.rehearsal_classes = self._load_replay_buffer()
         self.DIR = './mAP_TEST.txt'
-
-
+        self.Task_Epochs = args.Task_Epochs[0] if len(args.Task_Epochs)==1 else args.Task_Epochs
+    
+    def set_task_epoch(self, args, idx):
+        epochs = self.Task_Epochs
+        if isinstance(epochs, list):
+            args.Task_Epochs = epochs[idx]
+        else:
+            args.Task_Epochs = epochs
+    
     def make_branch(self, task_idx, args):
         self.model, self.model_without_ddp, self.criterion, \
             self.postprocessors, self.teacher_model = self._build_and_setup_model(task_idx=task_idx)

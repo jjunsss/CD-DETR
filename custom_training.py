@@ -170,7 +170,6 @@ def rehearsal_training(args, samples, targets, model: torch.nn.Module, criterion
                                                     rehearsal_classes=rehearsal_classes, 
                                                     current_classes=current_classes, 
                                                     limit_memory=args.Memory)
-        
     dist.barrier()
     return rehearsal_classes
 

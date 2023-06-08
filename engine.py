@@ -48,6 +48,11 @@ def _extra_epoch_for_replay(args, data_loader, prefetcher, model, criterion, reh
                                                    rehearsal_classes, current_classes)
             if idx % 100 == 0:
                 torch.cuda.empty_cache()
+            
+            # 정완 디버그
+            if args.debug:
+                if idx == args.num_debug_dataset:
+                    break
     return rehearsal_classes
 
 def create_prefetcher(dataset_name: str, data_loader: Iterable, device: torch.device, args: any) \

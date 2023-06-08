@@ -7,7 +7,6 @@
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
 # ------------------------------------------------------------------------
 import argparse
-import datetime
 import json
 import random
 import time
@@ -59,10 +58,12 @@ def main(args):
     print("Start training")
     start_time = time.time()
     # Training loop over tasks ( for incremental learning )
-    for task_idx in range(pipeline.start_task, pipeline.tasks):
+    is_task_changed = False
+    
+    for idx, task_idx in enumerate(range(pipeline.start_task, pipeline.tasks)):
         # Check whether it's the first or last task
         first_training = (task_idx == 0)
-        if not first_training and args.Branch_Incremental:
+        if is_task_changed and args.Branch_Incremental:
             pipeline.make_branch(task_idx, args)
         # print(f'Out features : {pipeline.model.class_embed[0].out_features}')
 
@@ -93,11 +94,15 @@ def main(args):
             pipeline.lr_scheduler.task_change()
             
         # Incremental training for each epoch
+        pipeline.set_task_epoch(args, idx)
         pipeline.incremental_train_epoch(task_idx=task_idx, last_task=last_task, dataset_train=dataset_train,
                                         data_loader_train=data_loader_train, sampler_train=sampler_train,
                                         list_CC=list_CC)
+        
+        is_task_changed = True
             
     # Calculate and print the total time taken for training
+    import datetime
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
     print("Training completed in: ", total_time_str)
