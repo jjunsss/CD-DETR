@@ -152,8 +152,8 @@ def rehearsal_training(args, samples, targets, model: torch.nn.Module, criterion
     # TODO : new input to model. plz change dn-detr model input (self.buffer_construct_loss)
     loss_dict = criterion(outputs, targets, for_replay)
     
-    if utils.is_main_process() is False :
-        del samples, targets, outputs
+    # if utils.is_main_process() is False :
+    #     del samples, targets, outputs
         
     batch_loss_dict = {}
     
