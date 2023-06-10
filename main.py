@@ -29,6 +29,7 @@ from custom_training import rehearsal_training
 from datasets import build_dataset, get_coco_api_from_dataset
 from engine import evaluate, train_one_epoch
 from main_component import TrainingPipeline
+from glob import glob
 # from omegaconf import DictConfig
 # import hydra
 
@@ -47,6 +48,7 @@ def main(args):
 
     # Evaluation mode
     if args.eval:
+
         pipeline.evaluation_only_mode()
         return
     

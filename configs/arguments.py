@@ -101,6 +101,8 @@ def get_args_parser():
     parser.add_argument('--debug', default=False, action='store_true')
     parser.add_argument('--num_debug_dataset', default=10, type=int) # 디버그 데이터셋 개수
 
+    #* EVALUATION
+    parser.add_argument('--all_data', default=False, action='store_true', help ="save your model output image")
     return parser    
 
 

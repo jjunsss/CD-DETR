@@ -190,3 +190,5 @@ Conf
 check
 .vscode
 .vscode/launch.json
+Buffer*
+Replay*
