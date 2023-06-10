@@ -36,7 +36,7 @@ def _replacment_strategy(args, loss_value, targeted, rehearsal_classes,
         rehearsal_classes[image_id] = [loss_value, label_tensor_unique_list]
         return rehearsal_classes
 
-    print(colored(f"no changed", "blue"))
+    print(f"no changed")
     return rehearsal_classes
 
 def _change_available_list_mode(mode, rehearsal_dict, need_to_include):
@@ -177,7 +177,7 @@ def _save_rehearsal_for_combine(task, dir, rehearsal, epoch):
     for key, value in rehearsal.items():
         if len(value[-1]) == 0:
             del temp_dict[key]
-            
+    
     dir = dir + str(dist.get_rank()) + "_gpu_rehearsal_task_" + str(task) + "_ep_" + str(epoch)
     if not os.path.exists(dir) : 
         with open(dir, 'wb') as f:
@@ -216,7 +216,7 @@ def _handle_rehearsal(args, dir, limit_memory_size, gpu_counts, task, epoch, lea
         return merged_dict
 
     dir_list = [dir + str(num) +"_gpu_rehearsal_task_" + str(task) + "_ep_" + str(epoch) for num in range(gpu_counts)]
-
+    
     if include_all:
         all_dir = dir  + "Buffer_T_" + str(task) + "_" + str(limit_memory_size)
         dir_list.append(all_dir)
@@ -225,6 +225,8 @@ def _handle_rehearsal(args, dir, limit_memory_size, gpu_counts, task, epoch, lea
         if not os.path.exists(each_dir):
             raise Exception("No rehearsal file")
             
+    
+    print(colored(f"Total memory : {len(all_dir)} ", "blue"))
     merge_dict = load_dictionaries_from_files(dir_list)
     
     # For only one GPU processing, becuase effective buffer constructing
@@ -245,23 +247,23 @@ def _handle_rehearsal(args, dir, limit_memory_size, gpu_counts, task, epoch, lea
             # Then, calculate the needed count for each class label and filter out those with a non-positive needed count
             need_to_include = {class_label: count - least_image for class_label, count in image_counts_in_rehearsal.items() if count - least_image <= 0}
             if len(need_to_include) > 0:
-                changed_available_dict = _change_available_list_mode(mode=args.Sampling_mode, rehearsal_dict=rehearsal_dict,
+                changed_available_dict = _change_available_list_mode(mode=args.Sampling_mode, rehearsal_dict=new_buffer_dict,
                                             need_to_include=need_to_include)
                 
                 # all classes dont meet L requirement
                 targeted = _calc_target(rehearsal_classes=changed_available_dict, replace_strategy=args.Sampling_strategy, )
                 
-                rehearsal_dict = _replacment_strategy(args=args, loss_value=loss_value, targeted=targeted, 
-                                                        rehearsal_classes=rehearsal_dict, label_tensor_unique_list=unique_classes_list,
+                new_buffer_dict = _replacment_strategy(args=args, loss_value=loss_value, targeted=targeted, 
+                                                        rehearsal_classes=new_buffer_dict, label_tensor_unique_list=unique_classes_list,
                                                         image_id=img_idx)
                     
             elif len(need_to_include) == 0:
                 # all classes meet L requirement
                 # Just sampling strategy and replace strategy
-                targeted = _calc_target(rehearsal_classes=rehearsal_dict, replace_strategy=args.Sampling_strategy,)
+                targeted = _calc_target(rehearsal_classes=new_buffer_dict, replace_strategy=args.Sampling_strategy,)
 
-                rehearsal_dict = _replacment_strategy(args=args, loss_value=loss_value, targeted=targeted, 
-                                                        rehearsal_classes=rehearsal_dict, label_tensor_unique_list=unique_classes_list,
+                new_buffer_dict = _replacment_strategy(args=args, loss_value=loss_value, targeted=targeted, 
+                                                        rehearsal_classes=new_buffer_dict, label_tensor_unique_list=unique_classes_list,
                                                         image_id=img_idx)
             
     print(colored(f"Complete generating new buffer", "dark_grey", "on_yellow"))
@@ -299,7 +301,7 @@ def construct_combined_rehearsal(args, task:int ,dir:str ,rehearsal:dict ,epoch:
     if utils.get_world_size() > 1:    
         dist.barrier()
     # All GPUs ready replay dataset
-    rehearsal_classes = load_rehearsal(dir=args.Rehearsal_file, task=0, memory=args.Memory)
+    rehearsal_classes = load_rehearsal(dir=args.Rehearsal_file, task=0, memory=args.limit_image)
     return rehearsal_classes
 
 from Custom_Dataset import *

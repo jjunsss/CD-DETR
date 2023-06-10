@@ -179,7 +179,7 @@ class TrainingPipeline:
             
         #* Load for Replay
         if args.Rehearsal and (self.start_task >= 1):
-            rehearsal_classes = load_rehearsal(args.Rehearsal_file, 0, args.Memory)
+            rehearsal_classes = load_rehearsal(args.Rehearsal_file, 0, args.limit_image)
         
             try:
                 if len(rehearsal_classes) == 0:
