@@ -59,7 +59,7 @@ def get_args_parser():
     parser.add_argument('--device', default='cuda',help='device to use for training / testing')
     parser.add_argument('--seed', default=42, type=int)
 
-    #
+    
     parser.add_argument('--LG', default=False, action='store_true', help="for LG Dataset process")
     parser.add_argument('--file_name', default='./saved_rehearsal', type=str)
 
@@ -84,12 +84,13 @@ def get_args_parser():
     parser.add_argument('--Rehearsal', default=False, action='store_true', help="use Rehearsal strategy in diverse CL method")
     parser.add_argument('--AugReplay', default=False, action='store_true', help="use Our augreplay strategy in step 2")
     parser.add_argument('--MixReplay', default=False, action='store_true', help="1:1 Mix replay solution, First Circular Training. Second Original Training")
-    parser.add_argument('--Memory', default=25, type=int, help='memory capacity for rehearsal training')
     parser.add_argument('--Rehearsal_file', default='./LG-Replay-DIDPZ+VE/', type=str)
     parser.add_argument('--Construct_Replay', default=False, action='store_true', help="For cunstructing replay dataset")
     
     parser.add_argument('--Sampling_strategy', default='hierarchical', type=str, help="hierarchical(ours), high_uniq, random")
     parser.add_argument('--Sampling_mode', default='ensure_min', type=str, help="normal, ensure_min(ours), ")
+    parser.add_argument('--least_image', default=5, type=int, help='least image of each class, must need to exure_min mode')
+    parser.add_argument('--limit_image', default=100, type=int, help='maximum image of all classes, must need to exure_min mode')
     
     #* CL Strategy
     parser.add_argument('--Fake_Query', default=False, action='store_true', help="retaining previous task target through predict query")

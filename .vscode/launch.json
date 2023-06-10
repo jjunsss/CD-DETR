@@ -8,14 +8,29 @@
             "name": "test env",
             "type": "python",
             "request": "launch",
-            "program": "${file}",
+            "program": "main.py",
             "console": "integratedTerminal",
             "justMyCode": true,
             "args": [
-                "--coco_path", "/data/LG/real_dataset/total_dataset/didvepz/"
+                "--coco_path", "/data/LG/real_dataset/total_dataset/didvepz/",
+                "--batch_size", "16",
+                "--Task_Epochs", "15",
+                "--Task", "2",
+
+                "--CL_Limited", "0",
+                "--start_task", "0",
+                "--verbose", 
+                "--LG",
+
+                "--Total_Classes", "59",
+                "--Total_Classes_Names",
+
+                "--pretrained_model", "/data/LG/real_dataset/total_dataset/test_dir/CD-DETR/Trained_DIDPZ.pth",
+                "--Rehearsal_file", "./LG-Replay-DIDPZ+VE/",
+                "--Construct_Replay",
             ],
             "env": {
-                "CUDA_VISIBLE_DEVICES": "3",
+                "CUDA_VISIBLE_DEVICES": "0",
             }
         }
     ]

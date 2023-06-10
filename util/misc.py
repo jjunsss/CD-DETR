@@ -84,7 +84,8 @@ class SmoothedValue(object):
         if not is_dist_avail_and_initialized():
             return
         t = torch.tensor([self.count, self.total], dtype=torch.float64, device='cuda')
-        dist.barrier()
+        if get_world_size() > 1:
+            dist.barrier()
         dist.all_reduce(t)
         t = t.tolist()
         self.count = int(t[0])

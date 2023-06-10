@@ -149,12 +149,10 @@ def rehearsal_training(args, samples, targets, model: torch.nn.Module, criterion
 
     outputs = model(samples)
     # TODO : new input to model. plz change dn-detr model input (self.buffer_construct_loss)
-    loss_dict = criterion(outputs, targets)
+    _ = criterion(outputs, targets, buffer_construct_loss=True)
     
-    if utils.is_main_process() is False :
-        del samples, targets, outputs
         
-    if utils.is_main_process() :
+    with torch.no_grad():
         batch_loss_dict = {}
         
         # Transform tensor to scarlar value for rehearsal step
@@ -162,15 +160,15 @@ def rehearsal_training(args, samples, targets, model: torch.nn.Module, criterion
         batch_loss_dict["loss_bbox"] = [loss.item() for loss in criterion.losses_for_replay["loss_bbox"]]
         batch_loss_dict["loss_giou"] = [loss.item() for loss in criterion.losses_for_replay["loss_giou"]]
         batch_loss_dict["loss_labels"] = [loss.item() for loss in criterion.losses_for_replay["loss_labels"]]
-        
-        with torch.no_grad():
-            targets = [{k: v.to(ex_device) for k, v in t.items()} for t in targets]
-            rehearsal_classes = contruct_rehearsal(args, losses_dict=batch_loss_dict, targets=targets,
-                                                    rehearsal_dict=rehearsal_classes, 
-                                                    current_classes=current_classes, 
-                                                    limit_memory=args.Memory)
-        
-    dist.barrier()
+    
+        targets = [{k: v.to(ex_device) for k, v in t.items()} for t in targets]
+        rehearsal_classes = contruct_rehearsal(args, losses_dict=batch_loss_dict, targets=targets,
+                                                rehearsal_dict=rehearsal_classes, 
+                                                current_classes=current_classes,
+                                                least_image=args.least_image,
+                                                limit_image=args.limit_image)
+    if utils.get_world_size() > 1:    
+        dist.barrier()
     return rehearsal_classes
 
 

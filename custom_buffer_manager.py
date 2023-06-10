@@ -17,29 +17,26 @@ def _replacment_strategy(args, loss_value, targeted, rehearsal_classes,
                        label_tensor_unique_list, image_id):
     if args.Sampling_strategy == "hierarchical" : 
         if ( targeted[1][0] > loss_value ): #Low buffer construct
-            print(f"change rehearsal value")
-            print(colored(f"low-loss based buffer change strategy", "blue"))
+            print(colored(f"hierarchical based buffer change strategy", "blue"))
             del rehearsal_classes[targeted[0]]
             rehearsal_classes[image_id] = [loss_value, label_tensor_unique_list]
             return rehearsal_classes
         
     if args.Sampling_strategy  == "high_uniq":
         if ( len(targeted[1][1]) < len(label_tensor_unique_list) ): #Low buffer construct
-            print(f"change rehearsal value")
             print(colored(f"high-unique counts based buffer change strategy", "blue"))
             del rehearsal_classes[targeted[0]]
             rehearsal_classes[image_id] = [loss_value, label_tensor_unique_list]
             return rehearsal_classes
             
     if args.Sampling_strategy  == "random" :
-        print(f"change rehearsal value")
         print(colored(f"random counts based buffer change strategy", "blue"))
         key_to_delete = random.choice(list(rehearsal_classes.keys()))
         del rehearsal_classes[key_to_delete]
         rehearsal_classes[image_id] = [loss_value, label_tensor_unique_list]
         return rehearsal_classes
 
-    print(f"no changed")
+    print(colored(f"no changed", "blue"))
     return rehearsal_classes
 
 def _change_available_list_mode(mode, rehearsal_dict, need_to_include):
@@ -100,15 +97,15 @@ def contruct_rehearsal(args, losses_dict: dict, targets, rehearsal_dict: List,
         if set(label_tensor_unique_list).issubset(current_classes) is False: 
             continue
 
-        if len(rehearsal_dict.keys()) <=  limit_image :
-            # when under the buffer limit
+        if len(rehearsal_dict.keys()) <  limit_image :
+            # when under the buffer 
             rehearsal_dict[image_id] = [loss_value, label_tensor_unique_list]
         else :
             # First, generate a dictionary with counts of each class label in rehearsal_classes
-            class_counts_in_rehearsal = {class_label: sum(class_label in classes for _, classes in rehearsal_dict.values()) for class_label in label_tensor_unique_list}
+            image_counts_in_rehearsal = {class_label: sum(class_label in classes for _, classes in rehearsal_dict.values()) for class_label in label_tensor_unique_list}
 
             # Then, calculate the needed count for each class label and filter out those with a non-positive needed count
-            need_to_include = {class_label: count - least_image for class_label, count in class_counts_in_rehearsal.items() if count - least_image <= 0}
+            need_to_include = {class_label: count - least_image for class_label, count in image_counts_in_rehearsal.items() if count - least_image <= 0}
 
             if len(need_to_include) > 0:
                 changed_available_dict = _change_available_list_mode(mode=args.Sampling_mode, rehearsal_dict=rehearsal_dict,
@@ -145,12 +142,11 @@ def _calc_target(rehearsal_classes, replace_strategy="hierarchical", ):
 
     if replace_strategy == "hierarchical":
         # ours for effective, mode is "ensure_min"
-        uni_classes_sorted_list = list(sorted(rehearsal_classes.items(), key=lambda x: len(x[1][1])))
-        min_class_lengh = len(uni_classes_sorted_list[1][0])
+        min_class_length = min(len(x[1]) for x in rehearsal_classes.values())
         
         # first change condition: low unique based change
-        changed_list = list(filter(lambda x: len(x[1][1]) == min_class_lengh, uni_classes_sorted_list))
-        
+        changed_list = [(index, values) for index, values in rehearsal_classes.items() if len(values[1]) == min_class_length]
+    
         # second change condition: low loss based change
         sorted_result = max(changed_list, key=lambda x: x[1][0])
         
@@ -173,7 +169,9 @@ def _save_rehearsal_for_combine(task, dir, rehearsal, epoch):
     if not os.path.exists(dir) and utils.is_main_process() :
         os.mkdir(dir)
         print(f"Directroy created")
-    dist.barrier()
+        
+    if utils.get_world_size() > 1:
+        dist.barrier()
 
     temp_dict = copy.deepcopy(rehearsal)
     for key, value in rehearsal.items():
@@ -208,7 +206,7 @@ def load_rehearsal(dir, task, memory):
             print(colored(f"********** Loading replay data ***********", "light_red", "on_yellow"))
             return temp
 
-def _handle_rehearsal(args, dir, limit_memory_size, gpu_counts, task, epoch, current_classes, include_all=False):
+def _handle_rehearsal(args, dir, limit_memory_size, gpu_counts, task, epoch, least_image, include_all=False):
     def load_dictionaries_from_files(dir_list):
         merged_dict = {}
         for dictionary_dir in dir_list:
@@ -237,30 +235,48 @@ def _handle_rehearsal(args, dir, limit_memory_size, gpu_counts, task, epoch, cur
         unique_classes_list = merge_dict[img_idx][1]
                                                 # 0 -> loss value
                                                 # 1 -> unique classes list
-        if _check_rehearsal_size(limit_memory_size, new_buffer_dict, unique_classes_list):
+                                                
+        if len(new_buffer_dict.keys()) <  limit_memory_size :                                        
             new_buffer_dict[img_idx] = merge_dict[img_idx]
         else : 
-            targeted = _calc_target(limit_memory_size=limit_memory_size, rehearsal_classes=new_buffer_dict,
-                       replace_strategy=args.Sampling_strategy, args=unique_classes_list)
-            
-            # Real replacement strategy (loss-based, unique_classe-based, random)
-            new_buffer_dict = _replacment_strategy(args=args, loss_value=loss_value, targeted=targeted, 
-                                                rehearsal_classes=new_buffer_dict, label_tensor_unique_list=unique_classes_list,
-                                                image_id=img_idx)  
+            # First, generate a dictionary with counts of each class label in rehearsal_classes
+            image_counts_in_rehearsal = {class_label: sum(class_label in classes for _, classes in new_buffer_dict.values()) for class_label in unique_classes_list}
+
+            # Then, calculate the needed count for each class label and filter out those with a non-positive needed count
+            need_to_include = {class_label: count - least_image for class_label, count in image_counts_in_rehearsal.items() if count - least_image <= 0}
+            if len(need_to_include) > 0:
+                changed_available_dict = _change_available_list_mode(mode=args.Sampling_mode, rehearsal_dict=rehearsal_dict,
+                                            need_to_include=need_to_include)
+                
+                # all classes dont meet L requirement
+                targeted = _calc_target(rehearsal_classes=changed_available_dict, replace_strategy=args.Sampling_strategy, )
+                
+                rehearsal_dict = _replacment_strategy(args=args, loss_value=loss_value, targeted=targeted, 
+                                                        rehearsal_classes=rehearsal_dict, label_tensor_unique_list=unique_classes_list,
+                                                        image_id=img_idx)
+                    
+            elif len(need_to_include) == 0:
+                # all classes meet L requirement
+                # Just sampling strategy and replace strategy
+                targeted = _calc_target(rehearsal_classes=rehearsal_dict, replace_strategy=args.Sampling_strategy,)
+
+                rehearsal_dict = _replacment_strategy(args=args, loss_value=loss_value, targeted=targeted, 
+                                                        rehearsal_classes=rehearsal_dict, label_tensor_unique_list=unique_classes_list,
+                                                        image_id=img_idx)
             
     print(colored(f"Complete generating new buffer", "dark_grey", "on_yellow"))
     return new_buffer_dict
 
-def _multigpu_rehearsal(args, dir, limit_memory_size, gpu_counts, task, epoch, current_classes):
-    return _handle_rehearsal(args, dir, limit_memory_size, gpu_counts, task, epoch, current_classes, include_all=False)
+def _multigpu_rehearsal(args, dir, limit_memory_size, gpu_counts, task, epoch, least_image):
+    return _handle_rehearsal(args, dir, limit_memory_size, gpu_counts, task, epoch, least_image, include_all=False)
 
-def _merge_replay_for_multigpu(args, dir, limit_memory_size, gpu_counts, task, epoch, current_classes):
-    return _handle_rehearsal(args, dir, limit_memory_size, gpu_counts, task, epoch, current_classes, include_all=True)
+def _merge_replay_for_multigpu(args, dir, limit_memory_size, gpu_counts, task, epoch, least_image):
+    return _handle_rehearsal(args, dir, limit_memory_size, gpu_counts, task, epoch, least_image, include_all=True)
     
 
 def construct_combined_rehearsal(args, task:int ,dir:str ,rehearsal:dict ,epoch:int 
-                                 ,limit_memory_size:int ,list_CC:list, gpu_counts:int, ) -> dict:
-    
+                                 ,limit_memory_size:int , list_CC:list, gpu_counts:int, ) -> dict:
+    least_image = args.least_image
     # total_size = limit_memory_size * get_world_size()
     all_dir = dir  + "Buffer_T_" + str(task) +"_" + str(limit_memory_size)
     
@@ -270,17 +286,18 @@ def construct_combined_rehearsal(args, task:int ,dir:str ,rehearsal:dict ,epoch:
     if utils.is_main_process() : 
         if os.path.isfile(all_dir):
             # Constructing all gpu (기존에 존재하는 replay 데이터와 합치기 위해), Because Multi Task Incrmental Learning
-            rehearsal_classes = _merge_replay_for_multigpu(args, dir, limit_memory_size, gpu_counts, task, epoch, list_CC)
+            rehearsal_classes = _merge_replay_for_multigpu(args, dir, limit_memory_size, gpu_counts, task, epoch, least_image)
         else :    
             # 기존에 만들어진 합성 replay 데이터가 없을 때, 새롭게 만들어야 하는 상황을 가정, Becaus Binary Task Incremental Learning
-            rehearsal_classes = _multigpu_rehearsal(args, dir, limit_memory_size, gpu_counts, task, epoch, list_CC)
+            rehearsal_classes = _multigpu_rehearsal(args, dir, limit_memory_size, gpu_counts, task, epoch, least_image)
 
         # #save combined replay buffer data for next training
         _save_rehearsal(rehearsal_classes, dir, task, limit_memory_size)
         
         buffer_checker(rehearsal=rehearsal_classes)
-        
-    dist.barrier()
+    
+    if utils.get_world_size() > 1:    
+        dist.barrier()
     # All GPUs ready replay dataset
     rehearsal_classes = load_rehearsal(dir=args.Rehearsal_file, task=0, memory=args.Memory)
     return rehearsal_classes
@@ -297,7 +314,7 @@ def contruct_replay_extra_epoch(args, Divided_Classes, model, criterion, device,
     
     # 1. 현재 테스크에 맞는 적절한 데이터 셋 호출 (학습한 테스크, 0번 테스크에 해당하는 내용을 가져와야 함)
     #    하나의 GPU로 Buffer 구성하기 위해서(더 정확함) 모든 데이터 호출
-    _, data_loader_train, _, list_CC = Incre_Dataset(0, args, Divided_Classes ) 
+    _, data_loader_train, _, list_CC = Incre_Dataset(0, args, Divided_Classes, extra_epoch) 
     
     # 2. Extra epoch, 모든 이미지들의 Loss를 측정
     rehearsal_classes = train_one_epoch(args, last_task=False, epo=0, model=model, teacher_model=None,
@@ -307,7 +324,7 @@ def contruct_replay_extra_epoch(args, Divided_Classes, model, criterion, device,
 
     # 3. 수집된 Buffer를 특정 파일에 저장
     rehearsal_classes = construct_combined_rehearsal(args=args, task=0, dir=args.Rehearsal_file, rehearsal=rehearsal_classes,
-                                                    epoch=0, limit_memory_size=args.Memory, gpu_counts=4, list_CC=list_CC)
+                                                    epoch=0, limit_memory_size=args.limit_image, gpu_counts=4, list_CC=list_CC)
     
     print(colored(f"Complete constructing buffer","red", "on_yellow"))
     
