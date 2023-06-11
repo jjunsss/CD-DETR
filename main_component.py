@@ -204,38 +204,53 @@ class TrainingPipeline:
     def evaluation_only_mode(self):
         print(colored(f"evaluation only mode start !!", "red"))
         args = self.args
-        expand_classes = []
+        dir_list = []
+        
         if args.all_data == True:
+            # FIXME: chnage directory list name ( First, you should make mAP_TEST.txt file to right place)
+            # FIXME: Second, you should remove unused classes file
+            # FIXME: Third, you should change your directory list name in your path.
             #plz in here, writh absolute path your test dataset path
             dir_list = glob("/home/user/Desktop/vscode/newvetest/*")
-            dir_list.remove("/home/user/Desktop/vscode/newvetest/test_coco.txt")
-            # dir_list.remove("/home/user/Desktop/vscode/newvetest/10test")
-            # dir_list.remove("/home/user/Desktop/vscode/newvetest/2021")
-            # dir_list.remove("/home/user/Desktop/vscode/newvetest/multisingle")
+            dir_list.remove("/home/user/Desktop/vscode/newvetest/mAP_TEST.txt")
+            # dir_list.remove("/home/user/Desktop/vscode/newvetest/VE10test")
+            # dir_list.remove("/home/user/Desktop/vscode/newvetest/VE2021")
+            # dir_list.remove("/home/user/Desktop/vscode/newvetest/VEmultisingle")
             # dir_list.remove("/home/user/Desktop/vscode/newvetest/didtest")
             # dir_list.remove("/home/user/Desktop/vscode/newvetest/pztest")
         else:
             dir_list = ["/home/user/Desktop/vscode"+ args.coco_path]
-            
+        
+        # FIXME: change directory list
         filename_list = ["didtest", "pztest", "VE2021", "VEmultisingle", "VE10test"] # for DID, PZ, VE, VE, VE
-
-        for task_idx, cur_file_name in enumerate(filename_list):
-            cur_file_name = filename_list[task_idx]
-            file_link = [name for name in dir_list if cur_file_name == os.path.basename(name)]
-            args.coco_path = file_link[0]
-            print(colored(f"now evaluating file name : {args.coco_path}", "red"))
-            if 'VE' in cur_file_name:
-                task_idx = 2
-            print(colored(f"now eval classes: {self.Divided_Classes[task_idx]}", "red"))
-            dataset_val, data_loader_val, _, _  = Incre_Dataset(task_idx, args, self.Divided_Classes[task_idx])
-            base_ds = get_coco_api_from_dataset(dataset_val)
+        for enum, predefined_model in enumerate(args.pretrained_model):
+            print(colored(f"current predefined_model : {enum}, defined model name : {predefined_model}", "red"))
             
-            with open(self.DIR, 'a') as f:
-                f.write(f"----------------------------------------------------------------\n")
-                f.write(f"NOW TASK num : {task_idx}, checked classes : {expand_classes} \t file_name : {str(os.path.basename(args.pretrained_model))} \n")
+            if args.pretrained_model is not None:
+                self.model = load_model_params(self.model, predefined_model)
                 
-            _, _ = evaluate(self.model, self.criterion, self.postprocessors,
-                                            data_loader_val, base_ds, self.device, args.output_dir, self.DIR)
+            print(colored(f"check directory list : {dir_list}", "red"))
+            with open(self.DIR, 'a') as f:
+                f.write(f"-----------------------pth file----------------------\n")
+                f.write(f"file_name : {str(predefined_model)}\n")
+                
+            for task_idx, cur_file_name in enumerate(filename_list):
+                cur_file_name = filename_list[task_idx]
+                file_link = [name for name in dir_list if cur_file_name == os.path.basename(name)]
+                args.coco_path = file_link[0]
+                print(colored(f"now evaluating file name : {args.coco_path}", "red"))
+                if 'VE' in cur_file_name:
+                    task_idx = 2
+                print(colored(f"now eval classes: {self.Divided_Classes[task_idx]}", "red"))
+                dataset_val, data_loader_val, _, _  = Incre_Dataset(task_idx, args, self.Divided_Classes[task_idx])
+                base_ds = get_coco_api_from_dataset(dataset_val)
+                
+                with open(self.DIR, 'a') as f:
+                    f.write(f"-----------------------task working----------------------\n")
+                    f.write(f"NOW TASK num : {task_idx}, checked classes : {self.Divided_Classes[task_idx]} \t ")
+                    
+                _, _ = evaluate(self.model, self.criterion, self.postprocessors,
+                                                data_loader_val, base_ds, self.device, args.output_dir, self.DIR)
 
 
     def incremental_train_epoch(self, task_idx, last_task, dataset_train, data_loader_train, sampler_train, list_CC):
