@@ -106,7 +106,7 @@ def get_args_parser():
 
     #* EVALUATION
     parser.add_argument('--all_data', default=False, action='store_true', help ="save your model output image")
-    parser.add_argument('--test_name', default=["didtest", "pztest", "VE2021", "VEmultisingle", "VE10test"], type=str, nargs='+', \
+    parser.add_argument('--test_file_list', default=["didtest", "pztest", "VE2021", "VEmultisingle", "VE10test"], type=str, nargs='+', \
         help='Test folder name')
     return parser    
 
