@@ -226,7 +226,7 @@ def _handle_rehearsal(args, dir, limit_memory_size, gpu_counts, task, epoch, lea
             raise Exception("No rehearsal file")
             
     
-    print(colored(f"Total memory : {len(all_dir)} ", "blue"))
+    print(colored(f"Total memory : {len(dir_list)} ", "blue"))
     merge_dict = load_dictionaries_from_files(dir_list)
     
     # For only one GPU processing, becuase effective buffer constructing
@@ -284,7 +284,11 @@ def construct_combined_rehearsal(args, task:int ,dir:str ,rehearsal:dict ,epoch:
     
     #file save of each GPUs
     _save_rehearsal_for_combine(task, dir, rehearsal, epoch)
-
+    
+    # All GPUs ready replay buffer combining work(protecting some errors)
+    if utils.get_world_size() > 1:    
+        dist.barrier()
+        
     if utils.is_main_process() : 
         if os.path.isfile(all_dir):
             # Constructing all gpu (기존에 존재하는 replay 데이터와 합치기 위해), Because Multi Task Incrmental Learning
@@ -298,6 +302,7 @@ def construct_combined_rehearsal(args, task:int ,dir:str ,rehearsal:dict ,epoch:
         
         buffer_checker(rehearsal=rehearsal_classes)
     
+    # wait main process to finish
     if utils.get_world_size() > 1:    
         dist.barrier()
     # All GPUs ready replay dataset
