@@ -20,12 +20,12 @@ import copy
 import numpy as np
 import torch
 
-from pycocotools.cocoeval import COCOeval
+# from pycocotools.cocoeval import COCOeval
 from pycocotools.coco import COCO
 import pycocotools.mask as mask_util
 
 from util.misc import all_gather
-
+from .custom_coco_eval import COCOeval
 
 class CocoEvaluator(object):
     def __init__(self, coco_gt, iou_types, DIR):
