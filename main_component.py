@@ -103,7 +103,7 @@ class TrainingPipeline:
             return model, model_without_ddp, criterion, postprocessors, teacher_model
             
         return model, model_without_ddp, criterion, postprocessors, None
-
+    
     def _setup_optimizer_and_scheduler(self):
         args = self.args
         def match_name_keywords(n, name_keywords):
@@ -187,7 +187,7 @@ class TrainingPipeline:
             
         #* Load for Replay
         if args.Rehearsal and (self.start_task >= 1):
-            rehearsal_classes = load_rehearsal(args.Rehearsal_file, 0, args.Memory)
+            rehearsal_classes = load_rehearsal(args.Rehearsal_file, 0, args.limit_image)
         
             try:
                 if len(rehearsal_classes) == 0:
