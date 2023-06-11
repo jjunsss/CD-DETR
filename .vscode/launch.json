@@ -26,8 +26,10 @@
                 "--Total_Classes_Names",
 
                 "--pretrained_model", "/data/LG/real_dataset/total_dataset/test_dir/CD-DETR/Trained_DIDPZ.pth",
-                "--Rehearsal_file", "./LG-Replay-DIDPZ+VE/",
+                "--Rehearsal_file", "./1000ReplayBuffer-DIDPZ+VE_Hier/",
                 "--Construct_Replay",
+                "--limit_image", "1000",
+                "--least_image", "30"
             ],
             "env": {
                 "CUDA_VISIBLE_DEVICES": "0",
