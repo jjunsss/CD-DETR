@@ -222,7 +222,7 @@ class TrainingPipeline:
             dir_list = ["/home/user/Desktop/vscode"+ args.coco_path]
         
         # FIXME: change directory list
-        filename_list = ["didtest", "pztest", "VE2021", "VEmultisingle", "VE10test"] # for DID, PZ, VE, VE, VE
+        filename_list = ["didtest", "pztest", "VE2021", "VEmultisingle", "VE10test"] # for DID, PZ, VE, VE, VE  
         for enum, predefined_model in enumerate(args.pretrained_model):
             print(colored(f"current predefined_model : {enum}, defined model name : {predefined_model}", "red"))
             

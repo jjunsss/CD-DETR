@@ -41,6 +41,7 @@ def check_components(rehearsal_classes: Dict, print_stat: bool=False):
         # To print the current time
         print(f"--------------------------------------------------------\n")
         print("Current Time =", datetime.now())
+        print(f"ALL REPLAY buffer : {len(rehearsal_classes.keys())}")
         for i, c in enumerate(replay_classes):
             print(f"**** class num : {c}, counts : {check_list[i]} ****")
             
