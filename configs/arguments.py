@@ -75,7 +75,7 @@ def get_args_parser():
 
     #* Continual Learning 
     parser.add_argument('--Task', default=2, type=int, help='The task is the number that divides the entire dataset, like a domain.') #if Task is 1, so then you could use it for normal training.
-    parser.add_argument('--Task_Epochs', default=16, type=int, nargs='+', help='each Task epoch, e.g. 1 task is 5 of 10 epoch training.. ')
+    parser.add_argument('--Task_Epochs', default=[16], type=int, nargs='+', help='each Task epoch, e.g. 1 task is 5 of 10 epoch training.. ')
     parser.add_argument('--Total_Classes', default=59, type=int, help='number of classes in custom COCODataset. e.g. COCO : 80 / LG : 59')
     parser.add_argument('--Total_Classes_Names', default=False, action='store_true', help="division of classes through class names (DID, PZ, VE). This option is available for LG Dataset")
     parser.add_argument('--CL_Limited', default=0, type=int, help='Use Limited Training in CL. If you choose False, you may encounter data imbalance in training.')
@@ -106,6 +106,8 @@ def get_args_parser():
 
     #* EVALUATION
     parser.add_argument('--all_data', default=False, action='store_true', help ="save your model output image")
+    parser.add_argument('--test_name', default=["didtest", "pztest", "VE2021", "VEmultisingle", "VE10test"], type=str, nargs='+', \
+        help='Test folder name')
     return parser    
 
 

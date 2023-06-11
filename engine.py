@@ -16,7 +16,8 @@ from typing import Iterable
 from tqdm import tqdm
 import torch
 import util.misc as utils
-from datasets.coco_eval import CocoEvaluator
+# from datasets.coco_eval import CocoEvaluator
+from datasets.custom_coco_eval import CocoEvaluator
 from datasets.data_prefetcher import data_prefetcher
 import os
 import time

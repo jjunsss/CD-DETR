@@ -47,7 +47,7 @@ class TrainingPipeline:
         self._load_state()
         self.output_dir = Path(args.output_dir)
         self.load_replay, self.rehearsal_classes = self._load_replay_buffer()
-        self.DIR = './mAP_TEST.txt'
+        self.DIR = os.path.join(self.output_dir, 'mAP_TEST.txt')
         self.Task_Epochs = args.Task_Epochs[0] if len(args.Task_Epochs)==1 else args.Task_Epochs
     
     def set_task_epoch(self, args, idx):
@@ -91,7 +91,7 @@ class TrainingPipeline:
         model, criterion, postprocessors = get_models(self.args.model_name, self.args, num_classes, current_class)
         pre_model = copy.deepcopy(model)
         model.to(self.device)
-        if self.args.pretrained_model is not None:
+        if self.args.pretrained_model is not None and not self.args.eval:
             model = load_model_params("main", model, self.args.pretrained_model)
         
         model_without_ddp = model
@@ -207,27 +207,32 @@ class TrainingPipeline:
         dir_list = []
         
         if args.all_data == True:
-            # FIXME: chnage directory list name ( First, you should make mAP_TEST.txt file to right place)
-            # FIXME: Second, you should remove unused classes file
-            # FIXME: Third, you should change your directory list name in your path.
-            #plz in here, writh absolute path your test dataset path
-            dir_list = glob("/home/user/Desktop/vscode/newvetest/*")
-            dir_list.remove("/home/user/Desktop/vscode/newvetest/mAP_TEST.txt")
-            # dir_list.remove("/home/user/Desktop/vscode/newvetest/VE10test")
-            # dir_list.remove("/home/user/Desktop/vscode/newvetest/VE2021")
-            # dir_list.remove("/home/user/Desktop/vscode/newvetest/VEmultisingle")
-            # dir_list.remove("/home/user/Desktop/vscode/newvetest/didtest")
-            # dir_list.remove("/home/user/Desktop/vscode/newvetest/pztest")
+            # eval과 train의 coco_path를 다르게 설정
+            dir_list = glob(os.path.join(args.coco_path, '*'))
+            if os.path.isfile(self.DIR):
+                os.remove(self.DIR)            
+            # # FIXME: chnage directory list name ( First, you should make mAP_TEST.txt file to right place)
+            # # FIXME: Second, you should remove unused classes file
+            # # FIXME: Third, you should change your directory list name in your path.
+            # #plz in here, writh absolute path your test dataset path
+            # dir_list = glob("/home/user/Desktop/sumin/newvetest/*")
+            # dir_list.remove("/home/user/Desktop/sumin/newvetest/mAP_TEST.txt")
+            # # dir_list.remove("/home/user/Desktop/vscode/newvetest/VE10test")
+            # # dir_list.remove("/home/user/Desktop/vscode/newvetest/VE2021")
+            # # dir_list.remove("/home/user/Desktop/vscode/newvetest/VEmultisingle")
+            # # dir_list.remove("/home/user/Desktop/vscode/newvetest/didtest")
+            # # dir_list.remove("/home/user/Desktop/vscode/newvetest/pztest")
         else:
             dir_list = ["/home/user/Desktop/vscode"+ args.coco_path]
         
         # FIXME: change directory list
+        # filename_list = ["didtest", "pztest", "VE2021", "VEmultisingle", "VE10test"] # for DID, PZ, VE, VE, VE
         filename_list = ["didtest", "pztest", "VE2021", "VEmultisingle", "VE10test"] # for DID, PZ, VE, VE, VE
         for enum, predefined_model in enumerate(args.pretrained_model):
             print(colored(f"current predefined_model : {enum}, defined model name : {predefined_model}", "red"))
             
             if args.pretrained_model is not None:
-                self.model = load_model_params(self.model, predefined_model)
+                self.model = load_model_params("eval", self.model, predefined_model)
                 
             print(colored(f"check directory list : {dir_list}", "red"))
             with open(self.DIR, 'a') as f:
@@ -239,7 +244,7 @@ class TrainingPipeline:
                 file_link = [name for name in dir_list if cur_file_name == os.path.basename(name)]
                 args.coco_path = file_link[0]
                 print(colored(f"now evaluating file name : {args.coco_path}", "red"))
-                if 'VE' in cur_file_name:
+                if 've' in cur_file_name.lower():
                     task_idx = 2
                 print(colored(f"now eval classes: {self.Divided_Classes[task_idx]}", "red"))
                 dataset_val, data_loader_val, _, _  = Incre_Dataset(task_idx, args, self.Divided_Classes[task_idx])
@@ -250,7 +255,7 @@ class TrainingPipeline:
                     f.write(f"NOW TASK num : {task_idx}, checked classes : {self.Divided_Classes[task_idx]} \t ")
                     
                 _, _ = evaluate(self.model, self.criterion, self.postprocessors,
-                                                data_loader_val, base_ds, self.device, args.output_dir, self.DIR)
+                                                data_loader_val, base_ds, self.device, args.output_dir, self.DIR, args)
 
 
     def incremental_train_epoch(self, task_idx, last_task, dataset_train, data_loader_train, sampler_train, list_CC):

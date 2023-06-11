@@ -10,9 +10,10 @@ def Incre_Dataset(Task_Num, args, Incre_Classes, extra_dataset = False):
     current_classes = Incre_Classes[Task_Num]
     print(f"current_classes : {current_classes}")
     
-    if extra_dataset is False :
-        # For real model traning
-        dataset_train = build_dataset(image_set='train', args=args, class_ids=current_classes)
+    if extra_dataset is False:
+        if not args.eval:
+            # For real model traning
+            dataset_train = build_dataset(image_set='train', args=args, class_ids=current_classes)
     else :
         # For generating buffer with whole dataset
         dataset_train = build_dataset(image_set='extra', args=args, class_ids=current_classes)
@@ -30,18 +31,18 @@ def Incre_Dataset(Task_Num, args, Incre_Classes, extra_dataset = False):
             if args.eval:
                 sampler_val = samplers.DistributedSampler(dataset_val, shuffle=True)
     else:
-        sampler_train = torch.utils.data.RandomSampler(dataset_train)
-        if args.eval:
+        if not args.eval:
+            sampler_train = torch.utils.data.RandomSampler(dataset_train)
+        else:
             sampler_val = torch.utils.data.SequentialSampler(dataset_val)
         
-    batch_sampler_train = torch.utils.data.BatchSampler(
-        sampler_train, args.batch_size, drop_last=True)
-
-    data_loader_train = DataLoader(dataset_train, batch_sampler=batch_sampler_train,
-                                collate_fn=utils.collate_fn, num_workers=args.num_workers,
-                                pin_memory=True)
-    
-    if args.eval:
+    if not args.eval:
+        batch_sampler_train = torch.utils.data.BatchSampler(
+            sampler_train, args.batch_size, drop_last=True)
+        data_loader_train = DataLoader(dataset_train, batch_sampler=batch_sampler_train,
+                                    collate_fn=utils.collate_fn, num_workers=args.num_workers,
+                                    pin_memory=True)
+    else:
         data_loader_val = DataLoader(dataset_val, args.batch_size, sampler=sampler_val,
                                      drop_last=False, collate_fn=utils.collate_fn, num_workers=args.num_workers,
                                      pin_memory=True)

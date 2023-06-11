@@ -205,7 +205,7 @@ def build(image_set, args, img_ids = None, class_ids = None):
     # }
     PATHS = {
         "train": (root / "images", root / 'output_json' / 'train.json'),
-        "val": (root / "images", root / 'output_json' / 'train.json'),
+        "val": (root / "images", root / 'output_json' / 'test.json'),
         "extra": (root / "images", root / 'output_json' / 'train.json'), # same thing train path
     }
 
