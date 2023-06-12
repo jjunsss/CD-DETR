@@ -8,32 +8,65 @@
             "name": "test env",
             "type": "python",
             "request": "launch",
-            "program": "main.py",
+            "program": "${file}",
             "console": "integratedTerminal",
             "justMyCode": true,
             "args": [
-                "--coco_path", "/data/LG/real_dataset/total_dataset/didvepz/",
-                "--batch_size", "16",
-                "--Task_Epochs", "15",
+                "--model_name", "deform_detr",
+                
+                "--batch_size", "4",
+                "--Task_Epochs", "1", "2",
                 "--Task", "2",
-
                 "--CL_Limited", "0",
+                "--start_epoch", "0",
                 "--start_task", "0",
-                "--verbose", 
-                "--LG",
-
+                "--verbose",
                 "--Total_Classes", "59",
+                "--LG",
+                "--Memory", "200",
                 "--Total_Classes_Names",
-
-                "--pretrained_model", "/data/LG/real_dataset/total_dataset/test_dir/CD-DETR/Trained_DIDPZ.pth",
-                "--Rehearsal_file", "./1000ReplayBuffer-DIDPZ+VE_Hier/",
-                "--Construct_Replay",
-                "--limit_image", "1000",
-                "--least_image", "30"
-            ],
-            "env": {
-                "CUDA_VISIBLE_DEVICES": "0",
-            }
+                "--pretrained_model", "./Trained_DIDPZ.pth",
+                "--Rehearsal",
+                "--Branch_Incremental",
+                "--Rehearsal_file", "LG-Replay-DIDPZ+VE/",
+                "--num_workers", "24",
+                
+                "--num_debug_dataset", "1",
+                "--debug",
+                "--output_dir", "TEST/",
+                "--coco_path", "../plustotal/",
+            ]
+        },
+        {
+            "name": "eval env",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "--batch_size", "8" , "--Task", "3", "--Total_Classes", "59", "--LG", "--Total_Classes_Names", 
+                "--coco_path", "/home/user/Desktop/sumin/newvetest/",
+                "--output_dir", "./eval",
+                "--test_file_list", "didtest", "pztest",
+                "--eval", "--pretrained_model",
+                "./LG-CL-0531-DIDPZ+VE-OriginalReplay_LR_075/cp_02_02_15.pth" ,
+                "./LG-CL-0531-DIDPZ+VE-OriginalReplay_LR_075/cp_02_02_16.pth" ,
+                "./LG-CL-0531-DIDPZ+VE-OriginalReplay_LR_075/cp_02_02_17.pth" ,
+                "./LG-CL-0531-DIDPZ+VE-OriginalReplay_LR_075/cp_02_02_18.pth" ,
+                "./LG-CL-0531-DIDPZ+VE-OriginalReplay_LR_075/cp_02_02_19.pth" ,
+                "./LG-CL-0531-DIDPZ+VE-OriginalReplay_LR_075/cp_02_02_20.pth" ,
+                "./LG-CL-0531-DIDPZ+VE-OriginalReplay_LR_075/cp_02_02_21.pth" ,
+                "./LG-CL-0531-DIDPZ+VE-OriginalReplay_LR_075/cp_02_02_22.pth" ,
+                "./LG-CL-0531-DIDPZ+VE-OriginalReplay_LR_075/cp_02_02_23.pth" ,
+                "./LG-CL-0531-DIDPZ+VE-OriginalReplay_LR_075/cp_02_02_24.pth" ,
+                "./LG-CL-0531-DIDPZ+VE-OriginalReplay_LR_075/cp_02_02_25.pth" ,
+                "./LG-CL-0531-DIDPZ+VE-OriginalReplay_LR_075/cp_02_02_26.pth" ,
+                "./LG-CL-0531-DIDPZ+VE-OriginalReplay_LR_075/cp_02_02_27.pth" ,
+                "./LG-CL-0531-DIDPZ+VE-OriginalReplay_LR_075/cp_02_02_28.pth" ,
+                "./LG-CL-0531-DIDPZ+VE-OriginalReplay_LR_075/cp_02_02_29.pth" ,
+                "--num_workers", "24", "--all_data"
+            ]
         }
     ]
 }
