@@ -203,7 +203,11 @@ def _save_rehearsal(rehearsal, dir, task, memory):
         print(colored(f"Save task buffer", "light_red", "on_yellow"))
 
 
-def load_rehearsal(all_dir):
+def load_rehearsal(dir, task=None, memory=None):
+    if task==None and memory==None:
+        all_dir = dir
+    else:
+        all_dir = os.path.join(dir, "Buffer_T_" + str(task) + "_" + str(memory))
     print(f"load replay file name : {all_dir}")
     #all_dir = "/data/LG/real_dataset/total_dataset/test_dir/Continaul_DETR/Rehearsal_dict/0_gpu_rehearsal_task_0_ep_9"
     if os.path.exists(all_dir) :
@@ -298,7 +302,8 @@ def construct_combined_rehearsal(args, task:int ,dir:str ,rehearsal:dict ,epoch:
     all_dir = os.path.join(dir, "Buffer_T_" + str(task) +"_" + str(limit_memory_size))
     
     #file save of each GPUs
-    _save_rehearsal_for_combine(task, dir, rehearsal, epoch)
+    if not args.debug:
+        _save_rehearsal_for_combine(task, dir, rehearsal, epoch)
     
     # All GPUs ready replay buffer combining work(protecting some errors)
     if utils.get_world_size() > 1:    
