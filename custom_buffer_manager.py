@@ -186,9 +186,8 @@ def _save_rehearsal_for_combine(task, dir, rehearsal, epoch):
         dir,
         str(dist.get_rank()) + "_gpu_rehearsal_task_" + str(task) + "_ep_" + str(epoch)
     )
-    if not os.path.exists(dir) : 
-        with open(dir, 'wb') as f:
-            pickle.dump(temp_dict, f)
+    with open(dir, 'wb') as f:
+        pickle.dump(temp_dict, f)
 
 import pickle
 import os
