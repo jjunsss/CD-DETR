@@ -48,7 +48,7 @@ class TrainingPipeline:
         self.output_dir = Path(args.output_dir)
         self.load_replay, self.rehearsal_classes = self._load_replay_buffer()
         self.DIR = os.path.join(self.output_dir, 'mAP_TEST.txt')
-        self.Task_Epochs = args.Task_Epochs[0] if len(args.Task_Epochs)==1 else args.Task_Epochs
+        self.Task_Epochs = args.Task_Epochs[args.start_task] if len(args.Task_Epochs)==1 else args.Task_Epochs
     
     def set_task_epoch(self, args, idx):
         epochs = self.Task_Epochs

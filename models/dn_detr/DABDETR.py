@@ -76,6 +76,7 @@ class DABDETR(nn.Module):
                     query_dim=4, 
                     bbox_embed_diff_each_layer=False,
                     random_refpoints_xy=False,
+                    current_class=None
                     ):
         """ Initializes the model.
         Parameters:
@@ -144,6 +145,9 @@ class DABDETR(nn.Module):
         else:
             nn.init.constant_(self.bbox_embed.layers[-1].weight.data, 0)
             nn.init.constant_(self.bbox_embed.layers[-1].bias.data, 0)
+
+        if current_class is not None:
+            self.gt = current_class            
 
 
     # def forward(self, samples: NestedTensor, dn_args=None):
@@ -481,7 +485,7 @@ class MLP(nn.Module):
         return x
 
 
-def build_model(args, num_classes):
+def build_model(args, num_classes, current_class=None):
     # num_classes = 20 if args.dataset_file != 'coco' else 91
     # if args.dataset_file == "coco_panoptic":
     #     num_classes = 250
@@ -500,6 +504,7 @@ def build_model(args, num_classes):
         iter_update=True,
         query_dim=4,
         random_refpoints_xy=args.random_refpoints_xy,
+        current_class=current_class
     )
     if args.masks:
         model = DETRsegm(model, freeze_detr=(args.frozen_weights is not None))
