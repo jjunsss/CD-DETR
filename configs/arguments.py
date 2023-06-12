@@ -55,7 +55,7 @@ def get_args_parser():
     parser.add_argument('--coco_path', default='/data/LG/real_dataset/total_dataset/didvepz/plustotal/', type=str)
     parser.add_argument('--coco_panoptic_path', type=str)
     parser.add_argument('--remove_difficult', action='store_true')
-    parser.add_argument('--output_dir', default='./TEST/', help='path where to save, empty for no saving')
+    parser.add_argument('--output_dir', default='./result/DIDPZ+VE', help='path where to save, empty for no saving')
     parser.add_argument('--device', default='cuda',help='device to use for training / testing')
     parser.add_argument('--seed', default=42, type=int)
 
