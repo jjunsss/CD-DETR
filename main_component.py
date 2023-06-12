@@ -61,7 +61,7 @@ class TrainingPipeline:
         self.model, self.model_without_ddp, self.criterion, \
             self.postprocessors, self.teacher_model = self._build_and_setup_model(task_idx=task_idx)
         
-        weight_path = os.path.join(args.output_dir, f'cp_{self.tasks:02}_{task_idx:02}.pth')
+        weight_path = os.path.join(args.output_dir, f'checkpoints/cp_{self.tasks:02}_{task_idx:02}.pth')
         previous_weight = torch.load(weight_path)
 
         try:

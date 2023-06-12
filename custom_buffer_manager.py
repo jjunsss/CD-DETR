@@ -182,7 +182,10 @@ def _save_rehearsal_for_combine(task, dir, rehearsal, epoch):
         if len(value[-1]) == 0:
             del temp_dict[key]
     
-    dir = dir + str(dist.get_rank()) + "_gpu_rehearsal_task_" + str(task) + "_ep_" + str(epoch)
+    dir = os.path.join(
+        dir,
+        str(dist.get_rank()) + "_gpu_rehearsal_task_" + str(task) + "_ep_" + str(epoch)
+    )
     if not os.path.exists(dir) : 
         with open(dir, 'wb') as f:
             pickle.dump(temp_dict, f)
@@ -190,7 +193,7 @@ def _save_rehearsal_for_combine(task, dir, rehearsal, epoch):
 import pickle
 import os
 def _save_rehearsal(rehearsal, dir, task, memory):
-    all_dir = dir  + "Buffer_T_" + str(task) +"_" + str(memory)
+    all_dir = os.path.join(dir, "Buffer_T_" + str(task) +"_" + str(memory))
     if not os.path.exists(dir):
         os.mkdir(dir)
         print(f"Directroy created")
@@ -200,8 +203,7 @@ def _save_rehearsal(rehearsal, dir, task, memory):
         print(colored(f"Save task buffer", "light_red", "on_yellow"))
 
 
-def load_rehearsal(dir, task, memory):
-    all_dir = dir  + "Buffer_T_" + str(task) + "_" + str(memory)
+def load_rehearsal(all_dir):
     print(f"load replay file name : {all_dir}")
     #all_dir = "/data/LG/real_dataset/total_dataset/test_dir/Continaul_DETR/Rehearsal_dict/0_gpu_rehearsal_task_0_ep_9"
     if os.path.exists(all_dir) :
@@ -219,10 +221,15 @@ def _handle_rehearsal(args, dir, limit_memory_size, gpu_counts, task, epoch, lea
                 merged_dict = {**merged_dict, **temp}
         return merged_dict
 
-    dir_list = [dir + str(num) +"_gpu_rehearsal_task_" + str(task) + "_ep_" + str(epoch) for num in range(gpu_counts)]
+    dir_list = [
+        os.path.join(
+            dir,
+            str(num) +"_gpu_rehearsal_task_" + str(task) + "_ep_" + str(epoch)
+        ) for num in range(gpu_counts)
+    ]
     
     if include_all:
-        all_dir = dir  + "Buffer_T_" + str(task) + "_" + str(limit_memory_size)
+        all_dir = os.path.join(dir, "Buffer_T_" + str(task) + "_" + str(limit_memory_size))
         dir_list.append(all_dir)
 
     for each_dir in dir_list:
@@ -287,10 +294,11 @@ def construct_combined_rehearsal(args, task:int ,dir:str ,rehearsal:dict ,epoch:
                                  ,limit_memory_size:int , list_CC:list, gpu_counts:int, ) -> dict:
     least_image = args.least_image
     # total_size = limit_memory_size * get_world_size()
-    all_dir = dir  + "Buffer_T_" + str(task) +"_" + str(limit_memory_size)
+    dir = os.path.join(dir, 'replay')
+    all_dir = os.path.join(dir, "Buffer_T_" + str(task) +"_" + str(limit_memory_size))
     
     #file save of each GPUs
-    # _save_rehearsal_for_combine(task, dir, rehearsal, epoch)
+    _save_rehearsal_for_combine(task, dir, rehearsal, epoch)
     
     # All GPUs ready replay buffer combining work(protecting some errors)
     if utils.get_world_size() > 1:    
@@ -312,7 +320,7 @@ def construct_combined_rehearsal(args, task:int ,dir:str ,rehearsal:dict ,epoch:
     if utils.get_world_size() > 1:    
         dist.barrier()
     # All GPUs ready replay dataset
-    rehearsal_classes = load_rehearsal(dir=args.Rehearsal_file, task=0, memory=args.limit_image)
+    rehearsal_classes = load_rehearsal(all_dir)
     return rehearsal_classes
 
 from Custom_Dataset import *
@@ -336,7 +344,7 @@ def contruct_replay_extra_epoch(args, Divided_Classes, model, criterion, device,
                                         rehearsal_classes=rehearsal_classes, extra_epoch=extra_epoch)
 
     # 3. 수집된 Buffer를 특정 파일에 저장
-    rehearsal_classes = construct_combined_rehearsal(args=args, task=0, dir=args.Rehearsal_file, rehearsal=rehearsal_classes,
+    rehearsal_classes = construct_combined_rehearsal(args=args, task=0, dir=args.output_dir, rehearsal=rehearsal_classes,
                                                     epoch=0, limit_memory_size=args.limit_image, gpu_counts=4, list_CC=list_CC)
     
     print(colored(f"Complete constructing buffer","red", "on_yellow"))
