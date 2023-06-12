@@ -99,6 +99,7 @@ class DABDETR(nn.Module):
         self.hidden_dim = hidden_dim = transformer.d_model
         self.class_embed = nn.Linear(hidden_dim, num_classes)
         self.bbox_embed_diff_each_layer = bbox_embed_diff_each_layer
+        self.current_class = current_class
 
         # leave one dim for indicator
         self.label_enc = nn.Embedding(num_classes + 1, hidden_dim - 1)
@@ -208,6 +209,11 @@ class DABDETR(nn.Module):
         if self.aux_loss:
             out['aux_outputs'] = self._set_aux_loss(outputs_class, outputs_coord)
 
+        if self.current_class is not None :
+            out['gt'] = self.gt
+        else :
+            out['gt'] = None
+
         # return out, mask_dict
         return [out, mask_dict]
 
@@ -251,6 +257,13 @@ class SetCriterion(nn.Module):
 
         idx = self._get_src_permutation_idx(indices)
         target_classes_o = torch.cat([t["labels"][J] for t, (_, J) in zip(targets, indices)])
+
+        if outputs['gt'] is not None:
+            # class index와 gt 맞춰주기 위함
+            target_classes_o = torch.tensor(
+                [outputs['gt'].index(target)+1 for target in target_classes_o]
+            ).to(target_classes_o.device)
+
         target_classes = torch.full(src_logits.shape[:2], self.num_classes,
                                     dtype=torch.int64, device=src_logits.device)
         target_classes[idx] = target_classes_o
@@ -361,7 +374,7 @@ class SetCriterion(nn.Module):
         return loss_map[loss](outputs, targets, indices, num_boxes, **kwargs)
 
     # def forward(self, outputs, targets, mask_dict=None, return_indices=False):
-    def forward(self, model_output, targets, return_indices=False):
+    def forward(self, model_output, targets, buffer_construct_loss=False, return_indices=False):
         """
         Add a function prep_for_dn to prepare for dn loss components.
         Add dn loss calculation tgt_loss_label and tgt_loss_box.
@@ -374,6 +387,8 @@ class SetCriterion(nn.Module):
              return_indices: used for vis. if True, the layer0-5 indices will be returned as well.
 
         """
+        self.buffer_construct_loss = buffer_construct_loss
+        
         # new
         outputs = model_output[0]
         mask_dict = model_output[1]

@@ -68,6 +68,9 @@ class HungarianMatcher(nn.Module):
         tgt_ids = torch.cat([v["labels"] for v in targets])
         tgt_bbox = torch.cat([v["boxes"] for v in targets])
 
+        if outputs['gt'] is not None :
+            tgt_ids = [outputs['gt'].index(tgt_id)+1 for tgt_id in tgt_ids] # class index와 gt 맞춰주기 위함
+
         # Compute the classification cost.
         alpha = self.focal_alpha
         gamma = 2.0
