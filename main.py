@@ -76,8 +76,6 @@ def main(args):
 
         # Ready for replay training strategy 
         if first_training is False and args.Rehearsal is True:
-            if args.verbose :
-                check_components(pipeline.rehearsal_classes, args.verbose)
 
             replay_dataset = copy.deepcopy(pipeline.rehearsal_classes)
 
