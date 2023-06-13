@@ -181,7 +181,7 @@ def _save_rehearsal_for_combine(task, dir, rehearsal, epoch):
     for key, value in rehearsal.items():
         if len(value[-1]) == 0:
             del temp_dict[key]
-    
+            
     backup_dir = dir + "backup/" + str(dist.get_rank()) + "_gpu_rehearsal_task_" + str(task) + "_ep_" + str(epoch)
     dir = dir + str(dist.get_rank()) + "_gpu_rehearsal_task_" + str(task) + "_ep_" + str(epoch)
     with open(dir, 'wb') as f:
