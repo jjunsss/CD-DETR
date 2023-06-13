@@ -250,7 +250,8 @@ class SetCriterion(nn.Module):
         if outputs['gt'] is not None:
             # class index와 gt 맞춰주기 위함
             target_classes_o = torch.tensor(
-                [outputs['gt'].index(target)+1 for target in target_classes_o]
+                [outputs['gt'].index(target)+1 for target in target_classes_o],
+                dtype=torch.int64
             ).to(target_classes_o.device)
         
         target_classes = torch.full(src_logits.shape[:2], self.num_classes,
