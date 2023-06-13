@@ -182,11 +182,12 @@ def _save_rehearsal_for_combine(task, dir, rehearsal, epoch):
         if len(value[-1]) == 0:
             del temp_dict[key]
     
-    dir = os.path.join(
-        dir,
-        str(dist.get_rank()) + "_gpu_rehearsal_task_" + str(task) + "_ep_" + str(epoch)
-    )
+    backup_dir = dir + "backup/" + str(dist.get_rank()) + "_gpu_rehearsal_task_" + str(task) + "_ep_" + str(epoch)
+    dir = dir + str(dist.get_rank()) + "_gpu_rehearsal_task_" + str(task) + "_ep_" + str(epoch)
     with open(dir, 'wb') as f:
+        pickle.dump(temp_dict, f)
+        
+    with open(backup_dir, 'wb') as f:
         pickle.dump(temp_dict, f)
 
 import pickle
@@ -301,8 +302,7 @@ def construct_combined_rehearsal(args, task:int ,dir:str ,rehearsal:dict ,epoch:
     all_dir = os.path.join(dir, "Buffer_T_" + str(task) +"_" + str(limit_memory_size))
     
     #file save of each GPUs
-    if not args.debug:
-        _save_rehearsal_for_combine(task, dir, rehearsal, epoch)
+    _save_rehearsal_for_combine(task, dir, rehearsal, epoch)
     
     # All GPUs ready replay buffer combining work(protecting some errors)
     if utils.get_world_size() > 1:    
@@ -348,8 +348,8 @@ def contruct_replay_extra_epoch(args, Divided_Classes, model, criterion, device,
                                         rehearsal_classes=rehearsal_classes, extra_epoch=extra_epoch)
 
     # 3. 수집된 Buffer를 특정 파일에 저장
-    rehearsal_classes = construct_combined_rehearsal(args=args, task=0, dir=args.output_dir, rehearsal=rehearsal_classes,
-                                                    epoch=0, limit_memory_size=args.limit_image, gpu_counts=4, list_CC=list_CC)
+    rehearsal_classes = construct_combined_rehearsal(args=args, task=0, dir=args.Rehearsal_file, rehearsal=rehearsal_classes,
+                                                    epoch=0, limit_memory_size=args.limit_image, gpu_counts=utils.get_world_size(), list_CC=list_CC)
     
     print(colored(f"Complete constructing buffer","red", "on_yellow"))
     
