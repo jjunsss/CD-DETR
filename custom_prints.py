@@ -17,6 +17,7 @@ def write_to_addfile(filename):
         return wrapper
     return decorator
 
+from collections import Counter
 @write_to_addfile("./check/check_replay_limited.txt")
 def check_components(rehearsal_classes: Dict, print_stat: bool=False):
     '''
@@ -27,23 +28,17 @@ def check_components(rehearsal_classes: Dict, print_stat: bool=False):
     '''
     if len(rehearsal_classes) == 0:
         raise Exception("No replay classes")
-        
-    temp_list = [index for _, index in list(rehearsal_classes.values())]
-    replay_classes = set()
-    for value in temp_list:
-        replay_classes.update(value)
-    list(replay_classes).sort()
+    class_counts = Counter(cls for _ ,(_, classes, _) in rehearsal_classes.items() for cls in classes)
     
     if print_stat == True:
         # check each instance usage capacity
-        check_list = [len(list(filter(lambda x: index in x[1], list(rehearsal_classes.values())))) for index in replay_classes]
         
         # To print the current time
         print(f"--------------------------------------------------------\n")
         print("Current Time =", datetime.now())
-        print(f"ALL REPLAY buffer : {len(rehearsal_classes.keys())}")
-        for i, c in enumerate(replay_classes):
-            print(f"**** class num : {c}, counts : {check_list[i]} ****")
+        print(f"The number of buffer: {len(rehearsal_classes.keys())}")
+        for key in sorted(class_counts):
+            print(f"{key}: {class_counts[key]}")            
             
 def Memory_checker():
     '''
