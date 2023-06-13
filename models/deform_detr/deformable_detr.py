@@ -21,12 +21,13 @@ from util.misc import (NestedTensor, nested_tensor_from_tensor_list,
                        is_dist_avail_and_initialized, inverse_sigmoid)
 
 from .backbone import build_backbone
-from .matcher import build_matcher
-from .segmentation import (DETRsegm, PostProcessPanoptic, PostProcessSegm,
+from ..matcher import build_matcher
+from ..segmentation import (DETRsegm, PostProcessPanoptic, PostProcessSegm,
                            dice_loss, sigmoid_focal_loss)
 from .deformable_transformer import build_deforamble_transformer
 import copy
 from termcolor import colored
+from ..criterion import SetCriterion
 
 def _get_clones(module, N):
     return nn.ModuleList([copy.deepcopy(module) for i in range(N)])
@@ -469,6 +470,7 @@ class SetCriterion(nn.Module):
         return losses
 
 
+
 class PostProcess(nn.Module):
     """ This module converts the model's output into the format expected by the coco api"""
 
@@ -560,7 +562,7 @@ def build(args, num_classes, current_class=None):
     if args.masks:
         losses += ["masks"]
     # num_classes, matcher, weight_dict, losses, focal_alpha=0.25
-    criterion = SetCriterion(num_classes, matcher, weight_dict, losses, focal_alpha=args.focal_alpha)
+    criterion = SetCriterion(num_classes, matcher, weight_dict, losses, model_name=args.model_name, focal_alpha=args.focal_alpha)
     criterion.to(device)
     postprocessors = {'bbox': PostProcess()}
     if args.masks:
