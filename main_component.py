@@ -186,7 +186,7 @@ class TrainingPipeline:
             load_replay.extend(self.Divided_Classes[idx])
             
         #* Load for Replay
-        if args.Rehearsal and (self.start_task >= 1):
+        if (args.Rehearsal and (self.start_task >= 1)) or args.Construct_Replay:
             rehearsal_classes = load_rehearsal(args.Rehearsal_file, 0, args.limit_image)
         
             try:

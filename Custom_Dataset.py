@@ -71,7 +71,7 @@ def DivideTask_for_incre(Task_Counts: int, Total_Classes: int, DivisionOfNames: 
 
         # did + pz test
         return Divided_Classes
-    
+
     classes = [idx+1 for idx in range(Total_Classes)]
     Task = int(Total_Classes / Task_Counts)
     Rest_Classes_num = Total_Classes % Task_Counts
