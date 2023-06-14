@@ -228,6 +228,17 @@ class TrainingPipeline:
         # FIXME: change directory list
         # filename_list = ["didtest", "pztest", "VE2021", "VEmultisingle", "VE10test"] # for DID, PZ, VE, VE, VE
         filename_list = args.test_file_list
+        def load_all_files(directory):
+            all_files = []
+            for root, _, files in os.walk(directory):
+                for file in files:
+                    file_path = os.path.join(root, file)
+                    all_files.append(file_path)
+            return all_files
+
+        # load all files in data
+        if args.pretrained_model_dir is not None:
+            args.pretrained_model = load_all_files(args.pretrained_model_dir)
         for enum, predefined_model in enumerate(args.pretrained_model):
             print(colored(f"current predefined_model : {enum}, defined model name : {predefined_model}", "red"))
             
@@ -262,8 +273,8 @@ class TrainingPipeline:
         args = self.args
         if isinstance(dataset_train, list):
             temp_dataset, temp_loader, temp_sampler = copy.deepcopy(dataset_train), copy.deepcopy(data_loader_train), copy.deepcopy(sampler_train)
-            
-        for epoch in range(self.start_epoch, args.Task_Epochs): #어차피 Task마다 훈련을 진행해야 하고, 중간점음 없을 것이므로 TASK마다 훈련이 되도록 만들어도 상관이 없음
+        T_epochs = args.Task_Epochs[0]
+        for epoch in range(self.start_epoch, T_epochs): #어차피 Task마다 훈련을 진행해야 하고, 중간점음 없을 것이므로 TASK마다 훈련이 되도록 만들어도 상관이 없음
             if args.MixReplay and args.Rehearsal and task_idx >= 1:
                 dataset_index = epoch % 2 
                 self.dataset_name = ["AugReplay", "Original"]

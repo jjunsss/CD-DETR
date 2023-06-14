@@ -33,7 +33,6 @@ def Original_training(args, last_task, epo, idx, count, sum_loss, samples, targe
                       model: torch.nn.Module, teacher_model, criterion: torch.nn.Module, optimizer: torch.optim.Optimizer,  
                       rehearsal_classes, train_check, current_classes): 
 
-    last_epoch_check = epo == (args.Task_Epochs - 1)
     device = torch.device("cuda")
     ex_device = torch.device("cpu")
     count, sum_loss = _common_training(args, epo, idx, last_task, count, sum_loss, 
@@ -48,7 +47,6 @@ def Circular_training(args, last_task, epo, idx, count, sum_loss, samples, targe
                     model: torch.nn.Module, teacher_model, criterion: torch.nn.Module, optimizer: torch.optim.Optimizer, 
                     current_classes): 
     
-    last_epoch_check = epo == (args.Task_Epochs - 1)
     device = torch.device("cuda")
     ex_device = torch.device("cpu")
     count, sum_loss = _common_training(args, epo, idx, last_task, count, sum_loss, 
@@ -122,7 +120,7 @@ def _common_training(args, epo, idx, last_task, count, sum_loss,
         sum_loss += losses_reduced_scaled
         if utils.is_main_process(): #sum_loss가 GPU의 개수에 맞춰서 더해주고 있으니,
             check_losses(epo, idx, losses_reduced_scaled, sum_loss, count, current_classes, None)
-            print(f" {t_type} \t {{ epoch : {epo} \t Loss : {losses_value} \t Total Loss : {losses_reduced_scaled} }}")
+            print(f" {t_type} \t {{ epoch : {epo} \t Loss : {losses_value:.4f} \t Total Loss : {sum_loss/count:.4f} }}")
     
     optimizer.zero_grad()
     losses.backward()

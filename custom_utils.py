@@ -442,11 +442,11 @@ def dataset_configuration(args, original_dataset, original_loader, original_samp
         return [AugRplay_dataset, original_dataset], [AugRplay_loader, original_loader], [AugRplay_sampler, original_sampler] 
     
     else :
-        return original_dataset, original_loader, original_sampler    
+        return original_dataset, original_loader, original_sampler
 
 #* Just CL_StepLR(CLStepLR)
 class ContinualStepLR(StepLR):
-    def __init__(self, optimizer, step_size, gamma=0.1, task_gamma=0.75, replay_gamma=10, last_epoch=-1, verbose=False):
+    def __init__(self, optimizer, step_size, gamma=0.1, task_gamma=0.85, replay_gamma=10, last_epoch=-1, verbose=False):
         super(ContinualStepLR, self).__init__(optimizer, step_size, gamma, last_epoch, verbose)
         self.task_gamma = task_gamma
 

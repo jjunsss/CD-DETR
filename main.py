@@ -48,12 +48,12 @@ def main(args):
 
     # Evaluation mode
     if args.eval:
-
         pipeline.evaluation_only_mode()
         return
     
     # No incremental learning process
     if pipeline.tasks == 1 :
+        pipeline.set_task_epoch(args, 0) # only first task
         pipeline.only_one_task_training()
         return
         
@@ -76,8 +76,6 @@ def main(args):
 
         # Ready for replay training strategy 
         if first_training is False and args.Rehearsal is True:
-            if args.verbose :
-                check_components(pipeline.rehearsal_classes, args.verbose)
 
             replay_dataset = copy.deepcopy(pipeline.rehearsal_classes)
 
