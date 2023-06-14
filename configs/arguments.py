@@ -66,7 +66,7 @@ def get_args_parser():
     #* CL Setting 
     # parser.add_argument('--pretrained_model', default=None, help='resume from checkpoint')
     parser.add_argument('--pretrained_model', default=None, type=str, nargs='+', help='resume from checkpoint')
-    parser.add_argument('--pretrained_model_directory', default=None, type=str, help='test all parameters')
+    parser.add_argument('--pretrained_model_dir', default=None, type=str, help='test all parameters')
     parser.add_argument('--start_epoch', default=15, type=int, metavar='N',help='start epoch')
     parser.add_argument('--start_task', default=0, type=int, metavar='N',help='start task')
     parser.add_argument('--eval', action='store_true')
