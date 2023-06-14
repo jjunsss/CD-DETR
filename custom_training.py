@@ -21,7 +21,7 @@ from typing import Tuple, Dict, List, Optional
 
 from torch.cuda.amp import autocast
 from custom_fake_target import normal_query_selc_to_target, only_oldset_mosaic_query_selc_to_target
-from models import _prepare_denoising_args
+from models import inference_model
 
 @decompose
 def decompose_dataset(no_use_count: int, samples: utils.NestedTensor, targets: Dict, origin_samples: utils.NestedTensor, 
@@ -66,10 +66,6 @@ def _common_training(args, epo, idx, last_task, count, sum_loss,
 
     samples, targets = _process_samples_and_targets(samples, targets, device)
 
-    # Add denoising arguments
-    if args.model_name == 'dn_detr':
-        model = _prepare_denoising_args(model, targets, args=args)
-
     with autocast(False):
         if last_task and args.Distill:
             teacher_model.eval()
@@ -89,15 +85,15 @@ def _common_training(args, epo, idx, last_task, count, sum_loss,
             hook = model.module.transformer.encoder.layers[-1].self_attn.attention_weights.register_forward_hook(
                 lambda module, input, output: s_encoder.append(output)
             )
-            outputs = model(samples)
+            outputs = inference_model(args, model, samples, targets)
             hook.remove()
             new_encoder = s_encoder[0]
 
             location_loss = torch.nn.functional.mse_loss(new_encoder.detach(), pre_encodre)
             del t_encoder, s_encoder, new_encoder, pre_encodre
 
-        else:
-            outputs = model(samples)
+        else:              
+            outputs = inference_model(args, model, samples, targets)
 
         if args.Fake_Query:
             targets = normal_query_selc_to_target(outputs, targets, current_classes)  # Adjust this line as necessary
@@ -142,11 +138,7 @@ def rehearsal_training(args, samples, targets, model: torch.nn.Module, criterion
     samples, targets = _process_samples_and_targets(samples, targets, device)
     for_replay = True
 
-    # Add denoising arguments
-    if args.model_name == 'dn_detr':
-        model = _prepare_denoising_args(model, targets, args=args, eval=True)
-
-    outputs = model(samples)
+    outputs = inference_model(args, model, samples, targets, eval=True)
     # TODO : new input to model. plz change dn-detr model input (self.buffer_construct_loss)
     _ = criterion(outputs, targets, buffer_construct_loss=True)
     

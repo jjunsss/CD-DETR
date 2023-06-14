@@ -152,7 +152,7 @@ class DABDETR(nn.Module):
 
 
     # def forward(self, samples: NestedTensor, dn_args=None):
-    def forward(self, samples: NestedTensor):
+    def forward(self, samples: NestedTensor, dn_args):
         """
             Add two functions prepare_for_dn and dn_post_process to implement dn
             The forward expects a NestedTensor, which consists of:
@@ -179,7 +179,7 @@ class DABDETR(nn.Module):
         embedweight = self.refpoint_embed.weight
         # prepare for dn
         input_query_label, input_query_bbox, attn_mask, mask_dict = \
-            prepare_for_dn(self.dn_args, embedweight, src.size(0), self.training, self.num_queries, self.num_classes,
+            prepare_for_dn(dn_args, embedweight, src.size(0), self.training, self.num_queries, self.num_classes,
                            self.hidden_dim, self.label_enc, self.gt if self.gt is not None else None)        
             # prepare_for_dn(dn_args, embedweight, src.size(0), self.training, self.num_queries, self.num_classes,
             #                self.hidden_dim, self.label_enc)

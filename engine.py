@@ -30,7 +30,7 @@ from tqdm import tqdm
 from custom_training import *
 from custom_prints import check_components
 
-from models import _prepare_denoising_args
+from models import inference_model
 
 @decompose
 def decompose_dataset(no_use_count: int, samples: utils.NestedTensor, targets: Dict, origin_samples: utils.NestedTensor, origin_targets: Dict, 
@@ -130,11 +130,7 @@ def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, out
         samples = samples.to(device)
         targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
 
-        # Add denoising arguments
-        if args.model_name == 'dn_detr':
-            model = _prepare_denoising_args(model, targets, eval=True)
-
-        outputs = model(samples)
+        outputs = inference_model(args, model, samples, targets, eval=True)
         loss_dict = criterion(outputs, targets)
         weight_dict = criterion.weight_dict
         
