@@ -199,9 +199,17 @@ def _save_rehearsal_for_combine(task, dir, rehearsal, epoch):
     for key, value in rehearsal.items():
         if len(value[1]) == 0:
             del temp_dict[key]
-            
-    backup_dir = dir + "backup/" + str(dist.get_rank()) + "_gpu_rehearsal_task_" + str(task) + "_ep_" + str(epoch)
-    dir = dir + str(dist.get_rank()) + "_gpu_rehearsal_task_" + str(task) + "_ep_" + str(epoch)
+    
+    try:
+        dist_rank = dist.get_rank()
+    except:
+        dist_rank = 0
+    backup_dir = os.path.join(
+        dir + "backup/", str(dist_rank) + "_gpu_rehearsal_task_" + str(task) + "_ep_" + str(epoch)
+    )
+    dir = os.path.join(
+        dir, str(dist_rank) + "_gpu_rehearsal_task_" + str(task) + "_ep_" + str(epoch)
+    )
     with open(dir, 'wb') as f:
         pickle.dump(temp_dict, f)
         
@@ -366,6 +374,8 @@ def contruct_replay_extra_epoch(args, Divided_Classes, model, criterion, device,
                                         rehearsal_classes=rehearsal_classes, extra_epoch=extra_epoch)
 
     # 3. 수집된 Buffer를 특정 파일에 저장
+    if args.Rehearsal_file is None:
+        args.Rehearsal_file = args.output_dir
     rehearsal_classes = construct_combined_rehearsal(args=args, task=0, dir=args.Rehearsal_file, rehearsal=rehearsal_classes,
                                                     epoch=0, limit_memory_size=args.limit_image, gpu_counts=utils.get_world_size(), list_CC=list_CC)
     
