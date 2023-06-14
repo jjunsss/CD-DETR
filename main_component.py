@@ -237,12 +237,16 @@ class TrainingPipeline:
             return all_files
 
         # load all files in data
-        if args.pretrained_model_dir is not None:
-            args.pretrained_model = load_all_files(args.pretrained_model_dir)
-        for enum, predefined_model in enumerate(args.pretrained_model):
+        if self.args.pretrained_model_dir is not None:
+            self.args.pretrained_model = load_all_files(self.self.args.pretrained_model_dir)
+            print(f"test directory list : {len(self.args.pretrained_model)}")
+            self.args.pretrained_model.sort()
+            print(f"test directory examples : {self.args.pretrained_model}")
+            
+        for enum, predefined_model in enumerate(self.args.pretrained_model):
             print(colored(f"current predefined_model : {enum}, defined model name : {predefined_model}", "red"))
             
-            if args.pretrained_model is not None:
+            if predefined_model is not None:
                 self.model = load_model_params("eval", self.model, predefined_model)
                 
             print(colored(f"check directory list : {dir_list}", "red"))
