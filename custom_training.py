@@ -144,7 +144,7 @@ def rehearsal_training(args, samples, targets, model: torch.nn.Module, criterion
 
     # Add denoising arguments
     if args.model_name == 'dn_detr':
-        model = _prepare_denoising_args(model, targets, args=args)
+        model = _prepare_denoising_args(model, targets, args=args, eval=True)
 
     outputs = model(samples)
     # TODO : new input to model. plz change dn-detr model input (self.buffer_construct_loss)

@@ -55,7 +55,7 @@ def get_args_parser():
     parser.add_argument('--coco_path', default='/data/LG/real_dataset/total_dataset/didvepz/plustotal/', type=str)
     parser.add_argument('--coco_panoptic_path', type=str)
     parser.add_argument('--remove_difficult', action='store_true')
-    parser.add_argument('--output_dir', default='./TEST/', help='path where to save, empty for no saving')
+    parser.add_argument('--output_dir', default='./result/DIDPZ+VE', help='path where to save, empty for no saving')
     parser.add_argument('--device', default='cuda',help='device to use for training / testing')
     parser.add_argument('--seed', default=42, type=int)
 
@@ -86,7 +86,7 @@ def get_args_parser():
     parser.add_argument('--Rehearsal', default=False, action='store_true', help="use Rehearsal strategy in diverse CL method")
     parser.add_argument('--AugReplay', default=False, action='store_true', help="use Our augreplay strategy in step 2")
     parser.add_argument('--MixReplay', default=False, action='store_true', help="1:1 Mix replay solution, First Circular Training. Second Original Training")
-    parser.add_argument('--Rehearsal_file', default='./LG-Replay-DIDPZ+VE/', type=str)
+    parser.add_argument('--Rehearsal_file', default='./result/DID+PZ/LG-Replay-DIDPZ+VE/', type=str)
     parser.add_argument('--Construct_Replay', default=False, action='store_true', help="For cunstructing replay dataset")
     
     parser.add_argument('--Sampling_strategy', default='hierarchical', type=str, help="hierarchical(ours), high_uniq, random")
