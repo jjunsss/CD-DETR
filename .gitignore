@@ -188,8 +188,8 @@ LG-CL_0514_eBTS_ADStepLR/train_details
 LG*
 Conf
 check
-.vscode
-.vscode/launch.json
+.vscode*
 Buffer*
 Replay*
 *Replay*
+*rehearsal*

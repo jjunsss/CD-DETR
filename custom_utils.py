@@ -364,14 +364,23 @@ def save_model_params(model_without_ddp:model, optimizer:torch.optim, lr_schedul
     '''
         Save the model for each task
     '''
-    if not os.path.exists(output_dir):
-        os.mkdir(output_dir)
+    checkpoint_paths = os.path.join(output_dir, 'checkpoints')
+    if not os.path.exists(checkpoint_paths):
+        os.mkdir(checkpoint_paths)
         print(f"Directroy created")
     
     if epoch == -1:
-        checkpoint_paths = output_dir + f'cp_{task_total:02}_{task_index+1:02}.pth'
+        checkpoint_paths = \
+            os.path.join(
+                checkpoint_paths,
+                f'cp_{task_total:02}_{task_index+1:02}.pth'
+            )
     else:
-        checkpoint_paths = output_dir + f'cp_{task_total:02}_{task_index+1:02}_{epoch}.pth'
+        checkpoint_paths = \
+            os.path.join(
+                checkpoint_paths,
+                f'cp_{task_total:02}_{task_index+1:02}_{epoch}.pth'
+            )
     utils.save_on_master({
         'model': model_without_ddp.state_dict(), 
         'optimizer': optimizer.state_dict(),

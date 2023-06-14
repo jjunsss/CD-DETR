@@ -42,7 +42,7 @@ def sigmoid_focal_loss(inputs, targets, num_boxes, alpha: float = 0.25, gamma: f
 
     return loss.mean(1).sum() / num_boxes
 
-def prepare_for_dn(dn_args, embedweight, batch_size, training, num_queries, num_classes, hidden_dim, label_enc):
+def prepare_for_dn(dn_args, embedweight, batch_size, training, num_queries, num_classes, hidden_dim, label_enc, gt=None):
     """
     prepare for dn components in forward function
     Args:
@@ -79,6 +79,8 @@ def prepare_for_dn(dn_args, embedweight, batch_size, training, num_queries, num_
         # can be modified to selectively denosie some label or boxes; also known label prediction
         unmask_bbox = unmask_label = torch.cat(known)
         labels = torch.cat([t['labels'] for t in targets])
+        if gt is not None :
+            labels = torch.tensor([gt.index(label)+1 for label in labels], dtype=torch.int64).cuda() # class index와 gt 맞춰주기 위함        
         boxes = torch.cat([t['boxes'] for t in targets])
         batch_idx = torch.cat([torch.full_like(t['labels'].long(), i) for i, t in enumerate(targets)])
 

@@ -43,26 +43,26 @@ class TrainingPipeline:
         self.args = args
         self.device = torch.device(args.device)
         self.Divided_Classes, self.dataset_name, self.start_epoch, self.start_task, self.tasks = self._incremental_setting()
-        self.model, self.model_without_ddp, self.criterion, self.postprocessors, self.teacher_model = self._build_and_setup_model(task_idx=0)
+        self.model, self.model_without_ddp, self.criterion, self.postprocessors, self.teacher_model = self._build_and_setup_model(task_idx=args.start_task)
         self.optimizer, self.lr_scheduler = self._setup_optimizer_and_scheduler()
         self._load_state()
         self.output_dir = Path(args.output_dir)
         self.load_replay, self.rehearsal_classes = self._load_replay_buffer()
         self.DIR = os.path.join(self.output_dir, 'mAP_TEST.txt')
-        self.Task_Epochs = args.Task_Epochs[0] if len(args.Task_Epochs)==1 else args.Task_Epochs
+        self.Task_Epochs = args.Task_Epochs
     
     def set_task_epoch(self, args, idx):
         epochs = self.Task_Epochs
-        if isinstance(epochs, list):
+        if len(epochs) > 1:
             args.Task_Epochs = epochs[idx]
         else:
-            args.Task_Epochs = epochs
+            args.Task_Epochs = epochs[0]
     
     def make_branch(self, task_idx, args):
         self.model, self.model_without_ddp, self.criterion, \
             self.postprocessors, self.teacher_model = self._build_and_setup_model(task_idx=task_idx)
         
-        weight_path = os.path.join(args.output_dir, f'cp_{self.tasks:02}_{task_idx:02}.pth')
+        weight_path = os.path.join(args.output_dir, f'checkpoints/cp_{self.tasks:02}_{task_idx:02}.pth')
         previous_weight = torch.load(weight_path)
 
         try:
@@ -159,7 +159,9 @@ class TrainingPipeline:
         start_epoch = 0
         start_task = 0
         tasks = args.Task
-        Divided_Classes = DivideTask_for_incre(args.Task, args.Total_Classes, args.Total_Classes_Names)
+        if args.test_file_list is None:
+            args.test_file_list = ["didtest", "pztest", "VE2021", "VEmultisingle", "VE10test"]
+        Divided_Classes = DivideTask_for_incre(args.Task, args.Total_Classes, args.Total_Classes_Names, args.eval, args.test_file_list)
         if args.Total_Classes_Names == True :
             tasks = len(Divided_Classes)    
         
@@ -206,29 +208,18 @@ class TrainingPipeline:
         print(colored(f"evaluation only mode start !!", "red"))
         args = self.args
         dir_list = []
+        filename_list = args.test_file_list
         
         if args.all_data == True:
             # eval과 train의 coco_path를 다르게 설정
             dir_list = glob(os.path.join(args.coco_path, '*'))
             if os.path.isfile(self.DIR):
-                os.remove(self.DIR)            
-            # # FIXME: chnage directory list name ( First, you should make mAP_TEST.txt file to right place)
-            # # FIXME: Second, you should remove unused classes file
-            # # FIXME: Third, you should change your directory list name in your path.
-            # #plz in here, writh absolute path your test dataset path
-            # dir_list = glob("/home/user/Desktop/sumin/newvetest/*")
-            # dir_list.remove("/home/user/Desktop/sumin/newvetest/mAP_TEST.txt")
-            # # dir_list.remove("/home/user/Desktop/vscode/newvetest/VE10test")
-            # # dir_list.remove("/home/user/Desktop/vscode/newvetest/VE2021")
-            # # dir_list.remove("/home/user/Desktop/vscode/newvetest/VEmultisingle")
-            # # dir_list.remove("/home/user/Desktop/vscode/newvetest/didtest")
-            # # dir_list.remove("/home/user/Desktop/vscode/newvetest/pztest")
+                os.remove(self.DIR) # self.DIR = args.output_dir + 'mAP_TEST.txt'
         else:
             dir_list = ["/home/user/Desktop/vscode"+ args.coco_path]
         
         # FIXME: change directory list
         # filename_list = ["didtest", "pztest", "VE2021", "VEmultisingle", "VE10test"] # for DID, PZ, VE, VE, VE
-        filename_list = args.test_file_list
         def load_all_files(directory):
             all_files = []
             for root, _, files in os.walk(directory):
@@ -247,7 +238,7 @@ class TrainingPipeline:
 
         # load all files in data
         if self.args.pretrained_model_dir is not None:
-            self.args.pretrained_model = load_all_files(self.self.args.pretrained_model_dir)
+            self.args.pretrained_model = load_all_files(self.args.pretrained_model_dir)
             print(f"test directory list : {len(self.args.pretrained_model)}")
             args.pretrained_model.sort(key=extract_last_number)
             print(f"test directory examples : {self.args.pretrained_model}")
@@ -258,20 +249,18 @@ class TrainingPipeline:
             if predefined_model is not None:
                 self.model = load_model_params("eval", self.model, predefined_model)
                 
-            print(colored(f"check directory list : {dir_list}", "red"))
+            print(colored(f"check directory list : {args.test_file_list}", "red"))
             with open(self.DIR, 'a') as f:
-                f.write(f"-----------------------pth file----------------------\n")
+                f.write(f"\n-----------------------pth file----------------------\n")
                 f.write(f"file_name : {str(predefined_model)}\n")
                 
             for task_idx, cur_file_name in enumerate(filename_list):
-                cur_file_name = filename_list[task_idx]
+                
                 file_link = [name for name in dir_list if cur_file_name == os.path.basename(name)]
                 args.coco_path = file_link[0]
                 print(colored(f"now evaluating file name : {args.coco_path}", "red"))
-                if 've' in cur_file_name.lower():
-                    task_idx = 2
                 print(colored(f"now eval classes: {self.Divided_Classes[task_idx]}", "red"))
-                dataset_val, data_loader_val, _, _  = Incre_Dataset(task_idx, args, self.Divided_Classes[task_idx])
+                dataset_val, data_loader_val, _, _  = Incre_Dataset(task_idx, args, self.Divided_Classes)
                 base_ds = get_coco_api_from_dataset(dataset_val)
                 
                 with open(self.DIR, 'a') as f:
@@ -286,7 +275,8 @@ class TrainingPipeline:
         args = self.args
         if isinstance(dataset_train, list):
             temp_dataset, temp_loader, temp_sampler = copy.deepcopy(dataset_train), copy.deepcopy(data_loader_train), copy.deepcopy(sampler_train)
-        for epoch in range(self.start_epoch, self.Task_Epochs): #어차피 Task마다 훈련을 진행해야 하고, 중간점음 없을 것이므로 TASK마다 훈련이 되도록 만들어도 상관이 없음
+        T_epochs = args.Task_Epochs[0] if isinstance(args.Task_Epochs, list) else args.Task_Epochs
+        for epoch in range(self.start_epoch, T_epochs): #어차피 Task마다 훈련을 진행해야 하고, 중간점음 없을 것이므로 TASK마다 훈련이 되도록 만들어도 상관이 없음
             if args.MixReplay and args.Rehearsal and task_idx >= 1:
                 dataset_index = epoch % 2 
                 self.dataset_name = ["AugReplay", "Original"]

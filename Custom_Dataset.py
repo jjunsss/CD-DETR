@@ -9,7 +9,6 @@ import numpy as np
 def Incre_Dataset(Task_Num, args, Incre_Classes, extra_dataset = False):    
     current_classes = Incre_Classes[Task_Num]
     print(f"current_classes : {current_classes}")
-    
     if extra_dataset is False:
         if not args.eval:
             # For real model traning
@@ -51,7 +50,7 @@ def Incre_Dataset(Task_Num, args, Incre_Classes, extra_dataset = False):
     return dataset_train, data_loader_train, sampler_train, current_classes
 
 
-def DivideTask_for_incre(Task_Counts: int, Total_Classes: int, DivisionOfNames: Boolean):
+def DivideTask_for_incre(Task_Counts: int, Total_Classes: int, DivisionOfNames: Boolean, eval=False, test_file_list=None):
     '''
         DivisionofNames == True인 경우 Task_Counts는 필요 없어짐 Domain을 기준으로 class task가 자동 분할
         False라면 Task_Counts, Total_Classes를 사용해서 적절하게 분할
@@ -61,15 +60,34 @@ def DivideTask_for_incre(Task_Counts: int, Total_Classes: int, DivisionOfNames: 
     '''
     if DivisionOfNames is True:
         Divided_Classes = []
+        # Edit here
+        class_dict = {
+            'file_name': ['did', 'pz', 've'],
+            'class_idx': [
+                [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21], # DID
+                [28, 32, 35, 41, 56], # photozone
+                [24, 29, 30, 39, 40, 42] # 야채칸 중 일부(mAP 높은 일부)
+            ]
+        }
 
-        # # LG Incremental Learning
-        # Divided_Classes.append([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 28, 32, 35, 41, 56]) #DID + PZ
-        # Divided_Classes.append([28, 32, 35, 41, 56]) #photozone ,
-        Divided_Classes.append([24, 29, 30, 39, 40, 42]) # 야채칸 중 일부(mAP 높은 일부),
-        # original VE
-        # #Divided_Classes.append([23, 24, 25, 26, 27, 29, 30, 31, 33,34,36, 37, 38, 39, 40,42,43,44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 57, 58, 59]) #VE
-
-        # did + pz test
+        if eval:
+            # Evaluation
+            for test_file in test_file_list:
+                idx = [name in test_file.lower() for name in class_dict['file_name']].index(True)
+                Divided_Classes.append(
+                    class_dict['class_idx'][idx]
+                )
+        else:
+            Divided_Classes.append([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21]) # DID
+            Divided_Classes.append([28, 32, 35, 41, 56]) # PZ
+            
+            # # Train
+            # # # LG Incremental Learning
+            # Divided_Classes.append([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 28, 32, 35, 41, 56]) #DID + PZ
+            # # Divided_Classes.append([28, 32, 35, 41, 56]) #photozone ,
+            # Divided_Classes.append([24, 29, 30, 39, 40, 42]) # 야채칸 중 일부(mAP 높은 일부),
+            # # original VE
+            # # #Divided_Classes.append([23, 24, 25, 26, 27, 29, 30, 31, 33,34,36, 37, 38, 39, 40,42,43,44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 57, 58, 59]) #VE
         return Divided_Classes
 
     classes = [idx+1 for idx in range(Total_Classes)]
