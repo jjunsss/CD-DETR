@@ -180,7 +180,7 @@ class DABDETR(nn.Module):
         # prepare for dn
         input_query_label, input_query_bbox, attn_mask, mask_dict = \
             prepare_for_dn(self.dn_args, embedweight, src.size(0), self.training, self.num_queries, self.num_classes,
-                           self.hidden_dim, self.label_enc)        
+                           self.hidden_dim, self.label_enc, self.gt if self.gt is not None else None)        
             # prepare_for_dn(dn_args, embedweight, src.size(0), self.training, self.num_queries, self.num_classes,
             #                self.hidden_dim, self.label_enc)
 
