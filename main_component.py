@@ -13,6 +13,8 @@ import datasets
 import util.misc as utils
 import datasets.samplers as samplers
 import torch.distributed as dist
+import re
+
 from Custom_Dataset import *
 from custom_utils import *
 from custom_prints import *
@@ -23,7 +25,6 @@ from datasets import build_dataset, get_coco_api_from_dataset
 from engine import evaluate, train_one_epoch
 from models import get_models
 from glob import glob
-
 def init(args):
         utils.init_distributed_mode(args)
         print("git:\n  {}\n".format(utils.get_sha()))
@@ -235,12 +236,20 @@ class TrainingPipeline:
                     file_path = os.path.join(root, file)
                     all_files.append(file_path)
             return all_files
+        
+        def extract_last_number(filepath):
+            filename = filepath.split('/')[-1]  # get the last part after '/'
+            numbers = re.findall(r'\d+', filename)  # find all number sequences
+            if numbers:
+                return int(numbers[-1])  # return the last number
+            else:
+                return 0  # return 0 if there are no numbers
 
         # load all files in data
         if self.args.pretrained_model_dir is not None:
             self.args.pretrained_model = load_all_files(self.self.args.pretrained_model_dir)
             print(f"test directory list : {len(self.args.pretrained_model)}")
-            self.args.pretrained_model.sort()
+            args.pretrained_model.sort(key=extract_last_number)
             print(f"test directory examples : {self.args.pretrained_model}")
             
         for enum, predefined_model in enumerate(self.args.pretrained_model):
@@ -277,8 +286,7 @@ class TrainingPipeline:
         args = self.args
         if isinstance(dataset_train, list):
             temp_dataset, temp_loader, temp_sampler = copy.deepcopy(dataset_train), copy.deepcopy(data_loader_train), copy.deepcopy(sampler_train)
-        T_epochs = args.Task_Epochs[0]
-        for epoch in range(self.start_epoch, T_epochs): #어차피 Task마다 훈련을 진행해야 하고, 중간점음 없을 것이므로 TASK마다 훈련이 되도록 만들어도 상관이 없음
+        for epoch in range(self.start_epoch, self.Task_Epochs): #어차피 Task마다 훈련을 진행해야 하고, 중간점음 없을 것이므로 TASK마다 훈련이 되도록 만들어도 상관이 없음
             if args.MixReplay and args.Rehearsal and task_idx >= 1:
                 dataset_index = epoch % 2 
                 self.dataset_name = ["AugReplay", "Original"]
