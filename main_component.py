@@ -319,11 +319,13 @@ class TrainingPipeline:
         self.load_replay.extend(self.Divided_Classes[task_idx])
         self.teacher_model = self.model_without_ddp #Trained Model Change in change TASK 
         self.teacher_model = teacher_model_freeze(self.teacher_model)
-        
+
+    # when only construct replay buffer    
     def construct_replay_buffer(self):
         contruct_replay_extra_epoch(args=self.args, Divided_Classes=self.Divided_Classes, model=self.model,
                                     criterion=self.criterion, device=self.device, rehearsal_classes=self.rehearsal_classes)
-        
+
+    # No incremental learning process    
     def only_one_task_training(self):
         dataset_train, data_loader_train, sampler_train, list_CC = Incre_Dataset(0, self.args, self.Divided_Classes)
         
