@@ -114,7 +114,7 @@ def get_args_parser():
 
 def deform_detr_parser(parser):
     # Variants of Deformable DETR
-    parser.add_argument('--with_box_refine', default=True, action='store_true')
+    parser.add_argument('--with_box_refine', default=False, action='store_true')
 
     # lr
     parser.add_argument('--lr', default=2e-4, type=float)

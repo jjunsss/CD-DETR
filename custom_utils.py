@@ -321,7 +321,7 @@ def _rearrange_targets(no_use_count: int, samples: utils.NestedTensor, targets: 
 
 
 def load_model_params(mode, model: model,
-                      dir: str = "/home/user/Desktop/jjunsss/CL_DDETR/baseline_ddetr.pth"):
+                      dir: str = None):
     new_model_dict = model.state_dict()
     
     if isinstance(dir, list):

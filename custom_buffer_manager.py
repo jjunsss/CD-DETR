@@ -184,12 +184,12 @@ def _calc_target(rehearsal_classes, replace_strategy="hierarchical", ):
 
 def _save_rehearsal_for_combine(task, dir, rehearsal, epoch):
     #* save the capsulated dataset(Boolean, image_id:int)
-    if not os.path.exists(dir) and utils.is_main_process() :
-        os.mkdir(dir)
-        print(f"Directroy created")
-    
-    if not os.path.exists(dir+"backup/") and utils.is_main_process() :
-        os.mkdir(dir+"backup/")
+    if not os.path.exists(dir) and utils.is_main_process():
+        os.makedirs(dir, exist_ok=True)
+        print(f"Directory created")
+
+    if not os.path.exists(dir+"/backup/") and utils.is_main_process():
+        os.makedirs(dir+"/backup/", exist_ok=True)
         print(f"Backup directory created")    
         
     if utils.get_world_size() > 1:
