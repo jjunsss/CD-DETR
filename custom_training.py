@@ -125,6 +125,86 @@ def _common_training(args, epo, idx, last_task, count, sum_loss,
 
     return count, sum_loss
 
+
+@torch.no_grad()
+def icarl_rehearsal_training(args, samples, targets, model: torch.nn.Module, criterion: torch.nn.Module, 
+                       rehearsal_classes, current_classes):
+
+    from tqdm import tqdm
+    from copy import deepcopy
+
+    def feature_extractor_setup(model):
+        feature_extractor = deepcopy(model.module.backbone)
+        for n, p in feature_extractor.named_parameters():
+            p.requires_grad = False
+
+        return feature_extractor
+
+    def prototype_setup(feature_extractor, data_loader, device, args):
+   
+        feature_extractor.eval()
+        prototypes = {}
+        with torch.no_grad():
+            for sample, target in tqdm(data_loader, desc='Construct_prototype:'):
+                sample = sample.to(device)
+                target = target[0]
+                feature, _ = feature_extractor(sample)
+                feature_0 = feature[0].tensors.squeeze(dim=0)
+
+                label_tensor = target['labels']
+                label_tensor_unique = torch.unique(label_tensor)
+                label_list_unique = label_tensor_unique.tolist()
+                for label in label_list_unique:
+                    try:
+                        if not prototypes[label]:
+                            prototypes[label] = [feature_0, 1]
+                        else:
+                            prototypes[label][0] += feature_0
+                            prototypes[label][1] += 1
+                    except KeyError:
+                        print('The label isnot in this Task!!')
+
+        return prototypes
+
+    fe = feature_extractor_setup(model)
+    fe.eval()
+    proto = prototype_setup()
+    feature, pos = fe(samples)
+    feature_0 = feature[0].tensors.squeeze(dim=0).cpu()
+
+    label_tensor = targets['labels']
+    label_tensor_unique = torch.unique(label_tensor)
+    label_list_unique = label_tensor_unique.tolist()
+    for label in label_list_unique:
+        try:
+            class_mean = (proto[label][0] / proto[label][1]).cpu()
+        except KeyError:
+            print(f'label: {label} donot in prototype: {proto.keys()}')
+            continue
+
+        if rehearsal_classes[label]:
+            exemplar_mean = (rehearsal_classes[label][0].cpu() + feature_0) / (len(rehearsal_classes[label]) + 1)
+            difference = torch.mean(torch.sqrt(torch.sum((class_mean - exemplar_mean)**2, axis=1))).item()
+
+            rehearsal_classes[label][0] = rehearsal_classes[label][0].cpu()                    
+            rehearsal_classes[label][0]+= feature_0
+            rehearsal_classes[label][1].append([targets['image_id'].item(), difference])
+        else:
+            difference = torch.argmin(torch.sqrt(torch.sum((class_mean - feature_0)**2, axis=0))).item() # argmin is true????
+            rehearsal_classes[label] = [feature_0, [[targets['image_id'].item(), difference], ]]
+        
+        rehearsal_classes[label][1].sort(key=lambda x: x[1]) # sort with difference
+
+    # construct rehearsal (3) - reduce exemplar set
+    for label, data in tqdm(rehearsal_classes.items(), desc='Reduce_exemplar:'):
+        try:
+            data[1] = data[1][:args.Memory]
+        except:
+            continue
+
+        return rehearsal_classes
+
+
 def rehearsal_training(args, samples, targets, model: torch.nn.Module, criterion: torch.nn.Module, 
                        rehearsal_classes, current_classes):
     '''

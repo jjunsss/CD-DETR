@@ -44,7 +44,11 @@ def _extra_epoch_for_replay(args, data_loader, prefetcher, model, criterion, reh
             samples, targets, _, _ = prefetcher.next()
                 
             # extra training을 통해서 replay 데이터를 수집하도록 설정
-            rehearsal_classes = rehearsal_training(args, samples, targets, model, criterion, 
+            if args.Sampling_strategy == "icarl":
+                rehearsal_classes = icarl_rehearsal_training(args, samples, targets, model, criterion, 
+                                                   rehearsal_classes, current_classes)
+            else:
+                rehearsal_classes = rehearsal_training(args, samples, targets, model, criterion, 
                                                    rehearsal_classes, current_classes)
             if idx % 100 == 0:
                 torch.cuda.empty_cache()
