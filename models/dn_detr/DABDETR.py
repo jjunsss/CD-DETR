@@ -233,7 +233,7 @@ class PostProcess(nn.Module):
         self.num_select = num_select
 
     @torch.no_grad()
-    def forward(self, outputs, target_sizes):
+    def forward(self, outputs, target_sizes, model_name=None):
         """ Perform the computation
         Parameters:
             outputs: raw outputs of the model
@@ -241,6 +241,9 @@ class PostProcess(nn.Module):
                           For evaluation, this must be the original image size (before any data augmentation)
                           For visualization, this should be the image size after data augment, but before padding
         """
+        if model_name == 'dn_detr':
+            outputs = outputs[0]
+        
         num_select = self.num_select
         out_logits, out_bbox = outputs['pred_logits'], outputs['pred_boxes']
 
