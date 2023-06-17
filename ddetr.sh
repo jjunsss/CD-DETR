@@ -1,0 +1,17 @@
+PUS_PER_NODE=4 ./tools/run_dist_launch.sh 4 ./configs/r50_deformable_detr.sh \
+    --batch_size 16 \
+    --output_dir "./test/" \
+    --Task_Epochs 30 \
+    --Task 2 \
+    --CL_Limited 0 \
+    --start_epoch 0 \
+    --start_task 0 \
+    --verbose  \
+    --Total_Classes 59 \
+    --LG \
+    --coco_path "../didvepz/plustotal/" \
+    --Total_Classes_Names \
+    --num_workers 16  \
+    --limit_image 1000 \
+    --least_image 30 \
+    --Rehearsal \
