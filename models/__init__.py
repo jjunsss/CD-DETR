@@ -1,3 +1,5 @@
+import sys
+
 def get_models(model_name, args, num_classes, current_class):
     # build model
     if model_name == 'deform_detr':
@@ -9,13 +11,18 @@ def get_models(model_name, args, num_classes, current_class):
 
     return build_model(args, num_classes, current_class)
 
-def _prepare_denoising_args(model, targets, args=None, eval=False):
-    if eval:
-        dn_args = 0
-    else:
-        dn_args=(targets, args.scalar, args.label_noise_scale, args.box_noise_scale, args.num_patterns)
-        if args.contrastive is not False:
-            dn_args += (args.contrastive,)
-
-    model.dn_args = dn_args # dn_detr & teacher_model도 고려?
-    return model
+def inference_model(args, model, samples, targets=None, eval=False):
+    if args.model_name == 'deform_detr':
+        return model(samples)
+    
+    elif args.model_name == 'dn_detr':
+        assert targets is not None
+        if eval:
+            dn_args = 0
+        else:
+            dn_args=(targets, args.scalar, args.label_noise_scale, args.box_noise_scale, args.num_patterns)
+            if args.contrastive is not False:
+                dn_args += (args.contrastive,)
+        return model(samples, dn_args)
+    
+    sys.exit(0)
