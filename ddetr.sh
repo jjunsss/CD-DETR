@@ -1,5 +1,6 @@
-PUS_PER_NODE=4 ./tools/run_dist_launch.sh 4 ./configs/r50_deformable_detr.sh \
+PUS_PER_NODE=4 ./tools/run_dist_launch.sh 4 ./configs/dn_detr.sh \
     --batch_size 16 \
+    --model_name 'dn_detr' \
     --output_dir "./test/" \
     --Task_Epochs 30 \
     --Task 2 \
@@ -9,9 +10,10 @@ PUS_PER_NODE=4 ./tools/run_dist_launch.sh 4 ./configs/r50_deformable_detr.sh \
     --verbose  \
     --Total_Classes 59 \
     --LG \
-    --coco_path "../didvepz/plustotal/" \
+    --coco_path "../../lg/didvepz/plustotal/" \
     --Total_Classes_Names \
     --num_workers 16  \
     --limit_image 1000 \
     --least_image 30 \
     --Rehearsal \
+    --Sampling_strategy icarl \

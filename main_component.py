@@ -216,7 +216,7 @@ class TrainingPipeline:
             if os.path.isfile(self.DIR):
                 os.remove(self.DIR) # self.DIR = args.output_dir + 'mAP_TEST.txt'
         else:
-            dir_list = ["/home/user/Desktop/vscode"+ args.coco_path]
+            dir_list = [args.coco_path] # "/home/user/Desktop/vscode"+ 
         
         # FIXME: change directory list
         # filename_list = ["didtest", "pztest", "VE2021", "VEmultisingle", "VE10test"] # for DID, PZ, VE, VE, VE

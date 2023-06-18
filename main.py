@@ -109,6 +109,8 @@ def main(args):
 
     
 if __name__ == '__main__':
+    import warnings
+    warnings.filterwarnings("ignore", category=UserWarning) 
     parser = argparse.ArgumentParser('Training and evaluation script', parents=[get_args_parser()])
     parent_args = parser.parse_known_args()[0]
 
