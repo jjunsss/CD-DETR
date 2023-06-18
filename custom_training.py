@@ -158,12 +158,12 @@ def icarl_prototype_setup(args, feature_extractor, device, current_classes):
     proto = defaultdict(int)
 
     for cls in current_classes:
-        _dataset, _data_loader, _sampler = IcarlDataset(image_set='train', args=args, class_ids=[cls])
+        _dataset, _data_loader, _sampler = IcarlDataset(args=args, single_class=cls)
 
-        for samples, targets in tqdm(_data_loader, desc=f'Prototype:class_{cls}'):
+        for samples, targets, _, _ in tqdm(_data_loader, desc=f'Prototype:class_{cls}'):
             samples = samples.to(device)
             feature, _ = feature_extractor(samples)
-            feature_0 = feature[0].tensors.squeeze(dim=0)
+            feature_0 = feature[0].tensors
             proto[cls] += feature_0
 
         proto[cls] = proto[cls] / _dataset.__len__()

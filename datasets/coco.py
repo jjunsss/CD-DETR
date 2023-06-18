@@ -154,7 +154,7 @@ def origin_transform(image_set):
             image_normalize,
         ])
 
-def make_coco_transforms(image_set):
+def make_coco_transforms(image_set, fix_size=False):
 
     normalize = T.Compose([
         T.ToTensor(),
@@ -166,6 +166,13 @@ def make_coco_transforms(image_set):
 
         
     if image_set == 'train':
+        if fix_size:
+            return T.Compose([
+                T.RandomHorizontalFlip(),
+                T.RandomResize(sizes=[(600, 600)], max_size=None),
+                normalize,
+            ])
+        
         return T.Compose([
             T.RandomHorizontalFlip(),
             T.RandomSelect(   
@@ -210,6 +217,6 @@ def build(image_set, args, img_ids = None, class_ids = None):
     }
 
     img_folder, ann_file = PATHS[image_set]
-    dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms(image_set), origin_transforms=origin_transform(image_set), return_masks=args.masks,
+    dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms(image_set, args.Sampling_strategy=='icarl'), origin_transforms=origin_transform(image_set), return_masks=args.masks,
                             cache_mode=args.cache_mode, local_rank=get_local_rank(), local_size=get_local_size(), img_ids=img_ids, class_ids=class_ids)
     return dataset
