@@ -6,6 +6,7 @@ import datasets.samplers as samplers
 import torch
 import numpy as np
 
+
 def Incre_Dataset(Task_Num, args, Incre_Classes, extra_dataset = False):    
     current_classes = Incre_Classes[Task_Num]
     print(f"current_classes : {current_classes}")
@@ -142,6 +143,8 @@ def weight_dataset(re_dict):
     
     return keys, weights
 
+
+
 import copy
 class CustomDataset(torch.utils.data.Dataset):
     def __init__(self, args, re_dict, old_classes):
@@ -232,3 +235,26 @@ def CombineDataset(args, RehearsalData, CurrentDataset,
     
     
     return NewTaskTraining, CombinedLoader, sampler_train
+
+
+def IcarlDataset(args, single_class:int):
+    '''
+        For initiating prototype-mean of the feature of corresponding, single class-, dataset composed to single class is needed.
+    '''
+    
+    dataset = build_dataset(image_set='train', args=args, class_ids=[single_class])
+        
+    if args.distributed:
+        if args.cache_mode:
+            sampler = samplers.NodeDistributedSampler(dataset)
+        else:
+            sampler = samplers.DistributedSampler(dataset)
+    else:
+        sampler = torch.utils.data.RandomSampler(dataset)
+        
+    batch_sampler = torch.utils.data.BatchSampler(sampler, args.batch_size, drop_last=True)
+    data_loader = DataLoader(dataset, batch_sampler=batch_sampler,
+                                collate_fn=utils.collate_fn, num_workers=args.num_workers,
+                                pin_memory=True)
+    
+    return dataset, data_loader, sampler

@@ -22,6 +22,9 @@ from typing import Tuple, Dict, List, Optional
 from torch.cuda.amp import autocast
 from custom_fake_target import normal_query_selc_to_target, only_oldset_mosaic_query_selc_to_target
 from models import inference_model
+from tqdm import tqdm
+from copy import deepcopy
+
 
 @decompose
 def decompose_dataset(no_use_count: int, samples: utils.NestedTensor, targets: Dict, origin_samples: utils.NestedTensor, 
@@ -127,63 +130,75 @@ def _common_training(args, epo, idx, last_task, count, sum_loss,
 
 
 @torch.no_grad()
-def icarl_rehearsal_training(args, samples, targets, model: torch.nn.Module, criterion: torch.nn.Module, 
-                       rehearsal_classes, current_classes):
-
-    from tqdm import tqdm
-    from copy import deepcopy
-
-    def feature_extractor_setup(model):
+def icarl_feature_extractor_setup(args, model):
+    '''
+        In iCaRL, buffer manager collect samples closed to the mean of features of corresponding class.
+        This function set up feature extractor for collecting.
+    '''
+    if args.distributed:
         feature_extractor = deepcopy(model.module.backbone)
-        for n, p in feature_extractor.named_parameters():
-            p.requires_grad = False
+    else:
+        feature_extractor = deepcopy(model.backbone) # distributed:model.module.backbone
+    
+    for n, p in feature_extractor.named_parameters():
+        p.requires_grad = False
 
-        return feature_extractor
+    return feature_extractor
 
-    def prototype_setup(feature_extractor, data_loader, device, args):
-   
-        feature_extractor.eval()
-        prototypes = {}
-        with torch.no_grad():
-            for sample, target in tqdm(data_loader, desc='Construct_prototype:'):
-                sample = sample.to(device)
-                target = target[0]
-                feature, _ = feature_extractor(sample)
-                feature_0 = feature[0].tensors.squeeze(dim=0)
 
-                label_tensor = target['labels']
-                label_tensor_unique = torch.unique(label_tensor)
-                label_list_unique = label_tensor_unique.tolist()
-                for label in label_list_unique:
-                    try:
-                        if not prototypes[label]:
-                            prototypes[label] = [feature_0, 1]
-                        else:
-                            prototypes[label][0] += feature_0
-                            prototypes[label][1] += 1
-                    except KeyError:
-                        print('The label isnot in this Task!!')
+@torch.no_grad()
+def icarl_prototype_setup(args, feature_extractor, device, current_classes):
+    '''
+        In iCaRL, buffer manager collect samples closed to the mean of features of corresponding class.
+        This function set up prototype-mean of features of corresponding class-.
+        Prototype can be the 'criteria' to select closest samples.
+    '''
+    
+    feature_extractor.eval()
+    proto = defaultdict(int)
 
-        return prototypes
+    for cls in current_classes:
+        _dataset, _data_loader, _sampler = IcarlDataset(image_set='train', args=args, class_ids=[cls])
 
-    fe = feature_extractor_setup(model)
+        for samples, targets in tqdm(_data_loader, desc=f'Prototype:class_{cls}'):
+            samples = samples.to(device)
+            feature, _ = feature_extractor(samples)
+            feature_0 = feature[0].tensors.squeeze(dim=0)
+            proto[cls] += feature_0
+
+        proto[cls] = proto[cls] / _dataset.__len__()
+
+    return proto
+
+
+@torch.no_grad()
+def icarl_rehearsal_training(args, samples, targets, fe: torch.nn.Module, proto: Dict, device:torch.device,
+                       rehearsal_classes, current_classes):
+    '''
+        iCaRL buffer collection.
+
+        rehearsal_classes : [feature_sum, [[image_ids, difference] ...]]
+        TODO: move line:200~218 to construct_rehearsal
+    '''
+
     fe.eval()
-    proto = prototype_setup()
+    samples.to(device)
+
     feature, pos = fe(samples)
-    feature_0 = feature[0].tensors.squeeze(dim=0).cpu()
+    feature_0 = feature[0].tensors.squeeze(dim=0) # TODO: cpu or cuda?
 
     label_tensor = targets['labels']
     label_tensor_unique = torch.unique(label_tensor)
     label_list_unique = label_tensor_unique.tolist()
     for label in label_list_unique:
         try:
-            class_mean = (proto[label][0] / proto[label][1]).cpu()
+            class_mean = proto[label]
         except KeyError:
-            print(f'label: {label} donot in prototype: {proto.keys()}')
+            print(f'label: {label} don\'t in prototype: {proto.keys()}')
             continue
 
         if rehearsal_classes[label]:
-            exemplar_mean = (rehearsal_classes[label][0].cpu() + feature_0) / (len(rehearsal_classes[label]) + 1)
+            exemplar_mean = (rehearsal_classes[label][0] + feature_0) / (len(rehearsal_classes[label]) + 1)
             difference = torch.mean(torch.sqrt(torch.sum((class_mean - exemplar_mean)**2, axis=1))).item()
 
             rehearsal_classes[label][0] = rehearsal_classes[label][0].cpu()                    
@@ -198,7 +213,7 @@ def icarl_rehearsal_training(args, samples, targets, model: torch.nn.Module, cri
     # construct rehearsal (3) - reduce exemplar set
     for label, data in tqdm(rehearsal_classes.items(), desc='Reduce_exemplar:'):
         try:
-            data[1] = data[1][:args.Memory]
+            data[1] = data[1][:args.limit_image]
         except:
             continue
 
@@ -233,7 +248,7 @@ def rehearsal_training(args, samples, targets, model: torch.nn.Module, criterion
         batch_loss_dict["loss_labels"] = [loss.item() for loss in criterion.losses_for_replay["loss_labels"]]
     
         targets = [{k: v.to(ex_device) for k, v in t.items()} for t in targets]
-        rehearsal_classes = contruct_rehearsal(args, losses_dict=batch_loss_dict, targets=targets,
+        rehearsal_classes = construct_rehearsal(args, losses_dict=batch_loss_dict, targets=targets,
                                                 rehearsal_dict=rehearsal_classes, 
                                                 current_classes=current_classes,
                                                 least_image=args.least_image,

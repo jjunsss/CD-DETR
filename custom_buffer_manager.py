@@ -87,7 +87,8 @@ def _change_available_list_mode(mode, rehearsal_dict, need_to_include, least_ima
         
     return changed_available_dict
 
-def contruct_rehearsal(args, losses_dict: dict, targets, rehearsal_dict: List, 
+
+def construct_rehearsal(args, losses_dict: dict, targets, rehearsal_dict: List, 
                        current_classes: List[int], least_image: int = 3, limit_image:int = 100) -> Dict:
 
     loss_value = 0.0
@@ -140,8 +141,8 @@ def contruct_rehearsal(args, losses_dict: dict, targets, rehearsal_dict: List,
                                         rehearsal_classes=rehearsal_dict, label_tensor_unique_list=label_tensor_unique_list,
                                         image_id=image_id, num_bounding_boxes=bbox_counts)
     
-
     return rehearsal_dict
+
 
 def _check_rehearsal_size(limit_memory_size, rehearsal_classes, unique_classes_list, ):
     if len(rehearsal_classes.keys()) == 0:
@@ -151,6 +152,7 @@ def _check_rehearsal_size(limit_memory_size, rehearsal_classes, unique_classes_l
     
     check = all([value < limit_memory_size for value in check_list])
     return check
+
 
 def _calc_target(rehearsal_classes, replace_strategy="hierarchical", ): 
 
@@ -182,6 +184,7 @@ def _calc_target(rehearsal_classes, replace_strategy="hierarchical", ):
 
     return sorted_result
 
+
 def _save_rehearsal_for_combine(task, dir, rehearsal, epoch):
     #* save the capsulated dataset(Boolean, image_id:int)
     if not os.path.exists(dir) and utils.is_main_process():
@@ -205,7 +208,7 @@ def _save_rehearsal_for_combine(task, dir, rehearsal, epoch):
     except:
         dist_rank = 0
     backup_dir = os.path.join(
-        dir + "backup/", str(dist_rank) + "_gpu_rehearsal_task_" + str(task) + "_ep_" + str(epoch)
+        dir + "/backup/", str(dist_rank) + "_gpu_rehearsal_task_" + str(task) + "_ep_" + str(epoch)
     )
     dir = os.path.join(
         dir, str(dist_rank) + "_gpu_rehearsal_task_" + str(task) + "_ep_" + str(epoch)
@@ -215,6 +218,7 @@ def _save_rehearsal_for_combine(task, dir, rehearsal, epoch):
         
     with open(backup_dir, 'wb') as f:
         pickle.dump(temp_dict, f)
+
 
 import pickle
 import os
@@ -241,6 +245,7 @@ def load_rehearsal(dir, task=None, memory=None):
             print(colored(f"********** Loading replay data ***********", "light_red", "on_yellow"))
             return temp
 
+
 def _handle_rehearsal(args, dir, limit_memory_size, gpu_counts, task, epoch, least_image, list_CC, include_all=False):
     def load_dictionaries_from_files(dir_list):
         merged_dict = {}
@@ -263,8 +268,7 @@ def _handle_rehearsal(args, dir, limit_memory_size, gpu_counts, task, epoch, lea
 
     for each_dir in dir_list:
         if not os.path.exists(each_dir):
-            raise Exception("No rehearsal file")
-            
+            raise Exception("No rehearsal file")   
     
     print(colored(f"Total memory : {len(dir_list)} ", "blue"))
     merge_dict = load_dictionaries_from_files(dir_list)
@@ -312,8 +316,10 @@ def _handle_rehearsal(args, dir, limit_memory_size, gpu_counts, task, epoch, lea
     print(colored(f"Complete generating new buffer", "dark_grey", "on_yellow"))
     return new_buffer_dict
 
+
 def _multigpu_rehearsal(args, dir, limit_memory_size, gpu_counts, task, epoch, least_image, list_CC):
     return _handle_rehearsal(args, dir, limit_memory_size, gpu_counts, task, epoch, least_image, list_CC, include_all=False)
+
 
 def _merge_replay_for_multigpu(args, dir, limit_memory_size, gpu_counts, task, epoch, least_image, list_CC):
     return _handle_rehearsal(args, dir, limit_memory_size, gpu_counts, task, epoch, least_image, list_CC, include_all=True)
@@ -353,12 +359,13 @@ def construct_combined_rehearsal(args, task:int ,dir:str ,rehearsal:dict ,epoch:
     rehearsal_classes = load_rehearsal(all_dir)
     return rehearsal_classes
 
+
 from Custom_Dataset import *
 from custom_prints import *
-from engine import train_one_epoch
+from engine import _extra_epoch_for_replay
 from custom_utils import buffer_checker
 
-def contruct_replay_extra_epoch(args, Divided_Classes, model, criterion, device, rehearsal_classes={}, data_loader_train=None, list_CC=None):
+def construct_replay_extra_epoch(args, Divided_Classes, model, criterion, device, rehearsal_classes={}, data_loader_train=None, list_CC=None):
     
     # 0. Initialization
     extra_epoch = True
@@ -368,10 +375,8 @@ def contruct_replay_extra_epoch(args, Divided_Classes, model, criterion, device,
     _, data_loader_train, _, list_CC = Incre_Dataset(0, args, Divided_Classes, extra_epoch) 
     
     # 2. Extra epoch, 모든 이미지들의 Loss를 측정
-    rehearsal_classes = train_one_epoch(args, last_task=False, epo=0, model=model, teacher_model=None,
-                                        criterion=criterion, data_loader=data_loader_train, optimizer=None,
-                                        lr_scheduler=None, device=device, dataset_name="", current_classes=list_CC, 
-                                        rehearsal_classes=rehearsal_classes, extra_epoch=extra_epoch)
+    rehearsal_classes = _extra_epoch_for_replay(args, dataset_name="", data_loader=data_loader_train, model=model, criterion=criterion, 
+                                                device=device, current_classes=list_CC, rehearsal_classes=rehearsal_classes)
 
     # 3. 수집된 Buffer를 특정 파일에 저장
     if args.Rehearsal_file is None:

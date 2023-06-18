@@ -38,14 +38,22 @@ def decompose_dataset(no_use_count: int, samples: utils.NestedTensor, targets: D
     batch_size = len(targets)
     return (batch_size, no_use_count, samples, targets, origin_samples, origin_targets, used_number)
 
-def _extra_epoch_for_replay(args, data_loader, prefetcher, model, criterion, rehearsal_classes, current_classes):
+
+def _extra_epoch_for_replay(args, dataset_name: str, data_loader: Iterable, model: torch.nn.Module, criterion: torch.nn.Module,
+                                 device: torch.device, rehearsal_classes, current_classes):
+
+    prefetcher = create_prefetcher(dataset_name, data_loader, device, args)
+    if args.Sampling_strategy == "icarl":
+        fe = icarl_feature_extractor_setup(args, model)
+        proto = icarl_prototype_setup(args, fe, device, current_classes)
+
     with torch.no_grad():
         for idx in tqdm(range(len(data_loader)), disable=not utils.is_main_process()): #targets
             samples, targets, _, _ = prefetcher.next()
                 
             # extra training을 통해서 replay 데이터를 수집하도록 설정
             if args.Sampling_strategy == "icarl":
-                rehearsal_classes = icarl_rehearsal_training(args, samples, targets, model, criterion, 
+                rehearsal_classes = icarl_rehearsal_training(args, samples, targets, fe, proto, device,
                                                    rehearsal_classes, current_classes)
             else:
                 rehearsal_classes = rehearsal_training(args, samples, targets, model, criterion, 
@@ -59,6 +67,7 @@ def _extra_epoch_for_replay(args, data_loader, prefetcher, model, criterion, reh
                     break
     return rehearsal_classes
 
+
 def create_prefetcher(dataset_name: str, data_loader: Iterable, device: torch.device, args: any) \
         -> data_prefetcher:
     if dataset_name == "Original":    
@@ -68,18 +77,14 @@ def create_prefetcher(dataset_name: str, data_loader: Iterable, device: torch.de
     else:
         return data_prefetcher(data_loader, device, prefetch=True, Mosaic=False)
 
+
 def train_one_epoch(args, last_task, epo, model: torch.nn.Module, teacher_model, criterion: torch.nn.Module,
                     data_loader: Iterable, optimizer: torch.optim.Optimizer, lr_scheduler: ContinualStepLR,
                     device: torch.device, dataset_name: str,  
                     current_classes: List = [], rehearsal_classes: Dict = {},
                     extra_epoch: bool = False):
     ex_device = torch.device("cpu")
-    
     prefetcher = create_prefetcher(dataset_name, data_loader, device, args)
-    if extra_epoch:
-        rehearsal_classes = _extra_epoch_for_replay(args, data_loader=data_loader, prefetcher=prefetcher, model=model, criterion=criterion,
-                                rehearsal_classes=rehearsal_classes, current_classes=current_classes)
-        return rehearsal_classes
     
     set_tm = time.time()
     sum_loss = 0.0
@@ -114,6 +119,7 @@ def train_one_epoch(args, last_task, epo, model: torch.nn.Module, teacher_model,
         
     if utils.is_main_process():
         print("Total Time : ", time.time() - set_tm)
+
 
 @torch.no_grad()
 def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, output_dir, DIR, args) :
