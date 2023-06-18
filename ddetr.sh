@@ -1,6 +1,7 @@
 PUS_PER_NODE=4 ./tools/run_dist_launch.sh 4 ./configs/dn_detr.sh \
     --batch_size 16 \
-    --model_name 'dn_detr' \
+    --model_name dn_detr \
+    --use_dn \
     --output_dir "./test/" \
     --Task_Epochs 30 \
     --Task 2 \
@@ -15,5 +16,6 @@ PUS_PER_NODE=4 ./tools/run_dist_launch.sh 4 ./configs/dn_detr.sh \
     --num_workers 16  \
     --limit_image 1000 \
     --least_image 30 \
+    --Branch_Incremental \
     --Rehearsal \
     --Sampling_strategy icarl \
