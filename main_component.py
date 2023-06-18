@@ -307,7 +307,7 @@ class TrainingPipeline:
         # For generating buffer with extra epoch
         if last_task == False and args.Rehearsal:
             print(f"model update for generating buffer list")
-            self.rehearsal_classes = contruct_replay_extra_epoch(args=self.args, Divided_Classes=self.Divided_Classes, model=self.model,
+            self.rehearsal_classes = construct_replay_extra_epoch(args=self.args, Divided_Classes=self.Divided_Classes, model=self.model,
                                                                 criterion=self.criterion, device=self.device, rehearsal_classes=self.rehearsal_classes,
                                                                 data_loader_train=data_loader_train, list_CC=list_CC)
             print(f"complete save and merge replay's buffer process")
@@ -322,7 +322,7 @@ class TrainingPipeline:
 
     # when only construct replay buffer    
     def construct_replay_buffer(self):
-        contruct_replay_extra_epoch(args=self.args, Divided_Classes=self.Divided_Classes, model=self.model,
+        construct_replay_extra_epoch(args=self.args, Divided_Classes=self.Divided_Classes, model=self.model,
                                     criterion=self.criterion, device=self.device, rehearsal_classes=self.rehearsal_classes)
 
     # No incremental learning process    
