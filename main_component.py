@@ -176,8 +176,6 @@ class TrainingPipeline:
         start_epoch = 0
         start_task = 0
         tasks = args.Task
-        if args.test_file_list is None:
-            args.test_file_list = ["didtest", "pztest", "VE2021", "VEmultisingle", "VE10test"]
         Divided_Classes = DivideTask_for_incre(args.Task, args.Total_Classes, args.Total_Classes_Names, args.eval, args.test_file_list)
         if args.Total_Classes_Names == True :
             tasks = len(Divided_Classes)    

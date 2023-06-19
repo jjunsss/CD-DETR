@@ -5,6 +5,7 @@ from torch.utils.data import DataLoader, ConcatDataset
 import datasets.samplers as samplers
 import torch
 import numpy as np
+from termcolor import colored
 
 def Incre_Dataset(Task_Num, args, Incre_Classes, extra_dataset = False):    
     current_classes = Incre_Classes[Task_Num]
@@ -51,6 +52,36 @@ def Incre_Dataset(Task_Num, args, Incre_Classes, extra_dataset = False):
     
     return dataset_train, data_loader_train, sampler_train, current_classes
 
+def make_class(test_file):
+    #####################################
+    ########## !! Edit here !! ##########
+    #####################################
+    class_dict = {
+        'file_name': ['did', 'pz', 've'],
+        'class_idx': [
+            [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21], # DID
+            [28, 32, 35, 41, 56], # photozone
+            [24, 29, 30, 39, 40, 42] # 야채칸 중 일부(mAP 높은 일부)
+        ]
+    }
+    #####################################
+    
+    # case_1) file name에 VE가 포함되어 있지 않은 경우
+    if test_file.lower() in ['2021', 'multisingle', '10test']:
+        test_file = 've' + test_file
+    # case_2) 혼합 데이터셋
+    if '+' in test_file:
+        task_list = test_file.split('+')
+        tmp = []
+        for task in task_list:
+            idx = [name in task.lower() for name in class_dict['file_name']].index(True)
+            tmp.append(class_dict['class_idx'][idx])
+        res = sum(tmp, [])
+        return res  # early return
+    
+    idx = [name in test_file.lower() for name in class_dict['file_name']].index(True)
+    return class_dict['class_idx'][idx]
+
 
 def DivideTask_for_incre(Task_Counts: int, Total_Classes: int, DivisionOfNames: Boolean, eval=False, test_file_list=None):
     '''
@@ -61,35 +92,26 @@ def DivideTask_for_incre(Task_Counts: int, Total_Classes: int, DivisionOfNames: 
         #DivisionOfNames : Domain을 사용해서 분할
     '''
     if DivisionOfNames is True:
-        Divided_Classes = []
-        # Edit here
-        class_dict = {
-            'file_name': ['did', 'pz', 've'],
-            'class_idx': [
-                [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21], # DID
-                [28, 32, 35, 41, 56], # photozone
-                # [24, 29, 30, 39, 40, 42] # 야채칸 중 일부(mAP 높은 일부)
-            ]
-        }
-
-        if eval:
-            # Evaluation
+        if test_file_list is not None:
+            Divided_Classes = []
             for test_file in test_file_list:
-                idx = [name in test_file.lower() for name in class_dict['file_name']].index(True)
                 Divided_Classes.append(
-                    class_dict['class_idx'][idx]
+                    make_class(test_file)
                 )
+            
+            msg = f"{'='*35} Entire Divided Classes {'='*35}\n{Divided_Classes}"
+            print(colored(msg, 'red'))
         else:
-            Divided_Classes.append([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21]) # DID
+            Divided_Classes.append([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, ]) # DID + PZ
             Divided_Classes.append([28, 32, 35, 41, 56]) # PZ 
-            # Divided_Classes.append([24, 29, 30, 39, 40, 42]) # custom VE
+            Divided_Classes.append([24, 29, 30, 39, 40, 42]) # custom VE
             # # Train
             # # # LG Incremental Learning
             # Divided_Classes.append([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 28, 32, 35, 41, 56]) #DID + PZ
             # # Divided_Classes.append([28, 32, 35, 41, 56]) #photozone ,
             # Divided_Classes.append([24, 29, 30, 39, 40, 42]) # 야채칸 중 일부(mAP 높은 일부),
             # # original VE
-            # # #Divided_Classes.append([23, 24, 25, 26, 27, 29, 30, 31, 33,34,36, 37, 38, 39, 40,42,43,44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 57, 58, 59]) #VE
+            # # #Divided_Classes.append([23, 24, 25, 26, 27, 29, 30, 31, 33,34,36, 37, 38, 39, 40,42,43,44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 57, 58, 59]) #VE              
         return Divided_Classes
 
     classes = [idx+1 for idx in range(Total_Classes)]
