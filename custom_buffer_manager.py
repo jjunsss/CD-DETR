@@ -247,7 +247,17 @@ def load_rehearsal(dir, task=None, memory=None):
 
 
 def _handle_rehearsal(args, dir, limit_memory_size, gpu_counts, task, epoch, least_image, list_CC, include_all=False):
-    def load_dictionaries_from_files(dir_list):
+
+    def load_dicts_from_files(dir_list):
+        merged_dict = {}
+        for dictionary_dir in dir_list:
+            with open(dictionary_dir, 'rb') as f :
+                temp = pickle.load(f)
+                merged_dict = {**merged_dict, **temp}
+        return merged_dict
+
+    # TODO: in incremental setting, class overlapping is exist?
+    def icarl_load_dicts_from_files(dir_list):
         merged_dict = {}
         for dictionary_dir in dir_list:
             with open(dictionary_dir, 'rb') as f :
@@ -271,47 +281,60 @@ def _handle_rehearsal(args, dir, limit_memory_size, gpu_counts, task, epoch, lea
             raise Exception("No rehearsal file")   
     
     print(colored(f"Total memory : {len(dir_list)} ", "blue"))
-    merge_dict = load_dictionaries_from_files(dir_list)
-    
     # For only one GPU processing, becuase effective buffer constructing
     print(colored(f"New buffer dictionary genrating for optimizing replay dataset", "dark_grey", "on_yellow"))
     new_buffer_dict = {}
-    for img_idx in merge_dict.keys():
-        loss_value = merge_dict[img_idx][0]
-        unique_classes_list = merge_dict[img_idx][1]
-        bbox_counts = merge_dict[img_idx][2]
-                                                # 0 -> loss value
-                                                # 1 -> unique classes list
 
-        if len(new_buffer_dict.keys()) <  limit_memory_size :                                        
-            new_buffer_dict[img_idx] = merge_dict[img_idx]
-        else : 
-            # First, generate a dictionary with counts of each class label in rehearsal_classes
-            image_counts_in_rehearsal = {class_label: sum(class_label in classes for _, classes, _ in new_buffer_dict.values()) for class_label in unique_classes_list}
+    if args.Sampling_strategy != 'icarl':
+        merge_dict = load_dicts_from_files(dir_list)
 
-            # Then, calculate the needed count for each class label and filter out those with a non-positive needed count
-            need_to_include = {class_label: count - least_image for class_label, count in image_counts_in_rehearsal.items() if (count - least_image) <= 0}
-            if len(need_to_include) > 0:
-                changed_available_dict = _change_available_list_mode(mode=args.Sampling_mode, rehearsal_dict=new_buffer_dict,
-                                            need_to_include=need_to_include, least_image=least_image, current_classes=list_CC)
-                
-                # all classes dont meet L requirement
-                targeted = _calc_target(rehearsal_classes=changed_available_dict, replace_strategy=args.Sampling_strategy, )
-                
-                del new_buffer_dict[targeted[0]]
-                new_buffer_dict[img_idx] = [loss_value, unique_classes_list, bbox_counts]
+        for img_idx in merge_dict.keys():
+            loss_value = merge_dict[img_idx][0]
+            unique_classes_list = merge_dict[img_idx][1]
+            bbox_counts = merge_dict[img_idx][2]
+                                                    # 0 -> loss value
+                                                    # 1 -> unique classes list
+
+            if len(new_buffer_dict.keys()) <  limit_memory_size :                                        
+                new_buffer_dict[img_idx] = merge_dict[img_idx]
+            else : 
+                # First, generate a dictionary with counts of each class label in rehearsal_classes
+                image_counts_in_rehearsal = {class_label: sum(class_label in classes for _, classes, _ in new_buffer_dict.values()) for class_label in unique_classes_list}
+
+                # Then, calculate the needed count for each class label and filter out those with a non-positive needed count
+                need_to_include = {class_label: count - least_image for class_label, count in image_counts_in_rehearsal.items() if (count - least_image) <= 0}
+                if len(need_to_include) > 0:
+                    changed_available_dict = _change_available_list_mode(mode=args.Sampling_mode, rehearsal_dict=new_buffer_dict,
+                                                need_to_include=need_to_include, least_image=least_image, current_classes=list_CC)
                     
-            else :
-                changed_available_dict = _change_available_list_mode(mode=args.Sampling_mode, rehearsal_dict=new_buffer_dict,
-                                            need_to_include=need_to_include, least_image=least_image, current_classes=list_CC)
-            
-                # all classes meet L requirement
-                # Just sampling strategy and replace strategy
-                targeted = _calc_target(rehearsal_classes=changed_available_dict, replace_strategy=args.Sampling_strategy,)
+                    # all classes dont meet L requirement
+                    targeted = _calc_target(rehearsal_classes=changed_available_dict, replace_strategy=args.Sampling_strategy, )
+                    
+                    del new_buffer_dict[targeted[0]]
+                    new_buffer_dict[img_idx] = [loss_value, unique_classes_list, bbox_counts]
+                        
+                else :
+                    changed_available_dict = _change_available_list_mode(mode=args.Sampling_mode, rehearsal_dict=new_buffer_dict,
+                                                need_to_include=need_to_include, least_image=least_image, current_classes=list_CC)
+                
+                    # all classes meet L requirement
+                    # Just sampling strategy and replace strategy
+                    targeted = _calc_target(rehearsal_classes=changed_available_dict, replace_strategy=args.Sampling_strategy,)
 
-                new_buffer_dict = _replacment_strategy(args=args, loss_value=loss_value, targeted=targeted, 
-                                                        rehearsal_classes=new_buffer_dict, label_tensor_unique_list=unique_classes_list,
-                                                        image_id=img_idx, num_bounding_boxes=bbox_counts)
+                    new_buffer_dict = _replacment_strategy(args=args, loss_value=loss_value, targeted=targeted, 
+                                                            rehearsal_classes=new_buffer_dict, label_tensor_unique_list=unique_classes_list,
+                                                            image_id=img_idx, num_bounding_boxes=bbox_counts)
+
+    else:
+        merged_dict = icarl_load_dicts_from_files(dir_list)
+        # for cls, val in merge_dict.items():
+        #     mean_feat = val[0]
+        #     img_ids = val[1] # with difference
+
+        #     if len(img_ids) <= limit_memory_size:
+        #         new_buffer_dict[cls] = val
+        #     else:
+        new_buffer_dict = merged_dict
             
     print(colored(f"Complete generating new buffer", "dark_grey", "on_yellow"))
     return new_buffer_dict
@@ -347,9 +370,8 @@ def construct_combined_rehearsal(args, task:int ,dir:str ,rehearsal:dict ,epoch:
             # 기존에 만들어진 합성 replay 데이터가 없을 때, 새롭게 만들어야 하는 상황을 가정, Becaus Binary Task Incremental Learning
             rehearsal_classes = _multigpu_rehearsal(args, dir, limit_memory_size, gpu_counts, task, epoch, least_image, list_CC)
         # #save combined replay buffer data for next training
-        _save_rehearsal(rehearsal_classes, dir, task, limit_memory_size)
-        
-        buffer_checker(rehearsal=rehearsal_classes)
+        _save_rehearsal(rehearsal_classes, dir, task, limit_memory_size) 
+        # buffer_checker(rehearsal=rehearsal_classes)
     
     # wait main process to finish
     if utils.get_world_size() > 1:    

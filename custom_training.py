@@ -170,6 +170,8 @@ def icarl_prototype_setup(args, feature_extractor, device, current_classes):
                 break
 
         proto[cls] = proto[cls] / _dataset.__len__()
+        if args.debug and cls == 10:
+            break
 
     return proto
 
@@ -198,6 +200,7 @@ def icarl_rehearsal_training(args, samples, targets, fe: torch.nn.Module, proto:
         label_list_unique = label_tensor_unique.tolist()
 
         for label in label_list_unique:
+            rehearsal_classes[label][0] = rehearsal_classes[label][0].to(device)
             try:
                 class_mean = proto[label]
             except KeyError:
