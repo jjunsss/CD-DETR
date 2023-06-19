@@ -40,6 +40,7 @@ def init(args):
 class TrainingPipeline:
     def __init__(self, args):
         init(args)
+        self.set_directory(args)
         self.args = args
         self.device = torch.device(args.device)
         self.Divided_Classes, self.dataset_name, self.start_epoch, self.start_task, self.tasks = self._incremental_setting()
@@ -50,6 +51,14 @@ class TrainingPipeline:
         self.load_replay, self.rehearsal_classes = self._load_replay_buffer()
         self.DIR = os.path.join(self.output_dir, 'mAP_TEST.txt')
         self.Task_Epochs = args.Task_Epochs
+    
+    def set_directory(self, args):
+        if args.pretrained_model_dir is not None:
+            if 'checkpoints' not in args.pretrained_model_dir:
+                args.pretrained_model_dir = os.path.join(args.pretrained_model_dir, 'checkpoints')
+        if args.Rehearsal_file is not None:
+            if 'replay' not in args.Rehearsal_file:
+                args.Rehearsal_file = os.path.join(args.Rehearsal_file, 'replay')
     
     def set_task_epoch(self, args, idx):
         epochs = self.Task_Epochs
