@@ -78,9 +78,9 @@ def DivideTask_for_incre(Task_Counts: int, Total_Classes: int, DivisionOfNames: 
                     class_dict['class_idx'][idx]
                 )
         else:
-            Divided_Classes.append([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, ]) # DID + PZ
+            Divided_Classes.append([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21]) # DID
             Divided_Classes.append([28, 32, 35, 41, 56]) # PZ 
-            Divided_Classes.append([24, 29, 30, 39, 40, 42]) # custom VE
+            # Divided_Classes.append([24, 29, 30, 39, 40, 42]) # custom VE
             # # Train
             # # # LG Incremental Learning
             # Divided_Classes.append([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 28, 32, 35, 41, 56]) #DID + PZ

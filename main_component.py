@@ -58,11 +58,13 @@ class TrainingPipeline:
         else:
             args.Task_Epochs = epochs[0]
     
-    def make_branch(self, task_idx, args):
+    def make_branch(self, task_idx, args, replay=False):
         self.model, self.model_without_ddp, self.criterion, \
-            self.postprocessors, self.teacher_model = self._build_and_setup_model(task_idx=task_idx)
+            self.postprocessors, self.teacher_model = self._build_and_setup_model(task_idx=task_idx, replay=replay)
         
-        weight_path = os.path.join(args.output_dir, f'checkpoints/cp_{self.tasks:02}_{task_idx:02}.pth')
+        base_path = '/'.join(args.Rehearsal_file.split('/')[:-1]) if replay else args.output_dir
+        
+        weight_path = os.path.join(base_path, f'checkpoints/cp_{self.tasks:02}_{task_idx:02}.pth')
         previous_weight = torch.load(weight_path)
 
         try:
@@ -78,9 +80,12 @@ class TrainingPipeline:
             previous_layer_weight = previous_weight['model']['class_embed.weight']
             previous_class_len = previous_layer_weight.size(0)
             
-            init_layer_weight[:previous_class_len] = previous_layer_weight            
+            init_layer_weight[:previous_class_len] = previous_layer_weight
+            
+        if replay:
+            return self.model
 
-    def _build_and_setup_model(self, task_idx):
+    def _build_and_setup_model(self, task_idx, replay=False):
         if self.args.Branch_Incremental is False:
             # Because original classes(whole classes) is 60 to LG, COCO is 91.
             num_classes = 60 if self.args.LG else 91
@@ -92,8 +97,11 @@ class TrainingPipeline:
         model, criterion, postprocessors = get_models(self.args.model_name, self.args, num_classes, current_class)
         pre_model = copy.deepcopy(model)
         model.to(self.device)
-        if self.args.pretrained_model is not None and not self.args.eval:
-            model = load_model_params("main", model, self.args.pretrained_model)
+        if self.args.pretrained_model is not None and not self.args.eval and not replay:
+            try:
+                model = load_model_params("main", model, self.args.pretrained_model)
+            except:
+                model = self.make_branch(1, self.args, replay=True)
         
         model_without_ddp = model
         
