@@ -187,6 +187,12 @@ def make_coco_transforms(image_set, fix_size=False):
         ])
         
     if image_set == 'extra':
+        if fix_size:
+            return T.Compose([
+                T.RandomHorizontalFlip(),
+                T.RandomResize(sizes=[(600, 600)], max_size=None),
+                normalize,
+            ])
         return T.Compose([
             T.RandomResize([608], max_size=1200),
             normalize,
