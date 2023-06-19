@@ -22,12 +22,14 @@ def Incre_Dataset(Task_Num, args, Incre_Classes, extra_dataset = False):
         
     if args.distributed:
         if args.cache_mode:
-            sampler_train = samplers.NodeDistributedSampler(dataset_train)
-            if args.eval:
+            if not args.eval:
+                sampler_train = samplers.NodeDistributedSampler(dataset_train)
+            else:
                 sampler_val = samplers.NodeDistributedSampler(dataset_val, shuffle=False)
         else:
-            sampler_train = samplers.DistributedSampler(dataset_train)
-            if args.eval:
+            if not args.eval:
+                sampler_train = samplers.DistributedSampler(dataset_train)
+            else:
                 sampler_val = samplers.DistributedSampler(dataset_val, shuffle=True)
     else:
         if not args.eval:
