@@ -42,6 +42,13 @@ def decompose_dataset(no_use_count: int, samples: utils.NestedTensor, targets: D
 def _extra_epoch_for_replay(args, dataset_name: str, data_loader: Iterable, model: torch.nn.Module, criterion: torch.nn.Module,
                                  device: torch.device, rehearsal_classes, current_classes):
 
+    '''
+        Run additional epoch to collect replay buffer. 
+        1. initialize prefeter, (icarl) feature extractor and prototype.
+        2. run rehearsal training.
+        3. (icarl) detach values in rehearsal_classes.
+    '''
+
     prefetcher = create_prefetcher(dataset_name, data_loader, device, args)
     if args.Sampling_strategy == "icarl":
         fe = icarl_feature_extractor_setup(args, model)
@@ -65,6 +72,14 @@ def _extra_epoch_for_replay(args, dataset_name: str, data_loader: Iterable, mode
             if args.debug:
                 if idx == args.num_debug_dataset:
                     break
+
+        if args.Sampling_strategy == "icarl":
+            ''' 
+                rehearsal_classes : [feature_sum, [[image_ids, difference] ...]] 
+            '''
+            for key, val in rehearsal_classes.items():
+                val[0] = val[0].detach().cpu()
+
     return rehearsal_classes
 
 

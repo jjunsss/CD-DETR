@@ -159,12 +159,15 @@ def icarl_prototype_setup(args, feature_extractor, device, current_classes):
 
     for cls in current_classes:
         _dataset, _data_loader, _sampler = IcarlDataset(args=args, single_class=cls)
-
+        _cnt = 0
         for samples, targets, _, _ in tqdm(_data_loader, desc=f'Prototype:class_{cls}'):
             samples = samples.to(device)
             feature, _ = feature_extractor(samples)
             feature_0 = feature[0].tensors
             proto[cls] += feature_0
+            _cnt += 1
+            if args.debug and _cnt == 10:
+                break
 
         proto[cls] = proto[cls] / _dataset.__len__()
 
@@ -185,30 +188,33 @@ def icarl_rehearsal_training(args, samples, targets, fe: torch.nn.Module, proto:
     samples.to(device)
 
     feature, pos = fe(samples)
-    feature_0 = feature[0].tensors.squeeze(dim=0) # TODO: cpu or cuda?
+    feat_tensor = feature[0].tensors # TODO: cpu or cuda?
 
-    label_tensor = targets['labels']
-    label_tensor_unique = torch.unique(label_tensor)
-    label_list_unique = label_tensor_unique.tolist()
-    for label in label_list_unique:
-        try:
-            class_mean = proto[label]
-        except KeyError:
-            print(f'label: {label} don\'t in prototype: {proto.keys()}')
-            continue
+    for bt_idx in range(feat_tensor.shape[0]):
+        feat_0 = feat_tensor[bt_idx]
+        target = targets[bt_idx]
+        label_tensor = targets[bt_idx]['labels']
+        label_tensor_unique = torch.unique(label_tensor)
+        label_list_unique = label_tensor_unique.tolist()
 
-        if rehearsal_classes[label]:
-            exemplar_mean = (rehearsal_classes[label][0] + feature_0) / (len(rehearsal_classes[label]) + 1)
-            difference = torch.mean(torch.sqrt(torch.sum((class_mean - exemplar_mean)**2, axis=1))).item()
+        for label in label_list_unique:
+            try:
+                class_mean = proto[label]
+            except KeyError:
+                print(f'label: {label} don\'t in prototype: {proto.keys()}')
+                continue
 
-            rehearsal_classes[label][0] = rehearsal_classes[label][0].cpu()                    
-            rehearsal_classes[label][0]+= feature_0
-            rehearsal_classes[label][1].append([targets['image_id'].item(), difference])
-        else:
-            difference = torch.argmin(torch.sqrt(torch.sum((class_mean - feature_0)**2, axis=0))).item() # argmin is true????
-            rehearsal_classes[label] = [feature_0, [[targets['image_id'].item(), difference], ]]
-        
-        rehearsal_classes[label][1].sort(key=lambda x: x[1]) # sort with difference
+            try: # rehearsal_classes[label] exist
+                exemplar_mean = (rehearsal_classes[label][0] + feat_0) / (len(rehearsal_classes[label]) + 1)
+                difference = torch.mean(torch.sqrt(torch.sum((class_mean - exemplar_mean)**2, axis=1))).item()
+                rehearsal_classes[label][0] = rehearsal_classes[label][0]                   
+                rehearsal_classes[label][0]+= feat_0
+                rehearsal_classes[label][1].append([target['image_id'].item(), difference])
+            except KeyError:
+                difference = torch.argmin(torch.sqrt(torch.sum((class_mean - feat_0)**2, axis=0))).item() # argmin is true????
+                rehearsal_classes[label] = [feat_0, [[target['image_id'].item(), difference], ]]
+            
+            rehearsal_classes[label][1].sort(key=lambda x: x[1]) # sort with difference
 
     # construct rehearsal (3) - reduce exemplar set
     for label, data in tqdm(rehearsal_classes.items(), desc='Reduce_exemplar:'):

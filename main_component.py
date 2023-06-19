@@ -25,6 +25,8 @@ from datasets import build_dataset, get_coco_api_from_dataset
 from engine import evaluate, train_one_epoch
 from models import get_models
 from glob import glob
+
+
 def init(args):
         utils.init_distributed_mode(args)
         print("git:\n  {}\n".format(utils.get_sha()))
@@ -37,6 +39,8 @@ def init(args):
         np.random.seed(seed)
         random.seed(seed)
         
+
+
 class TrainingPipeline:
     def __init__(self, args):
         init(args)
@@ -58,6 +62,7 @@ class TrainingPipeline:
         else:
             args.Task_Epochs = epochs[0]
     
+
     def make_branch(self, task_idx, args):
         self.model, self.model_without_ddp, self.criterion, \
             self.postprocessors, self.teacher_model = self._build_and_setup_model(task_idx=task_idx)
@@ -79,6 +84,7 @@ class TrainingPipeline:
             previous_class_len = previous_layer_weight.size(0)
             
             init_layer_weight[:previous_class_len] = previous_layer_weight            
+
 
     def _build_and_setup_model(self, task_idx):
         if self.args.Branch_Incremental is False:
@@ -105,6 +111,7 @@ class TrainingPipeline:
             
         return model, model_without_ddp, criterion, postprocessors, None
     
+
     def _setup_optimizer_and_scheduler(self):
         args = self.args
         def match_name_keywords(n, name_keywords):
@@ -142,6 +149,7 @@ class TrainingPipeline:
 
         return optimizer, lr_scheduler
 
+
     def _load_state(self):
         args = self.args
         # For extra epoch training, because It's not affected to DDP.
@@ -152,6 +160,7 @@ class TrainingPipeline:
         if args.frozen_weights is not None:
             checkpoint = torch.load(args.frozen_weights, map_location='cpu')
             self.model_without_ddp.detr.load_state_dict(checkpoint['model'])
+
 
     def _incremental_setting(self):
         args = self.args
@@ -177,6 +186,7 @@ class TrainingPipeline:
 
         return Divided_Classes, dataset_name, start_epoch, start_task, tasks
     
+
     def _load_replay_buffer(self):
         '''
             you should check more then two task splits
@@ -203,6 +213,7 @@ class TrainingPipeline:
         
         print(f"old class list : {load_replay}")
         return load_replay, rehearsal_classes
+
 
     def evaluation_only_mode(self):
         print(colored(f"evaluation only mode start !!", "red"))
@@ -320,10 +331,12 @@ class TrainingPipeline:
         self.teacher_model = self.model_without_ddp #Trained Model Change in change TASK 
         self.teacher_model = teacher_model_freeze(self.teacher_model)
 
+
     # when only construct replay buffer    
     def construct_replay_buffer(self):
         construct_replay_extra_epoch(args=self.args, Divided_Classes=self.Divided_Classes, model=self.model,
                                     criterion=self.criterion, device=self.device, rehearsal_classes=self.rehearsal_classes)
+
 
     # No incremental learning process    
     def only_one_task_training(self):
