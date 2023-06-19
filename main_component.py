@@ -67,32 +67,33 @@ class TrainingPipeline:
         else:
             args.Task_Epochs = epochs[0]
     
-    def make_branch(self, task_idx, args, replay=False):
+    def make_branch(self, task_idx, args, replay=False, eval=False):
         self.model, self.model_without_ddp, self.criterion, \
             self.postprocessors, self.teacher_model = self._build_and_setup_model(task_idx=task_idx, replay=replay)
         
-        base_path = '/'.join(args.Rehearsal_file.split('/')[:-1]) if replay else args.output_dir
-        
-        weight_path = os.path.join(base_path, f'checkpoints/cp_{self.tasks:02}_{task_idx:02}.pth')
-        previous_weight = torch.load(weight_path)
+        if not eval:
+            base_path = '/'.join(args.Rehearsal_file.split('/')[:-1]) if replay else args.output_dir
+            
+            weight_path = os.path.join(base_path, f'checkpoints/cp_{self.tasks:02}_{task_idx:02}.pth')
+            previous_weight = torch.load(weight_path)
 
-        try:
-            for idx, class_emb in enumerate(self.model.class_embed):
+            try:
+                for idx, class_emb in enumerate(self.model.class_embed):
+                    init_layer_weight = torch.nn.init.xavier_normal_(class_emb.weight.data)
+                    previous_layer_weight = previous_weight['model'][f'class_embed.{idx}.weight']
+                    previous_class_len = previous_layer_weight.size(0)
+
+                    init_layer_weight[:previous_class_len] = previous_layer_weight
+            except:
+                class_emb = self.model.class_embed
                 init_layer_weight = torch.nn.init.xavier_normal_(class_emb.weight.data)
-                previous_layer_weight = previous_weight['model'][f'class_embed.{idx}.weight']
+                previous_layer_weight = previous_weight['model']['class_embed.weight']
                 previous_class_len = previous_layer_weight.size(0)
-
+                
                 init_layer_weight[:previous_class_len] = previous_layer_weight
-        except:
-            class_emb = self.model.class_embed
-            init_layer_weight = torch.nn.init.xavier_normal_(class_emb.weight.data)
-            previous_layer_weight = previous_weight['model']['class_embed.weight']
-            previous_class_len = previous_layer_weight.size(0)
-            
-            init_layer_weight[:previous_class_len] = previous_layer_weight
-            
-        if replay:
-            return self.model
+                
+            if replay:
+                return self.model
 
     def _build_and_setup_model(self, task_idx, replay=False):
         if self.args.Branch_Incremental is False:
@@ -223,7 +224,11 @@ class TrainingPipeline:
         print(colored(f"evaluation only mode start !!", "red"))
         args = self.args
         dir_list = []
-        filename_list = args.test_file_list
+        filename_list = [test_file.split('+') if '+' in test_file else test_file for test_file in args.test_file_list]
+        try:
+            filename_list = sum(filename_list, [])
+        except:
+            pass
         
         if args.all_data == True:
             # eval과 train의 coco_path를 다르게 설정
@@ -262,16 +267,21 @@ class TrainingPipeline:
             print(colored(f"current predefined_model : {enum}, defined model name : {predefined_model}", "red"))
             
             if predefined_model is not None:
-                self.model = load_model_params("eval", self.model, predefined_model)
+                try:
+                    self.model = load_model_params("eval", self.model, predefined_model)
+                except:
+                    self.make_branch(1, self.args, eval=True)
+                    self.model = load_model_params("eval", self.model, predefined_model)
                 
-            print(colored(f"check directory list : {args.test_file_list}", "red"))
+            print(colored(f"check filename list : {filename_list}", "red"))
             with open(self.DIR, 'a') as f:
                 f.write(f"\n-----------------------pth file----------------------\n")
                 f.write(f"file_name : {str(predefined_model)}\n")
                 
             for task_idx, cur_file_name in enumerate(filename_list):
                 
-                file_link = [name for name in dir_list if cur_file_name == os.path.basename(name)]
+                # TODO: VE - eval인 경우도 고려하기
+                file_link = [name for name in dir_list if cur_file_name in os.path.basename(name)]
                 args.coco_path = file_link[0]
                 print(colored(f"now evaluating file name : {args.coco_path}", "red"))
                 print(colored(f"now eval classes: {self.Divided_Classes[task_idx]}", "red"))
