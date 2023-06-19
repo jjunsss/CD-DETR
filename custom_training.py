@@ -200,7 +200,6 @@ def icarl_rehearsal_training(args, samples, targets, fe: torch.nn.Module, proto:
         label_list_unique = label_tensor_unique.tolist()
 
         for label in label_list_unique:
-            rehearsal_classes[label][0] = rehearsal_classes[label][0].to(device)
             try:
                 class_mean = proto[label]
             except KeyError:
@@ -208,11 +207,15 @@ def icarl_rehearsal_training(args, samples, targets, fe: torch.nn.Module, proto:
                 continue
 
             try: # rehearsal_classes[label] exist
+                rehearsal_classes[label][0] = rehearsal_classes[label][0].to(device)
+
                 exemplar_mean = (rehearsal_classes[label][0] + feat_0) / (len(rehearsal_classes[label]) + 1)
                 difference = torch.mean(torch.sqrt(torch.sum((class_mean - exemplar_mean)**2, axis=1))).item()
+
                 rehearsal_classes[label][0] = rehearsal_classes[label][0]                   
                 rehearsal_classes[label][0]+= feat_0
                 rehearsal_classes[label][1].append([target['image_id'].item(), difference])
+                
             except KeyError:
                 difference = torch.argmin(torch.sqrt(torch.sum((class_mean - feat_0)**2, axis=0))).item() # argmin is true????
                 rehearsal_classes[label] = [feat_0, [[target['image_id'].item(), difference], ]]
