@@ -160,7 +160,7 @@ def icarl_prototype_setup(args, feature_extractor, device, current_classes):
     for cls in current_classes:
         _dataset, _data_loader, _sampler = IcarlDataset(args=args, single_class=cls)
         _cnt = 0
-        for samples, targets, _, _ in tqdm(_data_loader, desc=f'Prototype:class_{cls}'):
+        for samples, targets, _, _ in tqdm(_data_loader, desc=f'Prototype:class_{cls}', disable=not utils.is_main_process()):
             samples = samples.to(device)
             feature, _ = feature_extractor(samples)
             feature_0 = feature[0].tensors
@@ -215,7 +215,7 @@ def icarl_rehearsal_training(args, samples, targets, fe: torch.nn.Module, proto:
                 rehearsal_classes[label][0] = rehearsal_classes[label][0]                   
                 rehearsal_classes[label][0]+= feat_0
                 rehearsal_classes[label][1].append([target['image_id'].item(), difference])
-                
+
             except KeyError:
                 difference = torch.argmin(torch.sqrt(torch.sum((class_mean - feat_0)**2, axis=0))).item() # argmin is true????
                 rehearsal_classes[label] = [feat_0, [[target['image_id'].item(), difference], ]]
@@ -223,7 +223,7 @@ def icarl_rehearsal_training(args, samples, targets, fe: torch.nn.Module, proto:
             rehearsal_classes[label][1].sort(key=lambda x: x[1]) # sort with difference
 
     # construct rehearsal (3) - reduce exemplar set
-    for label, data in tqdm(rehearsal_classes.items(), desc='Reduce_exemplar:'):
+    for label, data in tqdm(rehearsal_classes.items(), desc='Reduce_exemplar:', disable=not utils.is_main_process()):
         try:
             data[1] = data[1][:args.limit_image]
         except:

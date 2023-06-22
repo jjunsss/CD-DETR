@@ -49,7 +49,7 @@ class TrainingPipeline:
         self.Divided_Classes, self.dataset_name, self.start_epoch, self.start_task, self.tasks = self._incremental_setting()
         self.model, self.model_without_ddp, self.criterion, self.postprocessors, self.teacher_model = self._build_and_setup_model(task_idx=args.start_task)
         self.optimizer, self.lr_scheduler = self._setup_optimizer_and_scheduler()
-        self._load_state()
+        # self._load_state()
         self.output_dir = Path(args.output_dir)
         self.load_replay, self.rehearsal_classes = self._load_replay_buffer()
         self.DIR = os.path.join(self.output_dir, 'mAP_TEST.txt')
@@ -298,10 +298,9 @@ class TrainingPipeline:
                 
             if args.distributed:
                 sampler_train.set_epoch(epoch)#TODO: 추후에 epoch를 기준으로 batch sampler를 추출하는 행위 자체가 오류를 일으킬 가능성이 있음 Incremental Learning에서                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
-            print(f"task id : {task_idx}")
+            print(f"task id : {task_idx} / {self.tasks-1}")
             print(f"each epoch id : {epoch} , Dataset length : {len(dataset_train)}, current classes :{list_CC}")
             print(f"Task is Last : {last_task}")
-            print(f"args task : : {self.tasks}")
             
             # Training process
             train_one_epoch(args, last_task, epoch, self.model, self.teacher_model, self.criterion, 
