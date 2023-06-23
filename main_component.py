@@ -25,6 +25,8 @@ from datasets import build_dataset, get_coco_api_from_dataset
 from engine import evaluate, train_one_epoch
 from models import get_models
 from glob import glob
+
+
 def init(args):
         utils.init_distributed_mode(args)
         print("git:\n  {}\n".format(utils.get_sha()))
@@ -37,6 +39,8 @@ def init(args):
         np.random.seed(seed)
         random.seed(seed)
         
+
+
 class TrainingPipeline:
     def __init__(self, args):
         init(args)
@@ -45,7 +49,7 @@ class TrainingPipeline:
         self.Divided_Classes, self.dataset_name, self.start_epoch, self.start_task, self.tasks = self._incremental_setting()
         self.model, self.model_without_ddp, self.criterion, self.postprocessors, self.teacher_model = self._build_and_setup_model(task_idx=args.start_task)
         self.optimizer, self.lr_scheduler = self._setup_optimizer_and_scheduler()
-        self._load_state()
+        # self._load_state()
         self.output_dir = Path(args.output_dir)
         self.load_replay, self.rehearsal_classes = self._load_replay_buffer()
         self.DIR = os.path.join(self.output_dir, 'mAP_TEST.txt')
@@ -58,6 +62,7 @@ class TrainingPipeline:
         else:
             args.Task_Epochs = epochs[0]
     
+
     def make_branch(self, task_idx, args):
         self.model, self.model_without_ddp, self.criterion, \
             self.postprocessors, self.teacher_model = self._build_and_setup_model(task_idx=task_idx)
@@ -79,6 +84,7 @@ class TrainingPipeline:
             previous_class_len = previous_layer_weight.size(0)
             
             init_layer_weight[:previous_class_len] = previous_layer_weight            
+
 
     def _build_and_setup_model(self, task_idx):
         if self.args.Branch_Incremental is False:
@@ -105,6 +111,7 @@ class TrainingPipeline:
             
         return model, model_without_ddp, criterion, postprocessors, None
     
+
     def _setup_optimizer_and_scheduler(self):
         args = self.args
         def match_name_keywords(n, name_keywords):
@@ -142,6 +149,7 @@ class TrainingPipeline:
 
         return optimizer, lr_scheduler
 
+
     def _load_state(self):
         args = self.args
         # For extra epoch training, because It's not affected to DDP.
@@ -152,6 +160,7 @@ class TrainingPipeline:
         if args.frozen_weights is not None:
             checkpoint = torch.load(args.frozen_weights, map_location='cpu')
             self.model_without_ddp.detr.load_state_dict(checkpoint['model'])
+
 
     def _incremental_setting(self):
         args = self.args
@@ -177,6 +186,7 @@ class TrainingPipeline:
 
         return Divided_Classes, dataset_name, start_epoch, start_task, tasks
     
+
     def _load_replay_buffer(self):
         '''
             you should check more then two task splits
@@ -204,6 +214,7 @@ class TrainingPipeline:
         print(f"old class list : {load_replay}")
         return load_replay, rehearsal_classes
 
+
     def evaluation_only_mode(self):
         print(colored(f"evaluation only mode start !!", "red"))
         args = self.args
@@ -216,7 +227,7 @@ class TrainingPipeline:
             if os.path.isfile(self.DIR):
                 os.remove(self.DIR) # self.DIR = args.output_dir + 'mAP_TEST.txt'
         else:
-            dir_list = ["/home/user/Desktop/vscode"+ args.coco_path]
+            dir_list = [args.coco_path] # "/home/user/Desktop/vscode"+ 
         
         # FIXME: change directory list
         # filename_list = ["didtest", "pztest", "VE2021", "VEmultisingle", "VE10test"] # for DID, PZ, VE, VE, VE
@@ -287,10 +298,9 @@ class TrainingPipeline:
                 
             if args.distributed:
                 sampler_train.set_epoch(epoch)#TODO: 추후에 epoch를 기준으로 batch sampler를 추출하는 행위 자체가 오류를 일으킬 가능성이 있음 Incremental Learning에서                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
-            print(f"task id : {task_idx}")
+            print(f"task id : {task_idx} / {self.tasks-1}")
             print(f"each epoch id : {epoch} , Dataset length : {len(dataset_train)}, current classes :{list_CC}")
             print(f"Task is Last : {last_task}")
-            print(f"args task : : {self.tasks}")
             
             # Training process
             train_one_epoch(args, last_task, epoch, self.model, self.teacher_model, self.criterion, 
@@ -307,7 +317,7 @@ class TrainingPipeline:
         # For generating buffer with extra epoch
         if last_task == False and args.Rehearsal:
             print(f"model update for generating buffer list")
-            self.rehearsal_classes = contruct_replay_extra_epoch(args=self.args, Divided_Classes=self.Divided_Classes, model=self.model,
+            self.rehearsal_classes = construct_replay_extra_epoch(args=self.args, Divided_Classes=self.Divided_Classes, model=self.model,
                                                                 criterion=self.criterion, device=self.device, rehearsal_classes=self.rehearsal_classes,
                                                                 data_loader_train=data_loader_train, list_CC=list_CC)
             print(f"complete save and merge replay's buffer process")
@@ -319,11 +329,15 @@ class TrainingPipeline:
         self.load_replay.extend(self.Divided_Classes[task_idx])
         self.teacher_model = self.model_without_ddp #Trained Model Change in change TASK 
         self.teacher_model = teacher_model_freeze(self.teacher_model)
-        
+
+
+    # when only construct replay buffer    
     def construct_replay_buffer(self):
-        contruct_replay_extra_epoch(args=self.args, Divided_Classes=self.Divided_Classes, model=self.model,
+        construct_replay_extra_epoch(args=self.args, Divided_Classes=self.Divided_Classes, model=self.model,
                                     criterion=self.criterion, device=self.device, rehearsal_classes=self.rehearsal_classes)
-        
+
+
+    # No incremental learning process    
     def only_one_task_training(self):
         dataset_train, data_loader_train, sampler_train, list_CC = Incre_Dataset(0, self.args, self.Divided_Classes)
         
