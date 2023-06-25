@@ -67,7 +67,7 @@ class TrainingPipeline:
         else:
             args.Task_Epochs = epochs[0]
     
-    def make_branch(self, task_idx, args, replay=False, eval=False):
+    def make_branch(self, task_idx, args):
         self.model, self.model_without_ddp, self.criterion, \
             self.postprocessors, self.teacher_model = self._build_and_setup_model(task_idx=task_idx, replay=replay)
         
@@ -95,7 +95,7 @@ class TrainingPipeline:
             if replay:
                 return self.model
 
-    def _build_and_setup_model(self, task_idx, replay=False):
+    def _build_and_setup_model(self, task_idx):
         if self.args.Branch_Incremental is False:
             # Because original classes(whole classes) is 60 to LG, COCO is 91.
             num_classes = 60 if self.args.LG else 91
