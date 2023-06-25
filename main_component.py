@@ -64,6 +64,7 @@ class TrainingPipeline:
     
 
     def make_branch(self, task_idx, args):
+        print('Make branch ...')
         self.model, self.model_without_ddp, self.criterion, \
             self.postprocessors, self.teacher_model = self._build_and_setup_model(task_idx=task_idx)
         
@@ -329,6 +330,9 @@ class TrainingPipeline:
         self.load_replay.extend(self.Divided_Classes[task_idx])
         self.teacher_model = self.model_without_ddp #Trained Model Change in change TASK 
         self.teacher_model = teacher_model_freeze(self.teacher_model)
+
+        if utils.get_world_size() > 1:
+            dist.barrier()
 
 
     # when only construct replay buffer    
