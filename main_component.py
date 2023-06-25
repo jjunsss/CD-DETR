@@ -101,6 +101,8 @@ class TrainingPipeline:
             num_classes = 60 if self.args.LG else 91
             current_class = None
         else:
+            if self.args.eval:
+                task_idx = len(self.Divided_Classes)
             current_class = sum(self.Divided_Classes[:task_idx+1], [])
             num_classes = len(current_class) + 1
 
@@ -267,11 +269,7 @@ class TrainingPipeline:
             print(colored(f"current predefined_model : {enum}, defined model name : {predefined_model}", "red"))
             
             if predefined_model is not None:
-                try:
-                    self.model = load_model_params("eval", self.model, predefined_model)
-                except:
-                    self.make_branch(1, self.args, eval=True)
-                    self.model = load_model_params("eval", self.model, predefined_model)
+                self.model = load_model_params("eval", self.model, predefined_model)
                 
             print(colored(f"check filename list : {filename_list}", "red"))
             with open(self.DIR, 'a') as f:
