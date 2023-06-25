@@ -60,7 +60,10 @@ def main(args):
     print("Start training")
     start_time = time.time()
     # Training loop over tasks ( for incremental learning )
-    is_task_changed = False
+    if pipeline.start_task > 0: # for resume
+        is_task_changed = True
+    else:
+        is_task_changed = False
     
     for idx, task_idx in enumerate(range(pipeline.start_task, pipeline.tasks)):
         # Check whether it's the first or last task
