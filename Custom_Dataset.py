@@ -7,6 +7,7 @@ import torch
 import numpy as np
 from termcolor import colored
 
+
 def Incre_Dataset(Task_Num, args, Incre_Classes, extra_dataset = False):    
     current_classes = Incre_Classes[Task_Num]
     print(f"current_classes : {current_classes}")
@@ -137,41 +138,57 @@ def DivideTask_for_incre(Task_Counts: int, Total_Classes: int, DivisionOfNames: 
 from collections import defaultdict
 import numpy as np
 
-def weight_dataset(re_dict):
-    index_counts = defaultdict(int)
+def weight_dataset(args, re_dict):
 
-    for value in re_dict.values():
-        for index in value[1]:
-            index_counts[index] += 1
+    if  args.Sampling_strategy != 'icarl':
+        index_counts = defaultdict(int)
 
-    sorted_classes = sorted(index_counts.items(), key=lambda item : item[0], reverse=False)
-    temp = np.array(sorted_classes, dtype=np.float32)
-    sum_value = np.sum(temp[:, 1])
-    temp[:, 1] /= sum_value
+        for value in re_dict.values():
+            for index in value[1]:
+                index_counts[index] += 1
 
-    weight_dict = {}
-    for key, value in temp:
-        weight_dict[int(key)] = value
-        
-    for key, value in re_dict.items():
-        sumvalue = np.sum([weight_dict[class_idx] for class_idx in value[1]])
-        temp_dict_value = re_dict[key]
-        temp_dict_value.append(sumvalue)
-        re_dict[key] = temp_dict_value
-        
-    re_dict = dict(sorted(re_dict.items(), key=lambda item : item[1][-1], reverse=True))
-    keys = list(re_dict.keys())
-    value_array = np.array(list(re_dict.values()), dtype=object)
-    weights = value_array[:, -1].tolist()
+        sorted_classes = sorted(index_counts.items(), key=lambda item : item[0], reverse=False)
+        temp = np.array(sorted_classes, dtype=np.float32)
+        sum_value = np.sum(temp[:, 1])
+        temp[:, 1] /= sum_value
+
+        weight_dict = {}
+        for key, value in temp:
+            weight_dict[int(key)] = value
+            
+        for key, value in re_dict.items():
+            sumvalue = np.sum([weight_dict[class_idx] for class_idx in value[1]])
+            temp_dict_value = re_dict[key]
+            temp_dict_value.append(sumvalue)
+            re_dict[key] = temp_dict_value
+            
+        re_dict = dict(sorted(re_dict.items(), key=lambda item : item[1][-1], reverse=True))
+        keys = list(re_dict.keys())
+        value_array = np.array(list(re_dict.values()), dtype=object)
+        weights = value_array[:, -1].tolist()
+
+    else:
+        keys = []
+        weights = []
+        for cls, val in re_dict.items():
+            img_ids = np.array(val[1])
+            keys.extend(list(img_ids[:, 0].astype(int)))
+            weights.extend(list(img_ids[:,1]))
+
+        indices = np.argsort(weights)
+        keys = [keys[i] for i in indices]
+        weights = [weights[i] for i in indices]
     
     return keys, weights
+
+
 
 import copy
 class CustomDataset(torch.utils.data.Dataset):
     def __init__(self, args, re_dict, old_classes):
         self.re_dict = copy.deepcopy(re_dict)
         self.old_classes = old_classes
-        self.keys, self.weights = weight_dataset(re_dict)
+        self.keys, self.weights = weight_dataset(args, re_dict)
         self.datasets = build_dataset(image_set='train', args=args, class_ids=self.old_classes, img_ids=self.keys)
         
     def __len__(self):
@@ -250,9 +267,36 @@ def CombineDataset(args, RehearsalData, CurrentDataset,
         sampler_train = torch.utils.data.RandomSampler(NewTaskTraining)
         
     batch_sampler_train = torch.utils.data.BatchSampler(sampler_train, Batch_size, drop_last=True)
-    CombinedLoader = DataLoader(NewTaskTraining, batch_sampler=batch_sampler_train,
+    
+    if args.num_workers:
+        CombinedLoader = DataLoader(NewTaskTraining, batch_sampler=batch_sampler_train,
                         collate_fn=utils.collate_fn, num_workers=Worker,
                         pin_memory=True, prefetch_factor=4,) #worker_init_fn=worker_init_fn, persistent_workers=args.AugReplay)
-    
+    else:
+        CombinedLoader = DataLoader(NewTaskTraining, batch_sampler=batch_sampler_train,
+                        collate_fn=utils.collate_fn, num_workers=Worker,
+                        pin_memory=True) #worker_init_fn=worker_init_fn, persistent_workers=args.AugReplay)
     
     return NewTaskTraining, CombinedLoader, sampler_train
+
+
+def IcarlDataset(args, single_class:int):
+    '''
+        For initiating prototype-mean of the feature of corresponding, single class-, dataset composed to single class is needed.
+    '''
+    dataset = build_dataset(image_set='train', args=args, class_ids=[single_class])
+        
+    if args.distributed:
+        if args.cache_mode:
+            sampler = samplers.NodeDistributedSampler(dataset)
+        else:
+            sampler = samplers.DistributedSampler(dataset)
+    else:
+        sampler = torch.utils.data.RandomSampler(dataset)
+        
+    batch_sampler = torch.utils.data.BatchSampler(sampler, args.batch_size, drop_last=True)
+    data_loader = DataLoader(dataset, batch_sampler=batch_sampler,
+                                collate_fn=utils.collate_fn, num_workers=args.num_workers,
+                                pin_memory=True)
+    
+    return dataset, data_loader, sampler
