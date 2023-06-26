@@ -183,13 +183,14 @@ def _calc_target(rehearsal_classes, replace_strategy="hierarchical", ):
     return sorted_result
 
 def _save_rehearsal_for_combine(task, dir, rehearsal, epoch):
+    backupdir = os.path.join(dir, "backup")
     #* save the capsulated dataset(Boolean, image_id:int)
     if not os.path.exists(dir) and utils.is_main_process():
         os.makedirs(dir, exist_ok=True)
         print(f"Directory created")
 
-    if not os.path.exists(dir+"/backup/") and utils.is_main_process():
-        os.makedirs(dir+"/backup/", exist_ok=True)
+    if not os.path.exists(backupdir) and utils.is_main_process():
+        os.makedirs(backupdir, exist_ok=True)
         print(f"Backup directory created")    
         
     if utils.get_world_size() > 1:
@@ -205,7 +206,7 @@ def _save_rehearsal_for_combine(task, dir, rehearsal, epoch):
     except:
         dist_rank = 0
     backup_dir = os.path.join(
-        dir + "backup/", str(dist_rank) + "_gpu_rehearsal_task_" + str(task) + "_ep_" + str(epoch)
+        dir + "/backup/", str(dist_rank) + "_gpu_rehearsal_task_" + str(task) + "_ep_" + str(epoch)
     )
     dir = os.path.join(
         dir, str(dist_rank) + "_gpu_rehearsal_task_" + str(task) + "_ep_" + str(epoch)

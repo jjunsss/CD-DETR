@@ -119,8 +119,9 @@ def weight_dataset(re_dict):
     for value in re_dict.values():
         for index in value[1]:
             index_counts[index] += 1
-
     sorted_classes = sorted(index_counts.items(), key=lambda item : item[0], reverse=False)
+    print(f"sprted+c;asses {sorted_classes}|" )
+    
     temp = np.array(sorted_classes, dtype=np.float32)
     sum_value = np.sum(temp[:, 1])
     temp[:, 1] /= sum_value
@@ -148,6 +149,7 @@ class CustomDataset(torch.utils.data.Dataset):
         self.re_dict = copy.deepcopy(re_dict)
         self.old_classes = old_classes
         self.keys, self.weights = weight_dataset(re_dict)
+        print(f"redict : {re_dict.keys()}")
         self.datasets = build_dataset(image_set='train', args=args, class_ids=self.old_classes, img_ids=self.keys)
         
     def __len__(self):
