@@ -5,6 +5,8 @@ from torch.utils.data import DataLoader, ConcatDataset
 import datasets.samplers as samplers
 import torch
 import numpy as np
+from termcolor import colored
+
 
 def Incre_Dataset(Task_Num, args, Incre_Classes, extra_dataset = False):    
     current_classes = Incre_Classes[Task_Num]
@@ -22,12 +24,14 @@ def Incre_Dataset(Task_Num, args, Incre_Classes, extra_dataset = False):
         
     if args.distributed:
         if args.cache_mode:
-            sampler_train = samplers.NodeDistributedSampler(dataset_train)
-            if args.eval:
+            if not args.eval:
+                sampler_train = samplers.NodeDistributedSampler(dataset_train)
+            else:
                 sampler_val = samplers.NodeDistributedSampler(dataset_val, shuffle=False)
         else:
-            sampler_train = samplers.DistributedSampler(dataset_train)
-            if args.eval:
+            if not args.eval:
+                sampler_train = samplers.DistributedSampler(dataset_train)
+            else:
                 sampler_val = samplers.DistributedSampler(dataset_val, shuffle=True)
     else:
         if not args.eval:
@@ -49,6 +53,36 @@ def Incre_Dataset(Task_Num, args, Incre_Classes, extra_dataset = False):
     
     return dataset_train, data_loader_train, sampler_train, current_classes
 
+def make_class(test_file):
+    #####################################
+    ########## !! Edit here !! ##########
+    #####################################
+    class_dict = {
+        'file_name': ['did', 'pz', 've'],
+        'class_idx': [
+            [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21], # DID
+            [28, 32, 35, 41, 56], # photozone
+            [24, 29, 30, 39, 40, 42] # 야채칸 중 일부(mAP 높은 일부)
+        ]
+    }
+    #####################################
+    
+    # case_1) file name에 VE가 포함되어 있지 않은 경우
+    if test_file.lower() in ['2021', 'multisingle', '10test']:
+        test_file = 've' + test_file
+    # case_2) 혼합 데이터셋
+    if '+' in test_file:
+        task_list = test_file.split('+')
+        tmp = []
+        for task in task_list:
+            idx = [name in task.lower() for name in class_dict['file_name']].index(True)
+            tmp.append(class_dict['class_idx'][idx])
+        res = sum(tmp, [])
+        return res  # early return
+    
+    idx = [name in test_file.lower() for name in class_dict['file_name']].index(True)
+    return class_dict['class_idx'][idx]
+
 
 def DivideTask_for_incre(Task_Counts: int, Total_Classes: int, DivisionOfNames: Boolean, eval=False, test_file_list=None):
     '''
@@ -59,24 +93,15 @@ def DivideTask_for_incre(Task_Counts: int, Total_Classes: int, DivisionOfNames: 
         #DivisionOfNames : Domain을 사용해서 분할
     '''
     if DivisionOfNames is True:
-        Divided_Classes = []
-        # Edit here
-        class_dict = {
-            'file_name': ['did', 'pz', 've'],
-            'class_idx': [
-                [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21], # DID
-                [28, 32, 35, 41, 56], # photozone
-                # [24, 29, 30, 39, 40, 42] # 야채칸 중 일부(mAP 높은 일부)
-            ]
-        }
-
-        if eval:
-            # Evaluation
+        if test_file_list is not None:
+            Divided_Classes = []
             for test_file in test_file_list:
-                idx = [name in test_file.lower() for name in class_dict['file_name']].index(True)
                 Divided_Classes.append(
-                    class_dict['class_idx'][idx]
+                    make_class(test_file)
                 )
+            
+            msg = f"{'='*35} Entire Divided Classes {'='*35}\n{Divided_Classes}"
+            print(colored(msg, 'red'))
         else:
             Divided_Classes.append([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, ]) # DID + PZ
             Divided_Classes.append([28, 32, 35, 41, 56]) # PZ 
@@ -87,7 +112,7 @@ def DivideTask_for_incre(Task_Counts: int, Total_Classes: int, DivisionOfNames: 
             # # Divided_Classes.append([28, 32, 35, 41, 56]) #photozone ,
             # Divided_Classes.append([24, 29, 30, 39, 40, 42]) # 야채칸 중 일부(mAP 높은 일부),
             # # original VE
-            # # #Divided_Classes.append([23, 24, 25, 26, 27, 29, 30, 31, 33,34,36, 37, 38, 39, 40,42,43,44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 57, 58, 59]) #VE
+            # # #Divided_Classes.append([23, 24, 25, 26, 27, 29, 30, 31, 33,34,36, 37, 38, 39, 40,42,43,44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 57, 58, 59]) #VE              
         return Divided_Classes
 
     classes = [idx+1 for idx in range(Total_Classes)]
@@ -113,43 +138,57 @@ def DivideTask_for_incre(Task_Counts: int, Total_Classes: int, DivisionOfNames: 
 from collections import defaultdict
 import numpy as np
 
-def weight_dataset(re_dict):
-    index_counts = defaultdict(int)
+def weight_dataset(args, re_dict):
 
-    for value in re_dict.values():
-        for index in value[1]:
-            index_counts[index] += 1
-    sorted_classes = sorted(index_counts.items(), key=lambda item : item[0], reverse=False)
-    print(f"sprted+c;asses {sorted_classes}|" )
-    
-    temp = np.array(sorted_classes, dtype=np.float32)
-    sum_value = np.sum(temp[:, 1])
-    temp[:, 1] /= sum_value
+    if  args.Sampling_strategy != 'icarl':
+        index_counts = defaultdict(int)
 
-    weight_dict = {}
-    for key, value in temp:
-        weight_dict[int(key)] = value
-        
-    for key, value in re_dict.items():
-        sumvalue = np.sum([weight_dict[class_idx] for class_idx in value[1]])
-        temp_dict_value = re_dict[key]
-        temp_dict_value.append(sumvalue)
-        re_dict[key] = temp_dict_value
-        
-    re_dict = dict(sorted(re_dict.items(), key=lambda item : item[1][-1], reverse=True))
-    keys = list(re_dict.keys())
-    value_array = np.array(list(re_dict.values()), dtype=object)
-    weights = value_array[:, -1].tolist()
+        for value in re_dict.values():
+            for index in value[1]:
+                index_counts[index] += 1
+
+        sorted_classes = sorted(index_counts.items(), key=lambda item : item[0], reverse=False)
+        temp = np.array(sorted_classes, dtype=np.float32)
+        sum_value = np.sum(temp[:, 1])
+        temp[:, 1] /= sum_value
+
+        weight_dict = {}
+        for key, value in temp:
+            weight_dict[int(key)] = value
+            
+        for key, value in re_dict.items():
+            sumvalue = np.sum([weight_dict[class_idx] for class_idx in value[1]])
+            temp_dict_value = re_dict[key]
+            temp_dict_value.append(sumvalue)
+            re_dict[key] = temp_dict_value
+            
+        re_dict = dict(sorted(re_dict.items(), key=lambda item : item[1][-1], reverse=True))
+        keys = list(re_dict.keys())
+        value_array = np.array(list(re_dict.values()), dtype=object)
+        weights = value_array[:, -1].tolist()
+
+    else:
+        keys = []
+        weights = []
+        for cls, val in re_dict.items():
+            img_ids = np.array(val[1])
+            keys.extend(list(img_ids[:, 0].astype(int)))
+            weights.extend(list(img_ids[:,1]))
+
+        indices = np.argsort(weights)
+        keys = [keys[i] for i in indices]
+        weights = [weights[i] for i in indices]
     
     return keys, weights
+
+
 
 import copy
 class CustomDataset(torch.utils.data.Dataset):
     def __init__(self, args, re_dict, old_classes):
         self.re_dict = copy.deepcopy(re_dict)
         self.old_classes = old_classes
-        self.keys, self.weights = weight_dataset(re_dict)
-        print(f"redict : {re_dict.keys()}")
+        self.keys, self.weights = weight_dataset(args, re_dict)
         self.datasets = build_dataset(image_set='train', args=args, class_ids=self.old_classes, img_ids=self.keys)
         
     def __len__(self):
@@ -228,9 +267,36 @@ def CombineDataset(args, RehearsalData, CurrentDataset,
         sampler_train = torch.utils.data.RandomSampler(NewTaskTraining)
         
     batch_sampler_train = torch.utils.data.BatchSampler(sampler_train, Batch_size, drop_last=True)
-    CombinedLoader = DataLoader(NewTaskTraining, batch_sampler=batch_sampler_train,
+    
+    if args.num_workers:
+        CombinedLoader = DataLoader(NewTaskTraining, batch_sampler=batch_sampler_train,
                         collate_fn=utils.collate_fn, num_workers=Worker,
                         pin_memory=True, prefetch_factor=4,) #worker_init_fn=worker_init_fn, persistent_workers=args.AugReplay)
-    
+    else:
+        CombinedLoader = DataLoader(NewTaskTraining, batch_sampler=batch_sampler_train,
+                        collate_fn=utils.collate_fn, num_workers=Worker,
+                        pin_memory=True) #worker_init_fn=worker_init_fn, persistent_workers=args.AugReplay)
     
     return NewTaskTraining, CombinedLoader, sampler_train
+
+
+def IcarlDataset(args, single_class:int):
+    '''
+        For initiating prototype-mean of the feature of corresponding, single class-, dataset composed to single class is needed.
+    '''
+    dataset = build_dataset(image_set='train', args=args, class_ids=[single_class])
+        
+    if args.distributed:
+        if args.cache_mode:
+            sampler = samplers.NodeDistributedSampler(dataset)
+        else:
+            sampler = samplers.DistributedSampler(dataset)
+    else:
+        sampler = torch.utils.data.RandomSampler(dataset)
+        
+    batch_sampler = torch.utils.data.BatchSampler(sampler, args.batch_size, drop_last=True)
+    data_loader = DataLoader(dataset, batch_sampler=batch_sampler,
+                                collate_fn=utils.collate_fn, num_workers=args.num_workers,
+                                pin_memory=True)
+    
+    return dataset, data_loader, sampler

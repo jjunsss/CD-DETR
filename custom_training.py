@@ -21,7 +21,10 @@ from typing import Tuple, Dict, List, Optional
 
 from torch.cuda.amp import autocast
 from custom_fake_target import normal_query_selc_to_target, only_oldset_mosaic_query_selc_to_target
-from models import _prepare_denoising_args
+from models import inference_model
+from tqdm import tqdm
+from copy import deepcopy
+
 
 @decompose
 def decompose_dataset(no_use_count: int, samples: utils.NestedTensor, targets: Dict, origin_samples: utils.NestedTensor, 
@@ -66,10 +69,6 @@ def _common_training(args, epo, idx, last_task, count, sum_loss,
 
     samples, targets = _process_samples_and_targets(samples, targets, device)
 
-    # Add denoising arguments
-    if args.model_name == 'dn_detr':
-        model = _prepare_denoising_args(model, targets, args=args)
-
     with autocast(False):
         if last_task and args.Distill:
             teacher_model.eval()
@@ -89,15 +88,15 @@ def _common_training(args, epo, idx, last_task, count, sum_loss,
             hook = model.module.transformer.encoder.layers[-1].self_attn.attention_weights.register_forward_hook(
                 lambda module, input, output: s_encoder.append(output)
             )
-            outputs = model(samples)
+            outputs = inference_model(args, model, samples, targets)
             hook.remove()
             new_encoder = s_encoder[0]
 
             location_loss = torch.nn.functional.mse_loss(new_encoder.detach(), pre_encodre)
             del t_encoder, s_encoder, new_encoder, pre_encodre
 
-        else:
-            outputs = model(samples)
+        else:              
+            outputs = inference_model(args, model, samples, targets)
 
         if args.Fake_Query:
             targets = normal_query_selc_to_target(outputs, targets, current_classes)  # Adjust this line as necessary
@@ -129,6 +128,110 @@ def _common_training(args, epo, idx, last_task, count, sum_loss,
 
     return count, sum_loss
 
+
+@torch.no_grad()
+def icarl_feature_extractor_setup(args, model):
+    '''
+        In iCaRL, buffer manager collect samples closed to the mean of features of corresponding class.
+        This function set up feature extractor for collecting.
+    '''
+    if args.distributed:
+        feature_extractor = deepcopy(model.module.backbone)
+    else:
+        feature_extractor = deepcopy(model.backbone) # distributed:model.module.backbone
+    
+    for n, p in feature_extractor.named_parameters():
+        p.requires_grad = False
+
+    return feature_extractor
+
+
+@torch.no_grad()
+def icarl_prototype_setup(args, feature_extractor, device, current_classes):
+    '''
+        In iCaRL, buffer manager collect samples closed to the mean of features of corresponding class.
+        This function set up prototype-mean of features of corresponding class-.
+        Prototype can be the 'criteria' to select closest samples.
+    '''
+    
+    feature_extractor.eval()
+    proto = defaultdict(int)
+
+    for cls in current_classes:
+        _dataset, _data_loader, _sampler = IcarlDataset(args=args, single_class=cls)
+        _cnt = 0
+        for samples, targets, _, _ in tqdm(_data_loader, desc=f'Prototype:class_{cls}', disable=not utils.is_main_process()):
+            samples = samples.to(device)
+            feature, _ = feature_extractor(samples)
+            feature_0 = feature[0].tensors
+            proto[cls] += feature_0
+            _cnt += 1
+            if args.debug and _cnt == 10:
+                break
+
+        proto[cls] = proto[cls] / _dataset.__len__()
+        if args.debug and cls == 10:
+            break
+
+    return proto
+
+
+@torch.no_grad()
+def icarl_rehearsal_training(args, samples, targets, fe: torch.nn.Module, proto: Dict, device:torch.device,
+                       rehearsal_classes, current_classes):
+    '''
+        iCaRL buffer collection.
+
+        rehearsal_classes : [feature_sum, [[image_ids, difference] ...]]
+        TODO: move line:200~218 to construct_rehearsal
+    '''
+
+    fe.eval()
+    samples.to(device)
+
+    feature, pos = fe(samples)
+    feat_tensor = feature[0].tensors # TODO: cpu or cuda?
+
+    for bt_idx in range(feat_tensor.shape[0]):
+        feat_0 = feat_tensor[bt_idx]
+        target = targets[bt_idx]
+        label_tensor = targets[bt_idx]['labels']
+        label_tensor_unique = torch.unique(label_tensor)
+        label_list_unique = label_tensor_unique.tolist()
+
+        for label in label_list_unique:
+            try:
+                class_mean = proto[label]
+            except KeyError:
+                print(f'label: {label} don\'t in prototype: {proto.keys()}')
+                continue
+
+            try: # rehearsal_classes[label] exist
+                rehearsal_classes[label][0] = rehearsal_classes[label][0].to(device)
+
+                exemplar_mean = (rehearsal_classes[label][0] + feat_0) / (len(rehearsal_classes[label]) + 1)
+                difference = torch.mean(torch.sqrt(torch.sum((class_mean - exemplar_mean)**2, axis=1))).item()
+
+                rehearsal_classes[label][0] = rehearsal_classes[label][0]                   
+                rehearsal_classes[label][0]+= feat_0
+                rehearsal_classes[label][1].append([target['image_id'].item(), difference])
+
+            except KeyError:
+                difference = torch.argmin(torch.sqrt(torch.sum((class_mean - feat_0)**2, axis=0))).item() # argmin is true????
+                rehearsal_classes[label] = [feat_0, [[target['image_id'].item(), difference], ]]
+            
+            rehearsal_classes[label][1].sort(key=lambda x: x[1]) # sort with difference
+
+    # construct rehearsal (3) - reduce exemplar set
+    for label, data in tqdm(rehearsal_classes.items(), desc='Reduce_exemplar:', disable=not utils.is_main_process()):
+        try:
+            data[1] = data[1][:args.limit_image]
+        except:
+            continue
+
+        return rehearsal_classes
+
+
 def rehearsal_training(args, samples, targets, model: torch.nn.Module, criterion: torch.nn.Module, 
                        rehearsal_classes, current_classes):
     '''
@@ -142,11 +245,7 @@ def rehearsal_training(args, samples, targets, model: torch.nn.Module, criterion
     samples, targets = _process_samples_and_targets(samples, targets, device)
     for_replay = True
 
-    # Add denoising arguments
-    if args.model_name == 'dn_detr':
-        model = _prepare_denoising_args(model, targets, args=args, eval=True)
-
-    outputs = model(samples)
+    outputs = inference_model(args, model, samples, targets, eval=True)
     # TODO : new input to model. plz change dn-detr model input (self.buffer_construct_loss)
     _ = criterion(outputs, targets, buffer_construct_loss=True)
     
@@ -161,7 +260,7 @@ def rehearsal_training(args, samples, targets, model: torch.nn.Module, criterion
         batch_loss_dict["loss_labels"] = [loss.item() for loss in criterion.losses_for_replay["loss_labels"]]
     
         targets = [{k: v.to(ex_device) for k, v in t.items()} for t in targets]
-        rehearsal_classes = contruct_rehearsal(args, losses_dict=batch_loss_dict, targets=targets,
+        rehearsal_classes = construct_rehearsal(args, losses_dict=batch_loss_dict, targets=targets,
                                                 rehearsal_dict=rehearsal_classes, 
                                                 current_classes=current_classes,
                                                 least_image=args.least_image,

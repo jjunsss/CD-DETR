@@ -68,7 +68,7 @@ def main(args):
         if is_task_changed and args.Branch_Incremental:
             pipeline.make_branch(task_idx, args)
         # print(f'Out features : {pipeline.model.class_embed[0].out_features}')
-
+        pipeline._load_state()
         last_task = (task_idx+1 == pipeline.tasks)
 
         # Generate new dataset
@@ -109,6 +109,8 @@ def main(args):
 
     
 if __name__ == '__main__':
+    import warnings
+    warnings.filterwarnings("ignore", category=UserWarning) 
     parser = argparse.ArgumentParser('Training and evaluation script', parents=[get_args_parser()])
     parent_args = parser.parse_known_args()[0]
 

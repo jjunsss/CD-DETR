@@ -30,7 +30,7 @@ from tqdm import tqdm
 from custom_training import *
 from custom_prints import check_components
 
-from models import _prepare_denoising_args
+from models import inference_model
 
 @decompose
 def decompose_dataset(no_use_count: int, samples: utils.NestedTensor, targets: Dict, origin_samples: utils.NestedTensor, origin_targets: Dict, 
@@ -38,13 +38,32 @@ def decompose_dataset(no_use_count: int, samples: utils.NestedTensor, targets: D
     batch_size = len(targets)
     return (batch_size, no_use_count, samples, targets, origin_samples, origin_targets, used_number)
 
-def _extra_epoch_for_replay(args, data_loader, prefetcher, model, criterion, rehearsal_classes, current_classes):
+
+def _extra_epoch_for_replay(args, dataset_name: str, data_loader: Iterable, model: torch.nn.Module, criterion: torch.nn.Module,
+                                 device: torch.device, rehearsal_classes, current_classes):
+
+    '''
+        Run additional epoch to collect replay buffer. 
+        1. initialize prefeter, (icarl) feature extractor and prototype.
+        2. run rehearsal training.
+        3. (icarl) detach values in rehearsal_classes.
+    '''
+
+    prefetcher = create_prefetcher(dataset_name, data_loader, device, args)
+    if args.Sampling_strategy == "icarl":
+        fe = icarl_feature_extractor_setup(args, model)
+        proto = icarl_prototype_setup(args, fe, device, current_classes)
+
     with torch.no_grad():
         for idx in tqdm(range(len(data_loader)), disable=not utils.is_main_process()): #targets
             samples, targets, _, _ = prefetcher.next()
                 
             # extra training을 통해서 replay 데이터를 수집하도록 설정
-            rehearsal_classes = rehearsal_training(args, samples, targets, model, criterion, 
+            if args.Sampling_strategy == "icarl":
+                rehearsal_classes = icarl_rehearsal_training(args, samples, targets, fe, proto, device,
+                                                   rehearsal_classes, current_classes)
+            else:
+                rehearsal_classes = rehearsal_training(args, samples, targets, model, criterion, 
                                                    rehearsal_classes, current_classes)
             if idx % 100 == 0:
                 torch.cuda.empty_cache()
@@ -53,7 +72,16 @@ def _extra_epoch_for_replay(args, data_loader, prefetcher, model, criterion, reh
             if args.debug:
                 if idx == args.num_debug_dataset:
                     break
+
+        if args.Sampling_strategy == "icarl":
+            ''' 
+                rehearsal_classes : [feature_sum, [[image_ids, difference] ...]] 
+            '''
+            for key, val in rehearsal_classes.items():
+                val[0] = val[0].detach().cpu()
+
     return rehearsal_classes
+
 
 def create_prefetcher(dataset_name: str, data_loader: Iterable, device: torch.device, args: any) \
         -> data_prefetcher:
@@ -64,18 +92,14 @@ def create_prefetcher(dataset_name: str, data_loader: Iterable, device: torch.de
     else:
         return data_prefetcher(data_loader, device, prefetch=True, Mosaic=False)
 
+
 def train_one_epoch(args, last_task, epo, model: torch.nn.Module, teacher_model, criterion: torch.nn.Module,
                     data_loader: Iterable, optimizer: torch.optim.Optimizer, lr_scheduler: ContinualStepLR,
                     device: torch.device, dataset_name: str,  
                     current_classes: List = [], rehearsal_classes: Dict = {},
                     extra_epoch: bool = False):
     ex_device = torch.device("cpu")
-    
     prefetcher = create_prefetcher(dataset_name, data_loader, device, args)
-    if extra_epoch:
-        rehearsal_classes = _extra_epoch_for_replay(args, data_loader=data_loader, prefetcher=prefetcher, model=model, criterion=criterion,
-                                rehearsal_classes=rehearsal_classes, current_classes=current_classes)
-        return rehearsal_classes
     
     set_tm = time.time()
     sum_loss = 0.0
@@ -111,6 +135,7 @@ def train_one_epoch(args, last_task, epo, model: torch.nn.Module, teacher_model,
     if utils.is_main_process():
         print("Total Time : ", time.time() - set_tm)
 
+
 @torch.no_grad()
 def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, output_dir, DIR, args) :
     model.eval()
@@ -130,11 +155,7 @@ def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, out
         samples = samples.to(device)
         targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
 
-        # Add denoising arguments
-        if args.model_name == 'dn_detr':
-            model = _prepare_denoising_args(model, targets, eval=True)
-
-        outputs = model(samples)
+        outputs = inference_model(args, model, samples, targets, eval=True)
         loss_dict = criterion(outputs, targets)
         weight_dict = criterion.weight_dict
         
@@ -151,7 +172,7 @@ def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, out
         metric_logger.update(class_error=loss_dict_reduced['class_error'])
 
         orig_target_sizes = torch.stack([t["orig_size"] for t in targets], dim=0)
-        results = postprocessors['bbox'](outputs, orig_target_sizes)
+        results = postprocessors['bbox'](outputs, orig_target_sizes, args.model_name)
         #print(results)
         if 'segm' in postprocessors.keys():
             target_sizes = torch.stack([t["size"] for t in targets], dim=0)
