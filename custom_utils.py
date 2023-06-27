@@ -183,7 +183,10 @@ def load_model_params(mode, model: model,
     checkpoint = torch.load(dir)
     pretraind_model = checkpoint["model"]
     name_list = [name for name in new_model_dict.keys() if name in pretraind_model.keys()]
-    # name_list = list(filter(lambda x : "class" not in x, name_list))
+
+    if mode != 'eval':
+        name_list = list(filter(lambda x : "class" not in x, name_list))
+        name_list = list(filter(lambda x : "label" not in x, name_list)) # for dn_detr
     pretraind_model_dict = {k : v for k, v in pretraind_model.items() if k in name_list } # if "class" not in k => this method used in diff class list
     
     new_model_dict.update(pretraind_model_dict)
