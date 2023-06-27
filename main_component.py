@@ -49,6 +49,8 @@ class TrainingPipeline:
         self.device = torch.device(args.device)
         self.Divided_Classes, self.dataset_name, self.start_epoch, self.start_task, self.tasks = self._incremental_setting()
         self.model, self.model_without_ddp, self.criterion, self.postprocessors, self.teacher_model = self._build_and_setup_model(task_idx=args.start_task)
+        if self.args.Branch_Incremental and not args.eval:
+            self.make_branch(self.start_task, self.args, replay=True)
         self.optimizer, self.lr_scheduler = self._setup_optimizer_and_scheduler()
         # self._load_state()
         self.output_dir = Path(args.output_dir)
@@ -72,36 +74,41 @@ class TrainingPipeline:
             args.Task_Epochs = epochs[0]
     
 
-    def make_branch(self, task_idx, args, replay=False, eval=False):
-        self.model, self.model_without_ddp, self.criterion, \
-            self.postprocessors, self.teacher_model = self._build_and_setup_model(task_idx=task_idx, replay=replay)
+    def make_branch(self, task_idx, args, replay=False):
+        if not replay:
+            self.update_class(self, task_idx)          
+            self.model, self.criterion, self.postprocessors = get_models(self.args.model_name, self.args, self.num_classes, self.current_class)
         
-        if not eval:
+        if replay:
+            weight_path = args.pretrained_model[0]
+        else:
             base_path = '/'.join(args.Rehearsal_file.split('/')[:-1]) if replay else args.output_dir
-            
             weight_path = os.path.join(base_path, f'checkpoints/cp_{self.tasks:02}_{task_idx:02}.pth')
-            previous_weight = torch.load(weight_path)
+        previous_weight = torch.load(weight_path)
+        print(colored(f"Branch_incremental weight path : {weight_path}", "red", "on_yellow"))
 
-            try:
-                for idx, class_emb in enumerate(self.model.class_embed):
-                    init_layer_weight = torch.nn.init.xavier_normal_(class_emb.weight.data)
-                    previous_layer_weight = previous_weight['model'][f'class_embed.{idx}.weight']
-                    previous_class_len = previous_layer_weight.size(0)
-
-                    init_layer_weight[:previous_class_len] = previous_layer_weight
-            except:
-                class_emb = self.model.class_embed
+        if args.model_name == 'deform_detr':
+            for idx, class_emb in enumerate(self.model.class_embed):
                 init_layer_weight = torch.nn.init.xavier_normal_(class_emb.weight.data)
-                previous_layer_weight = previous_weight['model']['class_embed.weight']
+                previous_layer_weight = previous_weight['model'][f'class_embed.{idx}.weight']
                 previous_class_len = previous_layer_weight.size(0)
-                
+
                 init_layer_weight[:previous_class_len] = previous_layer_weight
                 
-            if replay:
-                return self.model
+        elif args.model_name == 'dn_detr':
+            class_emb = self.model.class_embed
+            label_enc = self.model.label_enc
+            
+            init_class_weight = torch.nn.init.xavier_normal_(class_emb.weight.data)
+            init_label_weight = torch.nn.init.xavier_normal_(label_enc.weight.data)
+            previous_class_weight = previous_weight['model']['class_embed.weight']
+            previous_label_weight = previous_weight['model']['label_enc.weight']
+            previous_class_len = previous_class_weight.size(0)
+            previous_label_len = previous_label_weight.size(0)
+            init_class_weight[:previous_class_len] = previous_class_weight
+            init_label_weight[:previous_label_len] = previous_label_weight
 
-
-    def _build_and_setup_model(self, task_idx, replay=False):
+    def update_class(self, task_idx):
         if self.args.Branch_Incremental is False:
             # Because original classes(whole classes) is 60 to LG, COCO is 91.
             num_classes = 60 if self.args.LG else 91
@@ -111,16 +118,17 @@ class TrainingPipeline:
                 task_idx = len(self.Divided_Classes)
             current_class = sum(self.Divided_Classes[:task_idx+1], [])
             num_classes = len(current_class) + 1
+        self.current_class = current_class
+        self.num_classes = num_classes        
 
-        model, criterion, postprocessors = get_models(self.args.model_name, self.args, num_classes, current_class)
+    def _build_and_setup_model(self, task_idx, replay=False):
+        self.update_class(task_idx)
+
+        model, criterion, postprocessors = get_models(self.args.model_name, self.args, self.num_classes, self.current_class)
         pre_model = copy.deepcopy(model)
         model.to(self.device)
         if self.args.pretrained_model is not None and not self.args.eval and not replay:
-            try:
-                model = load_model_params("main", model, self.args.pretrained_model)
-            except:
-                model = self.make_branch(1, self.args, replay=True)
-        
+            model = load_model_params("main", model, self.args.pretrained_model)
         model_without_ddp = model
         
         teacher_model = None
@@ -281,6 +289,7 @@ class TrainingPipeline:
             
             if predefined_model is not None:
                 self.model = load_model_params("eval", self.model, predefined_model)
+                self.make_branch(self.start_task, self.args, replay=True)
                 
             print(colored(f"check filename list : {filename_list}", "red"))
             with open(self.DIR, 'a') as f:
