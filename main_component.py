@@ -289,7 +289,6 @@ class TrainingPipeline:
             
             if predefined_model is not None:
                 self.model = load_model_params("eval", self.model, predefined_model)
-                self.make_branch(self.start_task, self.args, replay=True)
                 
             print(colored(f"check filename list : {filename_list}", "red"))
             with open(self.DIR, 'a') as f:
