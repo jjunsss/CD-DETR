@@ -150,6 +150,8 @@ def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, out
     #FIXME: check your cocoEvaluator function for writing the results (I'll give you code that changed)
     coco_evaluator = CocoEvaluator(base_ds, iou_types, DIR)
     # coco_evaluator.coco_eval[iou_types[0]].params.iouThrs = [0, 0.1, 0.5, 0.75]
+    
+    cnt = 0 # for debug
         
     for samples, targets, _, _ in metric_logger.log_every(data_loader, 10, header):
         samples = samples.to(device)
@@ -178,8 +180,24 @@ def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, out
             target_sizes = torch.stack([t["size"] for t in targets], dim=0)
             results = postprocessors['segm'](results, outputs, orig_target_sizes, target_sizes)
         res = {target['image_id'].item(): output for target, output in zip(targets, results)}
+        
+        gt = outputs[0]['gt'] if args.model_name == 'dn_detr' else outputs[0]['gt']
+        
+        # cocoeval에서 gt와 dt를 맞추어주기 위함
+        if gt is not None :
+            for r in res.values():
+                labels = r['labels'].cpu().numpy()
+                r['labels'] = torch.tensor([
+                    gt[tgt_id-1] for tgt_id in labels
+                ], dtype=torch.int64).cuda()
+        
         if coco_evaluator is not None:
             coco_evaluator.update(res)
+            
+        if args.debug:
+            cnt += 1
+            if cnt == args.num_debug_dataset:
+                break
 
     # gather the stats from all processes
     metric_logger.synchronize_between_processes()
