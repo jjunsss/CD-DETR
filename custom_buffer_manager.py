@@ -103,8 +103,8 @@ def construct_rehearsal(args, losses_dict: dict, targets, rehearsal_dict: List,
         label_tensor_unique = torch.unique(label_tensor)
         label_tensor_unique_list = label_tensor_unique.tolist()
         #if unique tensor composed by Old Dataset, So then pass iteration [Replay constructig shuld not operate in last task training]
-        if set(label_tensor_unique_list).issubset(current_classes) is False: 
-            continue
+        # if set(label_tensor_unique_list).issubset(current_classes) is False: 
+        #     continue
 
         if len(rehearsal_dict.keys()) <  limit_image :
             # when under the buffer 
