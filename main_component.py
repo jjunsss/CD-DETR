@@ -305,6 +305,8 @@ class TrainingPipeline:
             for task_idx, cur_file_name in enumerate(filename_list):
                 if 've' in cur_file_name:
                     task_idx = 2
+                elif 'coco' in cur_file_name:
+                    cur_file_name = 'test'
                 
                 # TODO: VE - eval인 경우도 고려하기
                 file_link = [name for name in dir_list if cur_file_name in os.path.basename(name).lower()]
@@ -335,7 +337,7 @@ class TrainingPipeline:
                 data_loader_train = temp_loader[dataset_index]
                 sampler_train = temp_sampler[dataset_index]
                 self.dataset_name = self.dataset_name[dataset_index]
-                
+
             if args.distributed:
                 sampler_train.set_epoch(epoch)#TODO: 추후에 epoch를 기준으로 batch sampler를 추출하는 행위 자체가 오류를 일으킬 가능성이 있음 Incremental Learning에서                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
             print(f"task id : {task_idx} / {self.tasks-1}")
