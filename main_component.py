@@ -62,9 +62,11 @@ class TrainingPipeline:
         if args.pretrained_model_dir is not None:
             if 'checkpoints' not in args.pretrained_model_dir:
                 args.pretrained_model_dir = os.path.join(args.pretrained_model_dir, 'checkpoints')
+                print(colored(f"args.pretrained_model_dir : {args.pretrained_model_dir}", "red", "on_yellow"))
         if args.Rehearsal_file is not None:
             if 'replay' not in args.Rehearsal_file:
                 args.Rehearsal_file = os.path.join(args.Rehearsal_file, 'replay')
+                print(colored(f"args.Rehearsal_file : {args.Rehearsal_file}", "red", "on_yellow"))
     
     def set_task_epoch(self, args, idx):
         epochs = self.Task_Epochs
@@ -290,16 +292,22 @@ class TrainingPipeline:
             
             if predefined_model is not None:
                 self.model = load_model_params("eval", self.model, predefined_model)
-                
+            
+            if 've' in filename_list:
+                filename_list.pop(filename_list.index('ve'))
+                filename_list.extend(['ve10', 've2021', 'vemulti']) # 실제 파일 이름에 해당 키워드가 포함되어 있어야 함
+            
             print(colored(f"check filename list : {filename_list}", "red"))
             with open(self.DIR, 'a') as f:
                 f.write(f"\n-----------------------pth file----------------------\n")
                 f.write(f"file_name : {str(predefined_model)}\n")
                 
             for task_idx, cur_file_name in enumerate(filename_list):
+                if 've' in cur_file_name:
+                    task_idx = 2
                 
                 # TODO: VE - eval인 경우도 고려하기
-                file_link = [name for name in dir_list if cur_file_name in os.path.basename(name)]
+                file_link = [name for name in dir_list if cur_file_name in os.path.basename(name).lower()]
                 args.coco_path = file_link[0]
                 print(colored(f"now evaluating file name : {args.coco_path}", "red"))
                 print(colored(f"now eval classes: {self.Divided_Classes[task_idx]}", "red"))

@@ -148,8 +148,8 @@ class DABDETR(nn.Module):
             nn.init.constant_(self.bbox_embed.layers[-1].weight.data, 0)
             nn.init.constant_(self.bbox_embed.layers[-1].bias.data, 0)
 
-        if current_class is not None:
-            self.gt = current_class            
+        # current_class가 None이면 self.gt도 None을 갖도록 변경
+        self.gt = current_class            
 
 
     # def forward(self, samples: NestedTensor, dn_args=None):
