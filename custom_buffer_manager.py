@@ -207,6 +207,7 @@ def _save_rehearsal_for_combine(task, dir, rehearsal, epoch):
         dist_rank = dist.get_rank()
     except:
         dist_rank = 0
+        
     backup_dir = os.path.join(
         dir + "/backup/", str(dist_rank) + "_gpu_rehearsal_task_" + str(task) + "_ep_" + str(epoch)
     )
@@ -348,7 +349,7 @@ def _merge_replay_for_multigpu(args, dir, limit_memory_size, gpu_counts, task, e
     return _handle_rehearsal(args, dir, limit_memory_size, gpu_counts, task, epoch, least_image, list_CC, include_all=True)
     
 
-def construct_combined_rehearsal(args, task:int ,dir:str ,rehearsal:dict ,epoch:int 
+def merge_rehearsal_process(args, task:int ,dir:str ,rehearsal:dict ,epoch:int 
                                  ,limit_memory_size:int , list_CC:list, gpu_counts:int, ) -> dict:
     least_image = args.least_image
     # total_size = limit_memory_size * get_world_size()
@@ -369,11 +370,12 @@ def construct_combined_rehearsal(args, task:int ,dir:str ,rehearsal:dict ,epoch:
         else :    
             # 기존에 만들어진 합성 replay 데이터가 없을 때, 새롭게 만들어야 하는 상황을 가정, Becaus Binary Task Incremental Learning
             rehearsal_classes = _multigpu_rehearsal(args, dir, limit_memory_size, gpu_counts, task, epoch, least_image, list_CC)
-        # #save combined replay buffer data for next training
+        # save combined replay buffer data for next training
+        # _save_rehearsal output : save total buffer dataset to dir
         _save_rehearsal(rehearsal_classes, dir, task, limit_memory_size) 
         # buffer_checker(rehearsal=rehearsal_classes)
     
-    # wait main process to finish
+    # wait main process to synchronization
     if utils.get_world_size() > 1:    
         dist.barrier()
 
@@ -387,14 +389,19 @@ from custom_prints import *
 from engine import _extra_epoch_for_replay
 from custom_utils import buffer_checker
 
-def construct_replay_extra_epoch(args, Divided_Classes, model, criterion, device, rehearsal_classes={}, data_loader_train=None, list_CC=None):
+def construct_replay_extra_epoch(args, Divided_Classes, model, criterion, device, rehearsal_classes={}, task_num=0):
     
     # 0. Initialization
     extra_epoch = True
     
+    # 0.1. If you are not use the construct replay method, so then you use the real task number of training step.
+    if args.Construct_Replay :
+        task_num = args.start_task    
+    
     # 1. 현재 테스크에 맞는 적절한 데이터 셋 호출 (학습한 테스크, 0번 테스크에 해당하는 내용을 가져와야 함)
     #    하나의 GPU로 Buffer 구성하기 위해서(더 정확함) 모든 데이터 호출
-    _, data_loader_train, _, list_CC = Incre_Dataset(0, args, Divided_Classes, extra_epoch) 
+    # list_CC : collectable class index
+    _, data_loader_train, _, list_CC = Incre_Dataset(task_num, args, Divided_Classes, extra_epoch) 
     
     # 2. Extra epoch, 모든 이미지들의 Loss를 측정
     rehearsal_classes = _extra_epoch_for_replay(args, dataset_name="", data_loader=data_loader_train, model=model, criterion=criterion, 
@@ -403,7 +410,9 @@ def construct_replay_extra_epoch(args, Divided_Classes, model, criterion, device
     # 3. 수집된 Buffer를 특정 파일에 저장
     if args.Rehearsal_file is None:
         args.Rehearsal_file = args.output_dir
-    rehearsal_classes = construct_combined_rehearsal(args=args, task=0, dir=args.Rehearsal_file, rehearsal=rehearsal_classes,
+    # Rehearsal_file 경로의 폴더가 없을 경우 생성
+    os.makedirs(os.path.dirname(args.Rehearsal_file), exist_ok=True)
+    rehearsal_classes = merge_rehearsal_process(args=args, task=0, dir=args.Rehearsal_file, rehearsal=rehearsal_classes,
                                                     epoch=0, limit_memory_size=args.limit_image, gpu_counts=utils.get_world_size(), list_CC=list_CC)
     
     print(colored(f"Complete constructing buffer","red", "on_yellow"))

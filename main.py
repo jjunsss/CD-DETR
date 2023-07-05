@@ -51,7 +51,7 @@ def main(args):
         pipeline.evaluation_only_mode()
         return
     
-    # No incremental learning process
+    # No incremental learning process, only normal training
     if pipeline.tasks == 1 :
         pipeline.set_task_epoch(args, 0) # only first task
         pipeline.only_one_task_training()
@@ -63,35 +63,15 @@ def main(args):
     is_task_changed = False
     
     for idx, task_idx in enumerate(range(pipeline.start_task, pipeline.tasks)):
-        # Check whether it's the first or last task
+        last_task = (task_idx+1 == pipeline.tasks)
         first_training = (task_idx == 0)
         if is_task_changed and args.Branch_Incremental:
             pipeline.make_branch(task_idx, args)
-        # print(f'Out features : {pipeline.model.class_embed[0].out_features}')
+            is_task_changed = False
         pipeline._load_state()
-        last_task = (task_idx+1 == pipeline.tasks)
-
-        # Generate new dataset
-        dataset_train, data_loader_train, sampler_train, list_CC = Incre_Dataset(task_idx, args, pipeline.Divided_Classes)
-
-        # Ready for replay training strategy 
-        if first_training is False and args.Rehearsal is True:
-
-            replay_dataset = copy.deepcopy(pipeline.rehearsal_classes)
-
-            # Combine dataset for original and AugReplay(Circular)
-            original_dataset, original_loader, original_sampler = CombineDataset(
-                args, replay_dataset, dataset_train, args.num_workers, args.batch_size, old_classes=pipeline.load_replay, MixReplay="Original")
-
-            AugRplay_dataset, AugRplay_loader, AugRplay_sampler = CombineDataset(
-                args, replay_dataset, dataset_train, args.num_workers, args.batch_size, old_classes=pipeline.load_replay, MixReplay="AugReplay") 
-
-            # Set a certain configuration
-            dataset_train, data_loader_train, sampler_train = dataset_configuration(
-                args, original_dataset, original_loader, original_sampler, AugRplay_dataset, AugRplay_loader, AugRplay_sampler)
-
-            # Task change for learning rate scheduler
-            pipeline.lr_scheduler.task_change()
+        
+        # Call your new function here
+        dataset_train, data_loader_train, sampler_train, list_CC = generate_dataset(task_idx, args, pipeline)
             
         # Incremental training for each epoch
         pipeline.set_task_epoch(args, idx)

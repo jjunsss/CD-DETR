@@ -11,13 +11,15 @@ from termcolor import colored
 def Incre_Dataset(Task_Num, args, Incre_Classes, extra_dataset = False):    
     current_classes = Incre_Classes[Task_Num]
     print(f"current_classes : {current_classes}")
-    if extra_dataset is False:
+    previous_classes = sum(Incre_Classes[:Task_Num+1], [])
+    if not extra_dataset:
         if not args.eval:
             # For real model traning
             dataset_train = build_dataset(image_set='train', args=args, class_ids=current_classes)
     else :
         # For generating buffer with whole dataset
-        dataset_train = build_dataset(image_set='extra', args=args, class_ids=current_classes)
+        # previous classes are used to generate buffer of all classe before New task dataset
+        dataset_train = build_dataset(image_set='extra', args=args, class_ids=previous_classes)
     
     if args.eval :
         dataset_val = build_dataset(image_set='val', args=args, class_ids=current_classes)
