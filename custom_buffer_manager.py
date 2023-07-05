@@ -281,6 +281,9 @@ def _save_rehearsal(rehearsal, dir, task, memory):
 
 
 def load_rehearsal(dir, task=None, memory=None):
+    if dir is None:
+        return None
+    
     if task==None and memory==None:
         all_dir = dir
     else:
