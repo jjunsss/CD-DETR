@@ -89,26 +89,30 @@ class TrainingPipeline:
         previous_weight = torch.load(weight_path)
         print(colored(f"Branch_incremental weight path : {weight_path}", "red", "on_yellow"))
 
-        if args.model_name == 'deform_detr':
-            for idx, class_emb in enumerate(self.model.class_embed):
-                init_layer_weight = torch.nn.init.xavier_normal_(class_emb.weight.data)
-                previous_layer_weight = previous_weight['model'][f'class_embed.{idx}.weight']
-                previous_class_len = previous_layer_weight.size(0)
+        try:
+            if args.model_name == 'deform_detr':
+                for idx, class_emb in enumerate(self.model.class_embed):
+                    init_layer_weight = torch.nn.init.xavier_normal_(class_emb.weight.data)
+                    previous_layer_weight = previous_weight['model'][f'class_embed.{idx}.weight']
+                    previous_class_len = previous_layer_weight.size(0)
 
-                init_layer_weight[:previous_class_len] = previous_layer_weight
+                    init_layer_weight[:previous_class_len] = previous_layer_weight
+                    
+            elif args.model_name == 'dn_detr':
+                class_emb = self.model.class_embed
+                label_enc = self.model.label_enc
                 
-        elif args.model_name == 'dn_detr':
-            class_emb = self.model.class_embed
-            label_enc = self.model.label_enc
-            
-            init_class_weight = torch.nn.init.xavier_normal_(class_emb.weight.data)
-            init_label_weight = torch.nn.init.xavier_normal_(label_enc.weight.data)
-            previous_class_weight = previous_weight['model']['class_embed.weight']
-            previous_label_weight = previous_weight['model']['label_enc.weight']
-            previous_class_len = previous_class_weight.size(0)
-            previous_label_len = previous_label_weight.size(0)
-            init_class_weight[:previous_class_len] = previous_class_weight
-            init_label_weight[:previous_label_len] = previous_label_weight
+                init_class_weight = torch.nn.init.xavier_normal_(class_emb.weight.data)
+                init_label_weight = torch.nn.init.xavier_normal_(label_enc.weight.data)
+                previous_class_weight = previous_weight['model']['class_embed.weight']
+                previous_label_weight = previous_weight['model']['label_enc.weight']
+                previous_class_len = previous_class_weight.size(0)
+                previous_label_len = previous_label_weight.size(0)
+                init_class_weight[:previous_class_len] = previous_class_weight
+                init_label_weight[:previous_label_len] = previous_label_weight
+        except:
+            # LG pretrained model이 아니라 coco pretrained model을 사용할 때는 class, label weight 안가져옴
+            print(colored(f"Num of class does not matched! : {weight_path}", "yellow", "on_red"))
 
     def update_class(self, task_idx):
         if self.args.Branch_Incremental is False:
