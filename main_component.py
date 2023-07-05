@@ -298,7 +298,8 @@ class TrainingPipeline:
                 self.model = load_model_params("eval", self.model, predefined_model)
             
             if 've' in filename_list:
-                filename_list.pop(filename_list.index('ve'))
+                ve_idx = filename_list.index('ve')
+                filename_list.pop(ve_idx)
                 filename_list.extend(['ve10', 've2021', 'vemulti']) # 실제 파일 이름에 해당 키워드가 포함되어 있어야 함
             
             print(colored(f"check filename list : {filename_list}", "red"))
@@ -308,7 +309,7 @@ class TrainingPipeline:
                 
             for task_idx, cur_file_name in enumerate(filename_list):
                 if 've' in cur_file_name:
-                    task_idx = 2
+                    task_idx = ve_idx
                 elif 'coco' in cur_file_name:
                     cur_file_name = 'test'
                 
