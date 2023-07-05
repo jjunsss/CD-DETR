@@ -59,6 +59,9 @@ class TrainingPipeline:
         self.Task_Epochs = args.Task_Epochs
     
     def set_directory(self, args):
+        '''
+            pretrained_model and rehearsal file should be contrained "checkpoints" and "replay", respectively.
+        '''        
         if args.pretrained_model_dir is not None:
             if 'checkpoints' not in args.pretrained_model_dir:
                 args.pretrained_model_dir = os.path.join(args.pretrained_model_dir, 'checkpoints')
@@ -89,26 +92,30 @@ class TrainingPipeline:
         previous_weight = torch.load(weight_path)
         print(colored(f"Branch_incremental weight path : {weight_path}", "red", "on_yellow"))
 
-        if args.model_name == 'deform_detr':
-            for idx, class_emb in enumerate(self.model.class_embed):
-                init_layer_weight = torch.nn.init.xavier_normal_(class_emb.weight.data)
-                previous_layer_weight = previous_weight['model'][f'class_embed.{idx}.weight']
-                previous_class_len = previous_layer_weight.size(0)
+        try:
+            if args.model_name == 'deform_detr':
+                for idx, class_emb in enumerate(self.model.class_embed):
+                    init_layer_weight = torch.nn.init.xavier_normal_(class_emb.weight.data)
+                    previous_layer_weight = previous_weight['model'][f'class_embed.{idx}.weight']
+                    previous_class_len = previous_layer_weight.size(0)
 
-                init_layer_weight[:previous_class_len] = previous_layer_weight
+                    init_layer_weight[:previous_class_len] = previous_layer_weight
+                    
+            elif args.model_name == 'dn_detr':
+                class_emb = self.model.class_embed
+                label_enc = self.model.label_enc
                 
-        elif args.model_name == 'dn_detr':
-            class_emb = self.model.class_embed
-            label_enc = self.model.label_enc
-            
-            init_class_weight = torch.nn.init.xavier_normal_(class_emb.weight.data)
-            init_label_weight = torch.nn.init.xavier_normal_(label_enc.weight.data)
-            previous_class_weight = previous_weight['model']['class_embed.weight']
-            previous_label_weight = previous_weight['model']['label_enc.weight']
-            previous_class_len = previous_class_weight.size(0)
-            previous_label_len = previous_label_weight.size(0)
-            init_class_weight[:previous_class_len] = previous_class_weight
-            init_label_weight[:previous_label_len] = previous_label_weight
+                init_class_weight = torch.nn.init.xavier_normal_(class_emb.weight.data)
+                init_label_weight = torch.nn.init.xavier_normal_(label_enc.weight.data)
+                previous_class_weight = previous_weight['model']['class_embed.weight']
+                previous_label_weight = previous_weight['model']['label_enc.weight']
+                previous_class_len = previous_class_weight.size(0)
+                previous_label_len = previous_label_weight.size(0)
+                init_class_weight[:previous_class_len] = previous_class_weight
+                init_label_weight[:previous_label_len] = previous_label_weight
+        except:
+            # LG pretrained model이 아니라 coco pretrained model을 사용할 때는 class, label weight 안가져옴
+            print(colored(f"Num of class does not matched! : {weight_path}", "yellow", "on_red"))
 
     def update_class(self, task_idx):
         if self.args.Branch_Incremental is False:
@@ -118,28 +125,35 @@ class TrainingPipeline:
         else:
             if self.args.eval:
                 task_idx = len(self.Divided_Classes)
+            previous_classes = sum(self.Divided_Classes[:task_idx], []) # For distillation options.
             current_class = sum(self.Divided_Classes[:task_idx+1], [])
             num_classes = len(current_class) + 1
+            
+        self.previous_classes = previous_classes
         self.current_class = current_class
-        self.num_classes = num_classes        
+        self.num_classes = num_classes
 
     def _build_and_setup_model(self, task_idx, replay=False):
         self.update_class(task_idx)
 
         model, criterion, postprocessors = get_models(self.args.model_name, self.args, self.num_classes, self.current_class)
-        pre_model = copy.deepcopy(model)
+
+        if self.args.Distill:
+            pre_model, _, _ = get_models(self.args.model_name, self.args, self.num_classes, self.current_class)
+        #FIXME: If we use the pre_model option, we need to load the pre-trained model architecture.
+        #FIXME: because previous version of the model does not match the current version(branch incremental option)
         model.to(self.device)
         if self.args.pretrained_model is not None and not self.args.eval and not replay:
             model = load_model_params("main", model, self.args.pretrained_model)
         model_without_ddp = model
         
         teacher_model = None
-        if self.args.Distill:    
+        if self.args.Distill:
             teacher_model = load_model_params("teacher", pre_model, self.args.teacher_model)
             print(f"teacher model load complete !!!!")
             return model, model_without_ddp, criterion, postprocessors, teacher_model
             
-        return model, model_without_ddp, criterion, postprocessors, None
+        return model, model_without_ddp, criterion, postprocessors, teacher_model
     
 
     def _setup_optimizer_and_scheduler(self):
@@ -200,6 +214,7 @@ class TrainingPipeline:
         tasks = args.Task
         Divided_Classes = DivideTask_for_incre(args.Task, args.Total_Classes, args.Total_Classes_Names, args.eval, args.test_file_list)
         if args.Total_Classes_Names == True :
+            # If you use the Total Classes names, you don't need to write args.tasks(you can use the any value)
             tasks = len(Divided_Classes)    
         
         if args.start_epoch != 0:
@@ -217,8 +232,10 @@ class TrainingPipeline:
 
     def _load_replay_buffer(self):
         '''
-            you should check more then two task splits
-            criteria : task >= 2
+            you should check more then two task splits. because It is used in incremental tasks
+            1. criteria : tasks >= 2
+            2. args.Rehearsal : True
+            3. args.
         '''
         load_replay = []
         rehearsal_classes = {}
@@ -227,8 +244,7 @@ class TrainingPipeline:
             load_replay.extend(self.Divided_Classes[idx])
             
         #* Load for Replay
-        # if (args.Rehearsal and (self.start_task >= 1)) or args.Construct_Replay:
-        if (args.Rehearsal and (self.start_task >= 1)):
+        if args.Rehearsal:
             rehearsal_classes = load_rehearsal(args.Rehearsal_file, 0, args.limit_image)
         
             try:
@@ -294,8 +310,11 @@ class TrainingPipeline:
                 self.model = load_model_params("eval", self.model, predefined_model)
             
             if 've' in filename_list:
-                filename_list.pop(filename_list.index('ve'))
+                ve_idx = filename_list.index('ve')
+                filename_list.pop(ve_idx)
                 filename_list.extend(['ve10', 've2021', 'vemulti']) # 실제 파일 이름에 해당 키워드가 포함되어 있어야 함
+            elif 'coco' in cur_file_name:
+                cur_file_name = 'test'
             
             print(colored(f"check filename list : {filename_list}", "red"))
             with open(self.DIR, 'a') as f:
@@ -304,7 +323,9 @@ class TrainingPipeline:
                 
             for task_idx, cur_file_name in enumerate(filename_list):
                 if 've' in cur_file_name:
-                    task_idx = 2
+                    task_idx = ve_idx
+                elif 'coco' in cur_file_name:
+                    cur_file_name = 'test'
                 
                 # TODO: VE - eval인 경우도 고려하기
                 file_link = [name for name in dir_list if cur_file_name in os.path.basename(name).lower()]
@@ -335,7 +356,7 @@ class TrainingPipeline:
                 data_loader_train = temp_loader[dataset_index]
                 sampler_train = temp_sampler[dataset_index]
                 self.dataset_name = self.dataset_name[dataset_index]
-                
+
             if args.distributed:
                 sampler_train.set_epoch(epoch)#TODO: 추후에 epoch를 기준으로 batch sampler를 추출하는 행위 자체가 오류를 일으킬 가능성이 있음 Incremental Learning에서                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
             print(f"task id : {task_idx} / {self.tasks-1}")
@@ -359,7 +380,7 @@ class TrainingPipeline:
             print(f"model update for generating buffer list")
             self.rehearsal_classes = construct_replay_extra_epoch(args=self.args, Divided_Classes=self.Divided_Classes, model=self.model,
                                                                 criterion=self.criterion, device=self.device, rehearsal_classes=self.rehearsal_classes,
-                                                                data_loader_train=data_loader_train, list_CC=list_CC)
+                                                                task_num=task_idx)
             print(f"complete save and merge replay's buffer process")
             print(f"next replay buffer list : {self.rehearsal_classes.keys()}")
             
@@ -367,7 +388,7 @@ class TrainingPipeline:
         save_model_params(self.model_without_ddp, self.optimizer, self.lr_scheduler, args, args.output_dir, 
                           task_idx, int(self.tasks), -1)
         self.load_replay.extend(self.Divided_Classes[task_idx])
-        self.teacher_model = self.model_without_ddp #Trained Model Change in change TASK 
+        self.teacher_model = self.model_without_ddp # teacher model change to new trained model architecture before next task
         self.teacher_model = teacher_model_freeze(self.teacher_model)
 
 
