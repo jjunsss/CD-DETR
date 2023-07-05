@@ -67,8 +67,9 @@ def get_args_parser():
     # parser.add_argument('--pretrained_model', default=None, help='resume from checkpoint')
     parser.add_argument('--pretrained_model', default=None, type=str, nargs='+', help='resume from checkpoint')
     parser.add_argument('--pretrained_model_dir', default=None, type=str, help='test all parameters')
-    parser.add_argument('--start_epoch', default=15, type=int, metavar='N',help='start epoch')
-    parser.add_argument('--start_task', default=0, type=int, metavar='N',help='start task')
+    parser.add_argument('--start_epoch', default=15, type=int, metavar='N', help='start epoch')
+    parser.add_argument('--start_task', default=0, type=int, metavar='N', help='start task, if you set the construct_replay method, \
+                                                                                so then you should set the start_task value. becuase start_task is task number of construct replay options ')
     parser.add_argument('--eval', action='store_true')
     parser.add_argument('--verbose', default=False, action='store_true')
     parser.add_argument('--num_workers', default=16, type=int)

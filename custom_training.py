@@ -254,7 +254,6 @@ def rehearsal_training(args, samples, targets, model: torch.nn.Module, criterion
         batch_loss_dict = {}
         
         # Transform tensor to scarlar value for rehearsal step
-        # TODO : Undecided, but whether to input Term to control Loss factors
         batch_loss_dict["loss_bbox"] = [loss.item() for loss in criterion.losses_for_replay["loss_bbox"]]
         batch_loss_dict["loss_giou"] = [loss.item() for loss in criterion.losses_for_replay["loss_giou"]]
         batch_loss_dict["loss_labels"] = [loss.item() for loss in criterion.losses_for_replay["loss_labels"]]
