@@ -125,10 +125,10 @@ class TrainingPipeline:
         else:
             if self.args.eval:
                 task_idx = len(self.Divided_Classes)
-            previous_classes = sum(self.Divided_Classes[:task_idx], []) # For distillation options.
             current_class = sum(self.Divided_Classes[:task_idx+1], [])
             num_classes = len(current_class) + 1
             
+        previous_classes = sum(self.Divided_Classes[:task_idx], []) # For distillation options.
         self.previous_classes = previous_classes
         self.current_class = current_class
         self.num_classes = num_classes
@@ -313,8 +313,6 @@ class TrainingPipeline:
                 ve_idx = filename_list.index('ve')
                 filename_list.pop(ve_idx)
                 filename_list.extend(['ve10', 've2021', 'vemulti']) # 실제 파일 이름에 해당 키워드가 포함되어 있어야 함
-            elif 'coco' in cur_file_name:
-                cur_file_name = 'test'
             
             print(colored(f"check filename list : {filename_list}", "red"))
             with open(self.DIR, 'a') as f:
@@ -373,7 +371,7 @@ class TrainingPipeline:
 
             # Save model each epoch
             save_model_params(self.model_without_ddp, self.optimizer, self.lr_scheduler, args, args.output_dir, 
-                              task_idx, int(self.tasks), epoch)
+                            task_idx, int(self.tasks), epoch)
         
         # For generating buffer with extra epoch
         if last_task == False and args.Rehearsal:
@@ -386,7 +384,7 @@ class TrainingPipeline:
             
         # For task information
         save_model_params(self.model_without_ddp, self.optimizer, self.lr_scheduler, args, args.output_dir, 
-                          task_idx, int(self.tasks), -1)
+                        task_idx, int(self.tasks), -1)
         self.load_replay.extend(self.Divided_Classes[task_idx])
         self.teacher_model = self.model_without_ddp # teacher model change to new trained model architecture before next task
         self.teacher_model = teacher_model_freeze(self.teacher_model)
@@ -407,5 +405,5 @@ class TrainingPipeline:
         
         # Normal training with each epoch
         self.incremental_train_epoch(task_idx=0, last_task=True, dataset_train=dataset_train,
-                                         data_loader_train=data_loader_train, sampler_train=sampler_train,
-                                         list_CC=list_CC)
+                                        data_loader_train=data_loader_train, sampler_train=sampler_train,
+                                        list_CC=list_CC)

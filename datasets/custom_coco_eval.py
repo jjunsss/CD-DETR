@@ -79,7 +79,7 @@ class COCOeval:
         self.DIR = DIR
         if not cocoGt is None:
             self.params.imgIds = sorted(cocoGt.getImgIds())
-            self.params.catIds = sorted(cocoGt.getCatIds())
+            self.params.catIds = sorted(cocoGt.getCatIds(catIds=cocoGt.cats))
 
 
     def _prepare(self):
