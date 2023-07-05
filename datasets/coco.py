@@ -158,8 +158,8 @@ def make_coco_transforms(image_set, fix_size=False):
 
     normalize = T.Compose([
         T.ToTensor(),
-        T.Normalize([0.312, 0.315, 0.294], [0.120, 0.122, 0.131]) # For LG
-        #T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])# third (11.14 ~ )
+        # T.Normalize([0.312, 0.315, 0.294], [0.120, 0.122, 0.131]) # For LG
+        T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])# third (11.14 ~ )
     ])
 
     scales = [480, 512, 544, 576, 608, 640, 672, 704]
@@ -217,9 +217,9 @@ def build(image_set, args, img_ids = None, class_ids = None):
     #     "val": (root / "images", root / 'output_json' / 'train.json'),
     # }
     PATHS = {
-        "train": (root / "images", root / 'output_json' / 'train.json'),
-        "val": (root / "images", root / 'output_json' / 'test.json'),
-        "extra": (root / "images", root / 'output_json' / 'train.json'), # same thing train path
+        "train": (root / "train2017", root / "annotations" / f'{mode}_train2017.json'),
+        "val": (root / "val2017", root / "annotations" / f'{mode}_val2017.json'),
+        "extra": (root / "train2017", root / "annotations" / f'{mode}_train2017.json'),
     }
 
     img_folder, ann_file = PATHS[image_set]
