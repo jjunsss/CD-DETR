@@ -302,13 +302,13 @@ def dataset_configuration(args, original_dataset, original_loader, original_samp
 from Custom_Dataset import Incre_Dataset
 from copy import deepcopy
 def generate_dataset(task_idx, args, pipeline):
-    # Generate new dataset
+    # Generate new dataset(current classes)
     dataset_train, data_loader_train, sampler_train, list_CC = Incre_Dataset(task_idx, args, pipeline.Divided_Classes)
 
     if task_idx != 0 and args.Rehearsal:
         # Ready for replay training strategy
         replay_dataset = deepcopy(pipeline.rehearsal_classes)
-        previous_classes = sum(pipeline.Divided_Classes[:task_idx], [])
+        previous_classes = sum(pipeline.Divided_Classes[:task_idx], []) # Not now current classe 
 
         # Combine dataset for original and AugReplay(Circular)
         original_dataset, original_loader, original_sampler = CombineDataset(
@@ -403,3 +403,14 @@ class ContinualStepLR(StepLR):
 #         self.optimizer = self.base_lr
 #         if self.verbose and (idx % 30) == 0:
 #             print(f"optimizer group setting is {self.optimizer}")
+
+
+from engine import extra_epoch_for_fisher
+def fisher_process(args, RehearsalData, old_classes, ):
+    '''
+        buffer내에서의 fisher 정보량을 계산하기 위해서 진행하는 프로세스.
+        fisher의 양은 
+    '''
+    fisher_dataset, fisher_data_loader, _ = fisher_dataset(args, RehearsalData, old_classes)
+    rehearsal_classes = extra_epoch_for_fisher(args, dataset_name="", data_loader=fisher_data_loader, model=model, criterion=criterion, 
+                                                device=args.device, rehearsal_classes=rehearsal_classes)

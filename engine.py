@@ -39,7 +39,7 @@ def decompose_dataset(no_use_count: int, samples: utils.NestedTensor, targets: D
     return (batch_size, no_use_count, samples, targets, origin_samples, origin_targets, used_number)
 
 
-def _extra_epoch_for_replay(args, dataset_name: str, data_loader: Iterable, model: torch.nn.Module, criterion: torch.nn.Module,
+def extra_epoch_for_replay(args, dataset_name: str, data_loader: Iterable, model: torch.nn.Module, criterion: torch.nn.Module,
                                  device: torch.device, rehearsal_classes, current_classes):
 
     '''
@@ -82,7 +82,27 @@ def _extra_epoch_for_replay(args, dataset_name: str, data_loader: Iterable, mode
 
     return rehearsal_classes
 
-
+def extra_epoch_for_fisher(args, dataset_name: str, data_loader: Iterable, model: torch.nn.Module, criterion: torch.nn.Module,
+                                 device: torch.device, rehearsal_classes, current_classes):
+    '''
+        Fisher 정보를 얻는 것도 MultiGPU로 할거면 rehearsal데이터 모으는 것과 유사하게 진행해야 할 듯 하다.
+        
+    '''
+    prefetcher = create_prefetcher(dataset_name, data_loader, device, args)
+    for idx in tqdm(range(len(data_loader)), disable=not utils.is_main_process()):
+        samples, targets, _, _ = prefetcher.next()
+        
+        #TODO: 함수 내부 작성해야함.
+        #TODO: fisher_dict에서 image_id에 일치하는 값을 넣기 위해서는 해당 정보를 알아야 dictionary에 알맞게 만들어서 사용할 수 있다.
+        fisher_dict = fisher_training(args, samples, targets, model, criterion, 
+                                                   rehearsal_classes, current_classes)
+        
+        if idx % 100 == 0:
+            torch.cuda.empty_cache()              
+    
+    return fisher_dict
+        
+        
 def create_prefetcher(dataset_name: str, data_loader: Iterable, device: torch.device, args: any) \
         -> data_prefetcher:
     if dataset_name == "Original":    

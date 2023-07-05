@@ -236,27 +236,29 @@ class NewDatasetSet(torch.utils.data.Dataset):
 
     
 #For Rehearsal
+from custom_utils import fisher_process
 def CombineDataset(args, RehearsalData, CurrentDataset, 
                    Worker, Batch_size, old_classes, MixReplay = None):
     '''
         MixReplay arguments is only used in MixReplay. If It is not args.MixReplay, So
         you can ignore this option.
     '''
+    fisher_process(args, RehearsalData, old_classes)
     OldDataset = CustomDataset(args, RehearsalData, old_classes) #oldDatset[idx]:
     Old_length = len(OldDataset)
     OldDataset_weights = OldDataset.weights
     if args.MixReplay and MixReplay == "original" :
         CombinedDataset = ConcatDataset([OldDataset, CurrentDataset])
-        NewTaskTraining = NewDatasetSet(CombinedDataset, OldDataset, Old_length, OldDataset_weights, False)
+        NewTaskdataset = NewDatasetSet(CombinedDataset, OldDataset, Old_length, OldDataset_weights, False)
          
     elif args.MixReplay and MixReplay == "AugReplay" : 
-        NewTaskTraining = NewDatasetSet(CurrentDataset, OldDataset, Old_length, OldDataset_weights, args.AugReplay)
+        NewTaskdataset = NewDatasetSet(CurrentDataset, OldDataset, Old_length, OldDataset_weights, args.AugReplay)
         
     if args.AugReplay and ~args.MixReplay :
-        NewTaskTraining = NewDatasetSet(CurrentDataset, OldDataset, Old_length, OldDataset_weights, args.AugReplay)
+        NewTaskdataset = NewDatasetSet(CurrentDataset, OldDataset, Old_length, OldDataset_weights, args.AugReplay)
     elif ~args.AugReplay and ~args.MixReplay :
         CombinedDataset = ConcatDataset([OldDataset, CurrentDataset])
-        NewTaskTraining = NewDatasetSet(CombinedDataset, OldDataset, Old_length, OldDataset_weights, False) 
+        NewTaskdataset = NewDatasetSet(CombinedDataset, OldDataset, Old_length, OldDataset_weights, False) 
         
     print(f"current Dataset length : {len(CurrentDataset)}")
     print(f"Total Dataset length : {len(CurrentDataset)} +  old dataset length : {len(OldDataset)}")
@@ -264,24 +266,24 @@ def CombineDataset(args, RehearsalData, CurrentDataset,
     
     if args.distributed:
         if args.cache_mode:
-            sampler_train = samplers.NodeDistributedSampler(NewTaskTraining)
+            sampler_train = samplers.NodeDistributedSampler(NewTaskdataset)
         else:
-            sampler_train = samplers.DistributedSampler(NewTaskTraining, shuffle=True)
+            sampler_train = samplers.DistributedSampler(NewTaskdataset, shuffle=True)
     else:
-        sampler_train = torch.utils.data.RandomSampler(NewTaskTraining)
+        sampler_train = torch.utils.data.RandomSampler(NewTaskdataset)
         
     batch_sampler_train = torch.utils.data.BatchSampler(sampler_train, Batch_size, drop_last=True)
     
     if args.num_workers:
-        CombinedLoader = DataLoader(NewTaskTraining, batch_sampler=batch_sampler_train,
+        CombinedLoader = DataLoader(NewTaskdataset, batch_sampler=batch_sampler_train,
                         collate_fn=utils.collate_fn, num_workers=Worker,
                         pin_memory=True, prefetch_factor=4,) #worker_init_fn=worker_init_fn, persistent_workers=args.AugReplay)
     else:
-        CombinedLoader = DataLoader(NewTaskTraining, batch_sampler=batch_sampler_train,
+        CombinedLoader = DataLoader(NewTaskdataset, batch_sampler=batch_sampler_train,
                         collate_fn=utils.collate_fn, num_workers=Worker,
                         pin_memory=True) #worker_init_fn=worker_init_fn, persistent_workers=args.AugReplay)
     
-    return NewTaskTraining, CombinedLoader, sampler_train
+    return NewTaskdataset, CombinedLoader, sampler_train
 
 
 def IcarlDataset(args, single_class:int):
@@ -304,3 +306,22 @@ def IcarlDataset(args, single_class:int):
                                 pin_memory=True)
     
     return dataset, data_loader, sampler
+
+
+def fisher_dataset(args, RehearsalData, old_classes):
+    buffer_dataset = CustomDataset(args, RehearsalData, old_classes)
+    if args.distributed:
+        if args.cache_mode:
+            sampler_train = samplers.NodeDistributedSampler(buffer_dataset)
+        else:
+            sampler_train = samplers.DistributedSampler(buffer_dataset, shuffle=False)
+    else:
+        sampler_train = torch.utils.data.RandomSampler(buffer_dataset, shuffle=False)
+        
+    batch_sampler_train = torch.utils.data.BatchSampler(sampler_train, args.batch_size, drop_last=True)
+    
+    data_loader = DataLoader(buffer_dataset, batch_sampler=batch_sampler_train,
+                                collate_fn=utils.collate_fn, num_workers=args.num_workers,
+                                pin_memory=True)
+    
+    return buffer_dataset, data_loader, sampler_train

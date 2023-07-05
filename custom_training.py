@@ -237,23 +237,26 @@ def rehearsal_training(args, samples, targets, model: torch.nn.Module, criterion
     '''
         replay를 위한 데이터를 수집 시에 모델은 영향을 받지 않도록 설정
     '''
-    model.eval()
+    model.eval() # For Fisher informations
     criterion.eval()
+    
     device = torch.device("cuda")
     ex_device = torch.device("cpu")
     model.to(device)
     samples, targets = _process_samples_and_targets(samples, targets, device)
-    for_replay = True
 
     outputs = inference_model(args, model, samples, targets, eval=True)
     # TODO : new input to model. plz change dn-detr model input (self.buffer_construct_loss)
+    
     _ = criterion(outputs, targets, buffer_construct_loss=True)
     
-        
+    # This is collect replay buffer
     with torch.no_grad():
         batch_loss_dict = {}
         
         # Transform tensor to scarlar value for rehearsal step
+        # This values sorted by batch index so first add all loss and second iterate each batch loss for update and lastly 
+        # calculate all fisher information for updating all parameters
         batch_loss_dict["loss_bbox"] = [loss.item() for loss in criterion.losses_for_replay["loss_bbox"]]
         batch_loss_dict["loss_giou"] = [loss.item() for loss in criterion.losses_for_replay["loss_giou"]]
         batch_loss_dict["loss_labels"] = [loss.item() for loss in criterion.losses_for_replay["loss_labels"]]
@@ -264,6 +267,47 @@ def rehearsal_training(args, samples, targets, model: torch.nn.Module, criterion
                                                 current_classes=current_classes,
                                                 least_image=args.least_image,
                                                 limit_image=args.limit_image)
+    
+    
+    if utils.get_world_size() > 1:    
+        dist.barrier()
+    return rehearsal_classes
+
+def fisher_training(args, samples, targets, model: torch.nn.Module, criterion: torch.nn.Module, 
+                       rehearsal_classes, current_classes):
+    '''
+        replay buffer 내의 데이터들을 fisher 정보를 통해서 정렬하기 위해서 사용하려고 만들었음
+    '''
+    model.train() # For Fisher informations
+    criterion.train()
+    
+    device = torch.device("cuda")
+    model.to(device)
+    samples, targets = _process_samples_and_targets(samples, targets, device)
+
+    outputs = inference_model(args, model, samples, targets, eval=True)
+    # TODO : new input to model. plz change dn-detr model input (self.buffer_construct_loss)
+    
+    loss_dict = criterion(outputs, targets, buffer_construct_loss=True)
+    losses = sum(loss_dict[k] for k in loss_dict.keys())
+    
+    loss_term = zip(criterion.losses_for_replay["loss_bbox"], criterion.losses_for_replay["loss_giou"], criterion.losses_for_replay["loss_labels"])
+    model.zero_grad()
+    
+    for lbbox, lgiou, llabels in loss_term :
+        losses = lbbox + lgiou + llabels
+        losses.backward()
+        
+        # Now, for each parameter in the model...
+        FIM_value = 0
+        for name, param in model.named_parameters():
+            if param.grad is not None:
+                # The gradient of the loss w.r.t. this parameter gives us information about how changing this parameter would affect the loss.
+                # We square the gradient and sum over all elements to get a scalar quantity.
+                FIM_value += torch.sum(param.grad ** 2).item()
+            else :
+                print(colored(f"gradient value is None", "red", "on_yellow"))
+                
     if utils.get_world_size() > 1:    
         dist.barrier()
     return rehearsal_classes
