@@ -5,30 +5,36 @@ from torch.utils.data import DataLoader, ConcatDataset
 import datasets.samplers as samplers
 import torch
 import numpy as np
+from termcolor import colored
 
 
 def Incre_Dataset(Task_Num, args, Incre_Classes, extra_dataset = False):    
     current_classes = Incre_Classes[Task_Num]
     print(f"current_classes : {current_classes}")
-    if extra_dataset is False:
+    all_classes = sum(Incre_Classes[:Task_Num+1], []) # ALL : old task clsses + new task clsses(after training, soon to be changed)
+    if not extra_dataset:
         if not args.eval:
             # For real model traning
             dataset_train = build_dataset(image_set='train', args=args, class_ids=current_classes)
     else :
         # For generating buffer with whole dataset
-        dataset_train = build_dataset(image_set='extra', args=args, class_ids=current_classes)
+        # previous classes are used to generate buffer of all classe before New task dataset
+        print(colored(f"Extra Option classes : {all_classes}", "light_red", "on_yellow"))
+        dataset_train = build_dataset(image_set='extra', args=args, class_ids=all_classes)
     
     if args.eval :
         dataset_val = build_dataset(image_set='val', args=args, class_ids=current_classes)
         
     if args.distributed:
         if args.cache_mode:
-            sampler_train = samplers.NodeDistributedSampler(dataset_train)
-            if args.eval:
+            if not args.eval:
+                sampler_train = samplers.NodeDistributedSampler(dataset_train)
+            else:
                 sampler_val = samplers.NodeDistributedSampler(dataset_val, shuffle=False)
         else:
-            sampler_train = samplers.DistributedSampler(dataset_train)
-            if args.eval:
+            if not args.eval:
+                sampler_train = samplers.DistributedSampler(dataset_train)
+            else:
                 sampler_val = samplers.DistributedSampler(dataset_val, shuffle=True)
     else:
         if not args.eval:
@@ -50,6 +56,36 @@ def Incre_Dataset(Task_Num, args, Incre_Classes, extra_dataset = False):
     
     return dataset_train, data_loader_train, sampler_train, current_classes
 
+def make_class(test_file):
+    #####################################
+    ########## !! Edit here !! ##########
+    #####################################
+    class_dict = {
+        'file_name': ['did', 'pz', 've'],
+        'class_idx': [
+            [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21], # DID
+            [28, 32, 35, 41, 56], # photozone
+            [24, 29, 30, 39, 40, 42] # 야채칸 중 일부(mAP 높은 일부)
+        ]
+    }
+    #####################################
+    
+    # case_1) file name에 VE가 포함되어 있지 않은 경우
+    if test_file.lower() in ['2021', 'multisingle', '10test']:
+        test_file = 've' + test_file
+    # case_2) 혼합 데이터셋
+    if '+' in test_file:
+        task_list = test_file.split('+')
+        tmp = []
+        for task in task_list:
+            idx = [name in task.lower() for name in class_dict['file_name']].index(True)
+            tmp.append(class_dict['class_idx'][idx])
+        res = sum(tmp, [])
+        return res  # early return
+    
+    idx = [name in test_file.lower() for name in class_dict['file_name']].index(True)
+    return class_dict['class_idx'][idx]
+
 
 def DivideTask_for_incre(Task_Counts: int, Total_Classes: int, DivisionOfNames: Boolean, eval=False, test_file_list=None):
     '''
@@ -60,24 +96,15 @@ def DivideTask_for_incre(Task_Counts: int, Total_Classes: int, DivisionOfNames: 
         #DivisionOfNames : Domain을 사용해서 분할
     '''
     if DivisionOfNames is True:
-        Divided_Classes = []
-        # Edit here
-        class_dict = {
-            'file_name': ['did', 'pz', 've'],
-            'class_idx': [
-                [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21], # DID
-                [28, 32, 35, 41, 56], # photozone
-                # [24, 29, 30, 39, 40, 42] # 야채칸 중 일부(mAP 높은 일부)
-            ]
-        }
-
-        if eval:
-            # Evaluation
+        if test_file_list is not None:
+            Divided_Classes = []
             for test_file in test_file_list:
-                idx = [name in test_file.lower() for name in class_dict['file_name']].index(True)
                 Divided_Classes.append(
-                    class_dict['class_idx'][idx]
+                    make_class(test_file)
                 )
+            
+            msg = f"{'='*35} Entire Divided Classes {'='*35}\n{Divided_Classes}"
+            print(colored(msg, 'red'))
         else:
             Divided_Classes.append([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, ]) # DID + PZ
             Divided_Classes.append([28, 32, 35, 41, 56]) # PZ 
@@ -88,9 +115,10 @@ def DivideTask_for_incre(Task_Counts: int, Total_Classes: int, DivisionOfNames: 
             # # Divided_Classes.append([28, 32, 35, 41, 56]) #photozone ,
             # Divided_Classes.append([24, 29, 30, 39, 40, 42]) # 야채칸 중 일부(mAP 높은 일부),
             # # original VE
-            # # #Divided_Classes.append([23, 24, 25, 26, 27, 29, 30, 31, 33,34,36, 37, 38, 39, 40,42,43,44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 57, 58, 59]) #VE
+            # # #Divided_Classes.append([23, 24, 25, 26, 27, 29, 30, 31, 33,34,36, 37, 38, 39, 40,42,43,44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 57, 58, 59]) #VE              
         return Divided_Classes
 
+    # For auto division dataset(T2 training) (40-40 and), (70-10 or 10-70) to be used better performance setting
     classes = [idx+1 for idx in range(Total_Classes)]
     Task = int(Total_Classes / Task_Counts)
     Rest_Classes_num = Total_Classes % Task_Counts
@@ -180,7 +208,7 @@ class CustomDataset(torch.utils.data.Dataset):
 
 
 
-class BatchMosaicAug(torch.utils.data.Dataset):
+class NewDatasetSet(torch.utils.data.Dataset):
     def __init__(self, datasets, OldDataset, old_length, OldDataset_weights, AugReplay=False, ):
         self.Datasets = datasets #now task
         self.Rehearsal_dataset = OldDataset
@@ -192,7 +220,7 @@ class BatchMosaicAug(torch.utils.data.Dataset):
     def __len__(self):
             return len(self.Datasets)    
 
-    def __getitem__(self, index): #! How Can I do this?? 
+    def __getitem__(self, index): 
         img, target, origin_img, origin_target = self.Datasets[index] #No normalize pixel, Normed Targets
 
         if self.AugReplay == True :
@@ -219,16 +247,16 @@ def CombineDataset(args, RehearsalData, CurrentDataset,
     OldDataset_weights = OldDataset.weights
     if args.MixReplay and MixReplay == "original" :
         CombinedDataset = ConcatDataset([OldDataset, CurrentDataset])
-        NewTaskTraining = BatchMosaicAug(CombinedDataset, OldDataset, Old_length, OldDataset_weights, False)
+        NewTaskTraining = NewDatasetSet(CombinedDataset, OldDataset, Old_length, OldDataset_weights, False)
          
     elif args.MixReplay and MixReplay == "AugReplay" : 
-        NewTaskTraining = BatchMosaicAug(CurrentDataset, OldDataset, Old_length, OldDataset_weights, args.AugReplay)
+        NewTaskTraining = NewDatasetSet(CurrentDataset, OldDataset, Old_length, OldDataset_weights, args.AugReplay)
         
     if args.AugReplay and ~args.MixReplay :
-        NewTaskTraining = BatchMosaicAug(CurrentDataset, OldDataset, Old_length, OldDataset_weights, args.AugReplay)
+        NewTaskTraining = NewDatasetSet(CurrentDataset, OldDataset, Old_length, OldDataset_weights, args.AugReplay)
     elif ~args.AugReplay and ~args.MixReplay :
         CombinedDataset = ConcatDataset([OldDataset, CurrentDataset])
-        NewTaskTraining = BatchMosaicAug(CombinedDataset, OldDataset, Old_length, OldDataset_weights, False) 
+        NewTaskTraining = NewDatasetSet(CombinedDataset, OldDataset, Old_length, OldDataset_weights, False) 
         
     print(f"current Dataset length : {len(CurrentDataset)}")
     print(f"Total Dataset length : {len(CurrentDataset)} +  old dataset length : {len(OldDataset)}")

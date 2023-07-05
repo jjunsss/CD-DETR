@@ -67,8 +67,9 @@ def get_args_parser():
     # parser.add_argument('--pretrained_model', default=None, help='resume from checkpoint')
     parser.add_argument('--pretrained_model', default=None, type=str, nargs='+', help='resume from checkpoint')
     parser.add_argument('--pretrained_model_dir', default=None, type=str, help='test all parameters')
-    parser.add_argument('--start_epoch', default=15, type=int, metavar='N',help='start epoch')
-    parser.add_argument('--start_task', default=0, type=int, metavar='N',help='start task')
+    parser.add_argument('--start_epoch', default=15, type=int, metavar='N', help='start epoch')
+    parser.add_argument('--start_task', default=0, type=int, metavar='N', help='start task, if you set the construct_replay method, \
+                                                                                so then you should set the start_task value. becuase start_task is task number of construct replay options ')
     parser.add_argument('--eval', action='store_true')
     parser.add_argument('--verbose', default=False, action='store_true')
     parser.add_argument('--num_workers', default=16, type=int)
@@ -87,10 +88,10 @@ def get_args_parser():
     parser.add_argument('--AugReplay', default=False, action='store_true', help="use Our augreplay strategy in step 2")
     parser.add_argument('--MixReplay', default=False, action='store_true', help="1:1 Mix replay solution, First Circular Training. Second Original Training")
     parser.add_argument('--Rehearsal_file', default=None, type=str)
-    parser.add_argument('--Construct_Replay', default=False, action='store_true', help="For cunstructing replay dataset")
+    parser.add_argument('--Construct_Replay', default=False, action='store_true', help="For cunnstructing replay dataset")
     
     parser.add_argument('--Sampling_strategy', default='hierarchical', type=str, help="hierarchical(ours), high_uniq, random")
-    parser.add_argument('--Sampling_mode', default='ensure_min', type=str, help="normal, ensure_min(ours), ")
+    parser.add_argument('--Sampling_mode', default='GuaranteeMinimum', type=str, help="normal, GuaranteeMinimum(ours), ")
     parser.add_argument('--least_image', default=5, type=int, help='least image of each class, must need to exure_min mode')
     parser.add_argument('--limit_image', default=100, type=int, help='maximum image of all classes, must need to exure_min mode')
     
@@ -99,7 +100,7 @@ def get_args_parser():
     parser.add_argument('--Distill', default=False, action='store_true', help="retaining previous task target through predict query")
     parser.add_argument('--Branch_Incremental', default=False, action='store_true', help="MLP or something incremental with class")
     parser.add_argument('--teacher_model', default=None, type=str)
-    parser.add_argument('--Continual_Batch_size', default=2, type=int, help='continual batch training method')
+    parser.add_argument('--Continual_Batch_size', default=2, type=int, help='continual batch traiing method')
 
     # 정완 디버그
     parser.add_argument('--debug', default=False, action='store_true')
