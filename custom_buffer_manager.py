@@ -52,12 +52,48 @@ def _change_available_list_mode(mode, rehearsal_dict, need_to_include, least_ima
     '''
         각 유니크 객체의 개수를 세어 제한하는 것은 그에 맞는 이미지가 존재해야만 모일수도 있기때문에 모두 모을 수 없을 수도 있게되는 불상사가 있다.
         따라서 객체의 개수를 제한하는 것보다는 그에 맞게 비율을 따져서 이미지를 제한하는 방법이 더 와닿을 수 있다.
+        
+        영어로 아래 설명을 작성한 부분은 Notion에서 제공됩니다. 
     '''
     if mode == "normal":
+        '''
+            CIL의 방법을 직접적으로 CIOD 모델에 가져오는 것이 모델 전체의 분포를 가져오는 것에 문제가 있다고 판단하였기 때문에 Replay를 
+            사용해서 연구하던 사람들은 이러한 전체 데이터셋 내의 객체 비중을 따지지 않고 데이터를 수집하는 방법을 선택하였습니다.
+            Random, Hard, Adaptive, RODEO(에서 제안된 다중 객체) 등에서는 하나의 이미지 내에 여러개의 객체가 존재한다는 OD의 특성을 반영하여
+            랜덤으로 추출하거나, 객체의 개수가 많은 순으로 추출하거나, 독립적인 객체의 수가 많은 순으로 추출하거나 등의 동작을 진행하였습니다.
+            이런 방법은 각 클래스 객체의 수집 량을 제한 하지 않는 방법으로 여기서는 'normal' 옵션으로 적어서 사용하였습니다.
+            
+            이러한 방법들은 제법 괜찮게 동작하는 것처럼 보였지만, 클래스의 일부분이 본 데이터셋 내에서 많은 객체를 가지고 있음에도 불구하고 적게 추출되거나
+            거의 추출되지 않는 객체도 있을 수 있다는 가능성이 있었습니다. Replay는 이전의 Task의 일부분을 가지고 계속해서 상기시켜주는 동작을 하는데
+            기존에 많은 양이 있었음에도 불구하고 적은 양의 데이터가 버퍼내에 추출되게 되면 이는 데이터의 분포를 적극적으로 버퍼에 반영할 수 없었습니다.
+            이는 기존의 데이터 분포와는 동떨어지게 버퍼가 구성되거나, 이를 가지고 incremental task 상황에서 반복적으로 훈련을 진행할 때 적은 양의 데이터들은 
+            지속적으로 성능이 떨어지는 문제도 보였습니다.
+        '''
         # no limit and no least images
         changed_available_dict = rehearsal_dict
         
-    if mode == "ensure_min":
+    if mode == "GuaranteeMinimum": # GM 모드
+        '''
+            'normal'과 'classification'에서의 버퍼 분할 방법에서 발생할 수 있는 여러 문제를 해결하기위해 우리는 GuaranteeMinimum 이라는 방법을 제안합니다.
+            우선 우리는 최소한으로 보장할 이미지의 개수를 하이퍼 파라미터로 가집니다. 이는 특정 클래스에 해당하는 객체가 데이터 내에 하나라도 존재한다면(Unique) 해당 객체를 포함하는 데이터라고 가정합니다.
+            중복되는 이미지로 인해서 버퍼의 용량을 최대한으로 사용하지 못하는 것을 방지하기 위해 우리는 이미지 전체의 개수를 제한하고 버퍼 관리자 내에서 Image ID를 관리합니다.
+            버퍼 관리자는 Image_ID가 중복될 때에는 하나의 데이터(이미지)만 저장하도록 하고, 해당 데이터 내에 있는 모든 고유 객체 인덱스 개수를 버퍼 내의 각 클래스를 보장하기 위한 용도로 사용합니다. 
+            
+            이는 기존의 CIOD Replay에서 발생하던 버퍼를 최대한 활용하지 못하는 문제를 해결함과 동시에 각 고유 클래스를 포함하고 있는 최소한의 데이터를 보장할 수 있도록 데이터를 수집할 수 있습니다.
+            정확한 동작 과정은
+            1. 버퍼 용량이 초과하기 이전에는 모든 데이터를 수집합니다. (버퍼용량 : 1000 가정)
+            2. 1000이 초과하고 나서는 버퍼 내의 각각 고유 클래스 객체가 버퍼 내에 포함되어 있는 양을 구합니다. ( class 1 : 100장, class 2: 200장, ...)
+            3. 미리 설정하였던 최소한의 데이터 개수를 넘어선 고유 클래스 번호들을 따로 모으고 이들이 포함되어 있는 데이터는 교체 가능한 것으로 간주합니다. 이 때, 최대한 최소 데이터 개수를 넘지 못한
+               데이터를 제거하는 일을 줄이기 위해서 최소 데이터 수를 초과하는 객체만 가지고 있는 데이터를 교체 대상으로 지정합니다.
+               
+            4. 이 때 교체 대상으로 지정된 여러 개의 데이터(버퍼 내의)들은 Hierarchical Sampling 전략을 통해서 최대 고유 개체를 반영하면서 동시에 현재 모델(optimized T_all)에 가장 인접한 데이터; 적은 loss의 데이터를
+               우선적으로 버퍼로 가져올 수 있도록 합니다. 이는 GM mode와 다른 3.2 절에서 설명합니다.
+               
+            참고로 최소 용량을 초과하는 데이터에 대해서는 언제든 교체 목록의 대상이 될 수 있으며 최대한의 제한은 없기 때문에 원본 데이터셋의
+            특정 고유 클래스가 많은 데이터(이미지)내에 분포해 있다면 버퍼에도 이와 같은 속성이 반영될 것입니다.
+            이를 통해 GM mode는 데이터의 전체 비율을 반영할 수 있으며 모든 고유 클래스들의 최소 데이터의 양도 보장함으로써 replay 훈련시에
+            점점 Imbalancing한 상황을 완화할 수 있습니다.
+        '''
         image_counts_in_rehearsal = {class_label: sum(class_label in classes for _, (_, classes, _) in rehearsal_dict.items()) for class_label in current_classes}
         print(f"replay counts : {image_counts_in_rehearsal}")
         
@@ -81,6 +117,15 @@ def _change_available_list_mode(mode, rehearsal_dict, need_to_include, least_ima
     
     # TODO:  in CIL method, {K / |C|} usage
     # if mode == "classification":
+    '''
+        CIL의 방법은 모든 클래스의 데이터를 보장할 수는 있지만 OD의 특성상 중복되는 이미지가 버퍼내에 저장될 수 있다. 이는 동일한 데이터를 두번 
+        사용하는 것으로써 버퍼를 최종적으로 구성하였을 때 최대한으로 버퍼를 구성했는지 확신할 수 없다.
+        
+        또한 특정 클래스의 객체들은 데이터셋 전체에서 극히 일부분만 차지하는 경향이 있을 수 있고 반대로 많은 양을 가지고 있을 수 있는데
+        CIL 방법으로는 이러한 데이터셋 전체의 비중을 반영하지 못한채로 모든 클래스에 해당하는 데이터를 버퍼에 균등하게 가지게 된다.
+        이는 real 환경과 비교해서 살펴보아도 모든 객체가 균등하게 존재하지 않는 다는 점에서 크게 어긋나기 때문에 균등한 분포로 버퍼를 구성하는것은
+        이상적이지 않다.
+    '''
     #     num_classes = len(classes)
     #     initial_limit = limit_image // num_classes
     #     limit_memory = {class_index: initial_limit for class_index in classes}
@@ -157,7 +202,7 @@ def _check_rehearsal_size(limit_memory_size, rehearsal_classes, unique_classes_l
 def _calc_target(rehearsal_classes, replace_strategy="hierarchical", ): 
 
     if replace_strategy == "hierarchical":
-        # ours for effective, mode is "ensure_min"
+        # ours for effective, mode is "GuaranteeMinimum"
         min_class_length = min(len(x[1]) for x in rehearsal_classes.values())
         
         # first change condition: low unique based change
