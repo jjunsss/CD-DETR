@@ -30,12 +30,9 @@ from datasets import build_dataset, get_coco_api_from_dataset
 from engine import evaluate, train_one_epoch
 from main_component import TrainingPipeline
 from glob import glob
-# from omegaconf import DictConfig
-# import hydra
 
 from configs.arguments import get_args_parser, deform_detr_parser, dn_detr_parser
 
-# @hydra.main(version_base=None, config_path="conf", config_name = "config")
 def main(args):
     # Initializing
     pipeline = TrainingPipeline(args)
@@ -61,7 +58,6 @@ def main(args):
     start_time = time.time()
     # Training loop over tasks ( for incremental learning )
     is_task_changed = False
-    
     for idx, task_idx in enumerate(range(pipeline.start_task, pipeline.tasks)):
         last_task = (task_idx+1 == pipeline.tasks)
         first_training = (task_idx == 0)

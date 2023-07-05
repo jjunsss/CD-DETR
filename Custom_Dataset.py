@@ -11,7 +11,7 @@ from termcolor import colored
 def Incre_Dataset(Task_Num, args, Incre_Classes, extra_dataset = False):    
     current_classes = Incre_Classes[Task_Num]
     print(f"current_classes : {current_classes}")
-    previous_classes = sum(Incre_Classes[:Task_Num+1], [])
+    all_classes = sum(Incre_Classes[:Task_Num+1], []) # ALL : old task clsses + new task clsses(after training, soon to be changed)
     if not extra_dataset:
         if not args.eval:
             # For real model traning
@@ -19,7 +19,8 @@ def Incre_Dataset(Task_Num, args, Incre_Classes, extra_dataset = False):
     else :
         # For generating buffer with whole dataset
         # previous classes are used to generate buffer of all classe before New task dataset
-        dataset_train = build_dataset(image_set='extra', args=args, class_ids=previous_classes)
+        print(colored(f"Extra Option classes : {all_classes}", "light_red", "on_yellow"))
+        dataset_train = build_dataset(image_set='extra', args=args, class_ids=all_classes)
     
     if args.eval :
         dataset_val = build_dataset(image_set='val', args=args, class_ids=current_classes)
@@ -117,6 +118,7 @@ def DivideTask_for_incre(Task_Counts: int, Total_Classes: int, DivisionOfNames: 
             # # #Divided_Classes.append([23, 24, 25, 26, 27, 29, 30, 31, 33,34,36, 37, 38, 39, 40,42,43,44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 57, 58, 59]) #VE              
         return Divided_Classes
 
+    # For auto division dataset(T2 training) (40-40 and), (70-10 or 10-70) to be used better performance setting
     classes = [idx+1 for idx in range(Total_Classes)]
     Task = int(Total_Classes / Task_Counts)
     Rest_Classes_num = Total_Classes % Task_Counts
