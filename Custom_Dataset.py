@@ -204,7 +204,7 @@ class CustomDataset(torch.utils.data.Dataset):
 
 
 
-class BatchMosaicAug(torch.utils.data.Dataset):
+class NewDatasetSet(torch.utils.data.Dataset):
     def __init__(self, datasets, OldDataset, old_length, OldDataset_weights, AugReplay=False, ):
         self.Datasets = datasets #now task
         self.Rehearsal_dataset = OldDataset
@@ -216,7 +216,7 @@ class BatchMosaicAug(torch.utils.data.Dataset):
     def __len__(self):
             return len(self.Datasets)    
 
-    def __getitem__(self, index): #! How Can I do this?? 
+    def __getitem__(self, index): 
         img, target, origin_img, origin_target = self.Datasets[index] #No normalize pixel, Normed Targets
 
         if self.AugReplay == True :
@@ -243,16 +243,16 @@ def CombineDataset(args, RehearsalData, CurrentDataset,
     OldDataset_weights = OldDataset.weights
     if args.MixReplay and MixReplay == "original" :
         CombinedDataset = ConcatDataset([OldDataset, CurrentDataset])
-        NewTaskTraining = BatchMosaicAug(CombinedDataset, OldDataset, Old_length, OldDataset_weights, False)
+        NewTaskTraining = NewDatasetSet(CombinedDataset, OldDataset, Old_length, OldDataset_weights, False)
          
     elif args.MixReplay and MixReplay == "AugReplay" : 
-        NewTaskTraining = BatchMosaicAug(CurrentDataset, OldDataset, Old_length, OldDataset_weights, args.AugReplay)
+        NewTaskTraining = NewDatasetSet(CurrentDataset, OldDataset, Old_length, OldDataset_weights, args.AugReplay)
         
     if args.AugReplay and ~args.MixReplay :
-        NewTaskTraining = BatchMosaicAug(CurrentDataset, OldDataset, Old_length, OldDataset_weights, args.AugReplay)
+        NewTaskTraining = NewDatasetSet(CurrentDataset, OldDataset, Old_length, OldDataset_weights, args.AugReplay)
     elif ~args.AugReplay and ~args.MixReplay :
         CombinedDataset = ConcatDataset([OldDataset, CurrentDataset])
-        NewTaskTraining = BatchMosaicAug(CombinedDataset, OldDataset, Old_length, OldDataset_weights, False) 
+        NewTaskTraining = NewDatasetSet(CombinedDataset, OldDataset, Old_length, OldDataset_weights, False) 
         
     print(f"current Dataset length : {len(CurrentDataset)}")
     print(f"Total Dataset length : {len(CurrentDataset)} +  old dataset length : {len(OldDataset)}")
