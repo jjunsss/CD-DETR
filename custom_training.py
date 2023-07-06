@@ -274,7 +274,7 @@ def rehearsal_training(args, samples, targets, model: torch.nn.Module, criterion
     return rehearsal_classes
 
 def fisher_training(args, samples, targets, model: torch.nn.Module, criterion: torch.nn.Module, 
-                       rehearsal_classes, current_classes):
+                    fisher_dict, overall_index):
     '''
         replay buffer 내의 데이터들을 fisher 정보를 통해서 정렬하기 위해서 사용하려고 만들었음
     '''
@@ -286,31 +286,33 @@ def fisher_training(args, samples, targets, model: torch.nn.Module, criterion: t
     samples, targets = _process_samples_and_targets(samples, targets, device)
 
     outputs = inference_model(args, model, samples, targets, eval=True)
-    # TODO : new input to model. plz change dn-detr model input (self.buffer_construct_loss)
+    _ = criterion(outputs, targets, buffer_construct_loss=True)
     
-    loss_dict = criterion(outputs, targets, buffer_construct_loss=True)
-    losses = sum(loss_dict[k] for k in loss_dict.keys())
+    lbbox = criterion.losses_for_replay["loss_bbox"]
+    lgiou = lgiou.losses_for_replay["loss_giou"]
+    llabels = criterion.losses_for_replay["loss_labels"]
     
-    loss_term = zip(criterion.losses_for_replay["loss_bbox"], criterion.losses_for_replay["loss_giou"], criterion.losses_for_replay["loss_labels"])
     model.zero_grad()
-    
-    for lbbox, lgiou, llabels in loss_term :
-        losses = lbbox + lgiou + llabels
-        losses.backward()
+    losses = lbbox + lgiou + llabels
+    losses.backward()
         
-        # Now, for each parameter in the model...
-        FIM_value = 0
-        for name, param in model.named_parameters():
-            if param.grad is not None:
-                # The gradient of the loss w.r.t. this parameter gives us information about how changing this parameter would affect the loss.
-                # We square the gradient and sum over all elements to get a scalar quantity.
-                FIM_value += torch.sum(param.grad ** 2).item()
-            else :
-                print(colored(f"gradient value is None", "red", "on_yellow"))
-                
-    if utils.get_world_size() > 1:    
-        dist.barrier()
-    return rehearsal_classes
+    # Now, for each parameter in the model...
+    FIM_value = 0
+    for name, param in model.named_parameters():
+        if param.grad is not None:
+            # The gradient of the loss w.r.t. this parameter gives us information about how changing this parameter would affect the loss.
+            # We square the gradient and sum over all elements to get a scalar quantity.
+            FIM_value += torch.sum(param.grad ** 2).item()
+        else :
+            print(colored(f"gradient value is None", "red", "on_yellow"))
+            
+    # Use the overall index to get the correct key
+    fisher_dict_key = list(fisher_dict.keys())[overall_index]
+    fisher_dict[fisher_dict_key] = FIM_value
+        
+    overall_index += 1
+
+    return fisher_dict, overall_index
 
 
 def _process_samples_and_targets(samples, targets, device):

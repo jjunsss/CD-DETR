@@ -301,21 +301,28 @@ def dataset_configuration(args, original_dataset, original_loader, original_samp
 
 from Custom_Dataset import Incre_Dataset
 from copy import deepcopy
+from custom_utils import calc_fisher_process
+
 def generate_dataset(task_idx, args, pipeline):
     # Generate new dataset(current classes)
     dataset_train, data_loader_train, sampler_train, list_CC = Incre_Dataset(task_idx, args, pipeline.Divided_Classes)
 
     if task_idx != 0 and args.Rehearsal:
+        #FIXME: need to write fisher process
+        
         # Ready for replay training strategy
         replay_dataset = deepcopy(pipeline.rehearsal_classes)
         previous_classes = sum(pipeline.Divided_Classes[:task_idx], []) # Not now current classe 
-
+        fisher_dict = calc_fisher_process(args, pipeline.rehearsal_classes, previous_classes, 
+                                          pipeline.criterion, pipeline.model)
         # Combine dataset for original and AugReplay(Circular)
         original_dataset, original_loader, original_sampler = CombineDataset(
-            args, replay_dataset, dataset_train, args.num_workers, args.batch_size, old_classes=previous_classes, MixReplay="Original")
+            args, replay_dataset, dataset_train, args.num_workers, args.batch_size, 
+            old_classes=previous_classes, fisher_dict=fisher_dict, MixReplay="Original")
 
         AugRplay_dataset, AugRplay_loader, AugRplay_sampler = CombineDataset(
-            args, replay_dataset, dataset_train, args.num_workers, args.batch_size, old_classes=previous_classes, MixReplay="AugReplay") 
+            args, replay_dataset, dataset_train, args.num_workers, args.batch_size, 
+            old_classes=previous_classes, fisher_dict=fisher_dict, MixReplay="AugReplay") 
 
         # Set a certain configuration
         dataset_train, data_loader_train, sampler_train = dataset_configuration(
@@ -406,11 +413,22 @@ class ContinualStepLR(StepLR):
 
 
 from engine import extra_epoch_for_fisher
-def fisher_process(args, RehearsalData, old_classes, ):
+from Custom_Dataset import fisher_dataset
+import util.misc as utils
+import os
+
+def calc_fisher_process(args, rehearsal_dict, old_classes, criterion, model):
+    
     '''
         buffer내에서의 fisher 정보량을 계산하기 위해서 진행하는 프로세스.
         fisher의 양은 
     '''
-    fisher_dataset, fisher_data_loader, _ = fisher_dataset(args, RehearsalData, old_classes)
-    rehearsal_classes = extra_epoch_for_fisher(args, dataset_name="", data_loader=fisher_data_loader, model=model, criterion=criterion, 
-                                                device=args.device, rehearsal_classes=rehearsal_classes)
+    soted_rehearsal_dict = sorted(rehearsal_dict.items(), key=lambda x: x[0])
+    fisher_dataset, fisher_data_loader, _ = fisher_dataset(args, soted_rehearsal_dict, old_classes, fisher=False)
+    fisher_dict = extra_epoch_for_fisher(args, dataset_name="", data_loader=fisher_data_loader, model=model, criterion=criterion, 
+                                         device=args.device, rehearsal_classes=soted_rehearsal_dict)
+
+    # check none fisher dictionary    
+    assert all(value is not None for value in fisher_dict.values())
+
+    return fisher_dict

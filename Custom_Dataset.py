@@ -188,13 +188,30 @@ def weight_dataset(args, re_dict):
 
 
 import copy
+from custom_utils import calc_fisher_process
 class CustomDataset(torch.utils.data.Dataset):
-    def __init__(self, args, re_dict, old_classes):
+    '''
+        replay buffer configuration
+        1. Weight based Circular Experience Replay (WCER)
+        2. Fisher based Circular Experience Replay (FCER)
+        3. Fisher based ER
+    '''
+    def __init__(self, args, re_dict, old_classes, fisher_dict = None):
         self.re_dict = copy.deepcopy(re_dict)
         self.old_classes = old_classes
         self.keys, self.weights = weight_dataset(args, re_dict)
         self.datasets = build_dataset(image_set='train', args=args, class_ids=self.old_classes, img_ids=self.keys)
         
+        if fisher_dict is not None:
+            # Convert fisher_dict values to a list and move to tensor
+            fisher_values = torch.tensor(list(fisher_dict.values()))
+
+            # Calculate softmax weights
+            self.fisher_softmax_weights = torch.softmax(fisher_values, dim=0)
+
+        else:
+            self.fisher_softmax_weights = None
+            
     def __len__(self):
         return len(self.datasets)
     
@@ -209,12 +226,13 @@ class CustomDataset(torch.utils.data.Dataset):
 
 
 class NewDatasetSet(torch.utils.data.Dataset):
-    def __init__(self, datasets, OldDataset, old_length, OldDataset_weights, AugReplay=False, ):
+    def __init__(self, args, datasets, OldDataset, OldDataset_weights, fisher_weight, AugReplay=False, ):
+        self.args = args
         self.Datasets = datasets #now task
         self.Rehearsal_dataset = OldDataset
         self.AugReplay = AugReplay
-        self.old_length = old_length
         self.OldDataset_weights = OldDataset_weights
+        self.fisher_weights = fisher_weight
 
         
     def __len__(self):
@@ -224,12 +242,21 @@ class NewDatasetSet(torch.utils.data.Dataset):
         img, target, origin_img, origin_target = self.Datasets[index] #No normalize pixel, Normed Targets
 
         if self.AugReplay == True :
-            if index > (len(self.Rehearsal_dataset)-1):
-                index = index % len(self.Rehearsal_dataset)
+            if self.args.CER == "fisher":
+                index = np.random.choice(np.arange(len(self.Rehearsal_dataset)), p=self.fisher_weights)
                 O_img, O_target, _, _ = self.Rehearsal_dataset[index] #No shuffle because weight sorting.
                 return img, target, origin_img, origin_target, O_img, O_target
-            O_img, O_target, _, _ = self.Rehearsal_dataset[index]
-            return img, target, origin_img, origin_target, O_img, O_target
+            elif self.args.CER == "weight":
+                index = np.random.choice(np.arange(len(self.Rehearsal_dataset)), p=self.OldDataset_weights)
+                O_img, O_target, _, _ = self.Rehearsal_dataset[index] #No shuffle because weight sorting.
+                return img, target, origin_img, origin_target, O_img, O_target
+            elif self.args.CER == "original":
+                if index > (len(self.Rehearsal_dataset)-1):
+                    index = index % len(self.Rehearsal_dataset)
+                    O_img, O_target, _, _ = self.Rehearsal_dataset[index] #No shuffle because weight sorting.
+                    return img, target, origin_img, origin_target, O_img, O_target
+                O_img, O_target, _, _ = self.Rehearsal_dataset[index]
+                return img, target, origin_img, origin_target, O_img, O_target
         else:
             return img, target, origin_img, origin_target
     
@@ -238,27 +265,26 @@ class NewDatasetSet(torch.utils.data.Dataset):
 #For Rehearsal
 from custom_utils import fisher_process
 def CombineDataset(args, RehearsalData, CurrentDataset, 
-                   Worker, Batch_size, old_classes, MixReplay = None):
+                   Worker, Batch_size, old_classes, fisher_dict=None, MixReplay = None):
     '''
         MixReplay arguments is only used in MixReplay. If It is not args.MixReplay, So
         you can ignore this option.
     '''
-    fisher_process(args, RehearsalData, old_classes)
-    OldDataset = CustomDataset(args, RehearsalData, old_classes) #oldDatset[idx]:
-    Old_length = len(OldDataset)
+    OldDataset = CustomDataset(args, RehearsalData, old_classes, fisher_dict=fisher_dict) #oldDatset[idx]:
     OldDataset_weights = OldDataset.weights
+    old_fisher_weight = OldDataset.fisher_softmax_weights
     if args.MixReplay and MixReplay == "original" :
         CombinedDataset = ConcatDataset([OldDataset, CurrentDataset])
-        NewTaskdataset = NewDatasetSet(CombinedDataset, OldDataset, Old_length, OldDataset_weights, False)
+        NewTaskdataset = NewDatasetSet(args, CombinedDataset, OldDataset, OldDataset_weights, old_fisher_weight, False)
          
     elif args.MixReplay and MixReplay == "AugReplay" : 
-        NewTaskdataset = NewDatasetSet(CurrentDataset, OldDataset, Old_length, OldDataset_weights, args.AugReplay)
+        NewTaskdataset = NewDatasetSet(args, CurrentDataset, OldDataset, OldDataset_weights, old_fisher_weight, args.AugReplay)
         
     if args.AugReplay and ~args.MixReplay :
-        NewTaskdataset = NewDatasetSet(CurrentDataset, OldDataset, Old_length, OldDataset_weights, args.AugReplay)
+        NewTaskdataset = NewDatasetSet(args, CurrentDataset, OldDataset, OldDataset_weights, old_fisher_weight, args.AugReplay)
     elif ~args.AugReplay and ~args.MixReplay :
         CombinedDataset = ConcatDataset([OldDataset, CurrentDataset])
-        NewTaskdataset = NewDatasetSet(CombinedDataset, OldDataset, Old_length, OldDataset_weights, False) 
+        NewTaskdataset = NewDatasetSet(args, CombinedDataset, OldDataset, OldDataset_weights, old_fisher_weight, False) 
         
     print(f"current Dataset length : {len(CurrentDataset)}")
     print(f"Total Dataset length : {len(CurrentDataset)} +  old dataset length : {len(OldDataset)}")
@@ -310,15 +336,16 @@ def IcarlDataset(args, single_class:int):
 
 def fisher_dataset(args, RehearsalData, old_classes):
     buffer_dataset = CustomDataset(args, RehearsalData, old_classes)
+    
     if args.distributed:
         if args.cache_mode:
-            sampler_train = samplers.NodeDistributedSampler(buffer_dataset)
+            sampler_train = samplers.NodeDistributedSampler(buffer_dataset, shuffle=False)
         else:
             sampler_train = samplers.DistributedSampler(buffer_dataset, shuffle=False)
     else:
         sampler_train = torch.utils.data.RandomSampler(buffer_dataset, shuffle=False)
         
-    batch_sampler_train = torch.utils.data.BatchSampler(sampler_train, args.batch_size, drop_last=True)
+    batch_sampler_train = torch.utils.data.BatchSampler(sampler_train, batch_size=1, drop_last=True)
     
     data_loader = DataLoader(buffer_dataset, batch_sampler=batch_sampler_train,
                                 collate_fn=utils.collate_fn, num_workers=args.num_workers,

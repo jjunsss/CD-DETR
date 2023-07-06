@@ -95,6 +95,7 @@ def get_args_parser():
     parser.add_argument('--least_image', default=5, type=int, help='least image of each class, must need to exure_min mode')
     parser.add_argument('--limit_image', default=100, type=int, help='maximum image of all classes, must need to exure_min mode')
     
+    parser.add_argument('--CER', default='fisher', type=str, help="fisher(ours), original, weight")
     #* CL Strategy
     parser.add_argument('--Fake_Query', default=False, action='store_true', help="retaining previous task target through predict query")
     parser.add_argument('--Distill', default=False, action='store_true', help="retaining previous task target through predict query")

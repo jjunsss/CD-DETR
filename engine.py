@@ -83,19 +83,20 @@ def extra_epoch_for_replay(args, dataset_name: str, data_loader: Iterable, model
     return rehearsal_classes
 
 def extra_epoch_for_fisher(args, dataset_name: str, data_loader: Iterable, model: torch.nn.Module, criterion: torch.nn.Module,
-                                 device: torch.device, rehearsal_classes, current_classes):
+                           device: torch.device, rehearsal_classes):
     '''
         Fisher 정보를 얻는 것도 MultiGPU로 할거면 rehearsal데이터 모으는 것과 유사하게 진행해야 할 듯 하다.
         
     '''
     prefetcher = create_prefetcher(dataset_name, data_loader, device, args)
+    fisher_dict = {k: None for k in rehearsal_classes} # sorted dictionary paradigm
+    overall_index = 0
     for idx in tqdm(range(len(data_loader)), disable=not utils.is_main_process()):
         samples, targets, _, _ = prefetcher.next()
         
         #TODO: 함수 내부 작성해야함.
         #TODO: fisher_dict에서 image_id에 일치하는 값을 넣기 위해서는 해당 정보를 알아야 dictionary에 알맞게 만들어서 사용할 수 있다.
-        fisher_dict = fisher_training(args, samples, targets, model, criterion, 
-                                                   rehearsal_classes, current_classes)
+        fisher_dict, overall_index = fisher_training(args, samples, targets, model, criterion, fisher_dict, overall_index)
         
         if idx % 100 == 0:
             torch.cuda.empty_cache()              
@@ -112,12 +113,15 @@ def create_prefetcher(dataset_name: str, data_loader: Iterable, device: torch.de
     else:
         return data_prefetcher(data_loader, device, prefetch=True, Mosaic=False)
 
-
+import random
 def train_one_epoch(args, last_task, epo, model: torch.nn.Module, teacher_model, criterion: torch.nn.Module,
                     data_loader: Iterable, optimizer: torch.optim.Optimizer, lr_scheduler: ContinualStepLR,
                     device: torch.device, dataset_name: str,  
                     current_classes: List = [], rehearsal_classes: Dict = {},
                     extra_epoch: bool = False):
+    """
+        in here, if I control each training section(original, circular order)
+    """
     ex_device = torch.device("cpu")
     prefetcher = create_prefetcher(dataset_name, data_loader, device, args)
     
@@ -128,23 +132,41 @@ def train_one_epoch(args, last_task, epo, model: torch.nn.Module, teacher_model,
         if idx % 100 == 0:
             torch.cuda.empty_cache()
         samples, targets, _, _ = prefetcher.next()
-
-        train_check = True
         samples = samples.to(ex_device)
         targets = [{k: v.to(ex_device) for k, v in t.items()} for t in targets]
+        
+        replay_samples, replay_targets, _, _ = prefetcher.next()
+        replay_samples = replay_samples.to(ex_device)
+        replay_targets = [{k: v.to(ex_device) for k, v in t.items()} for t in replay_targets]
+
+        train_check = True
         #Stage 1 -> T1에 대한 모든 훈련
         #Stage 2 -> T2에 대한 모든 훈련, AugReplay 사용하지 않을 때에는 일반적인 Replay 전략과 동일한 형태로 훈련을 수행
-        sum_loss, count = Original_training(args, last_task, epo, idx, count, sum_loss, samples, targets,  
-                                                               model, teacher_model, criterion, optimizer,
-                                                               rehearsal_classes, train_check, current_classes)
-
-        if dataset_name == "AugReplay" and args.Rehearsal and last_task:
-            # this process only replay strategy, AugReplay is same to "Circular Training"
-            samples, targets, _, _ = prefetcher.next() #* Different
-            # lr_scheduler.replay_step(idx)
-            count, sum_loss = Circular_training(args, last_task, epo, idx, count, sum_loss, samples, targets,
+        if not args.AugReplay:
+            sum_loss, count = Original_training(args, last_task, epo, idx, count, sum_loss, samples, targets,  
                                                 model, teacher_model, criterion, optimizer,
-                                                current_classes)
+                                                rehearsal_classes, train_check, current_classes)
+        
+        CER_Prob = random.random() # if I set this to 0 or 1, so then usually fixed CER mode.
+        if dataset_name == "AugReplay" and args.Rehearsal and last_task:
+            
+            if CER_Prob < 0.5: # this term is for randomness training in "replay and original"
+                # this process only replay strategy, AugReplay is same to "Circular Training"
+                # samples, targets, _, _ = prefetcher.next() #* Different
+                # lr_scheduler.replay_step(idx)
+                sum_loss, count = Original_training(args, last_task, epo, idx, count, sum_loss, samples, targets,  
+                                                    model, teacher_model, criterion, optimizer,
+                                                    rehearsal_classes, train_check, current_classes)
+                count, sum_loss = Circular_training(args, last_task, epo, idx, count, sum_loss, replay_samples, replay_targets,
+                                                    model, teacher_model, criterion, optimizer,
+                                                    current_classes)
+            else :
+                count, sum_loss = Circular_training(args, last_task, epo, idx, count, sum_loss, replay_samples, replay_targets,
+                                                    model, teacher_model, criterion, optimizer,
+                                                    current_classes)
+                sum_loss, count = Original_training(args, last_task, epo, idx, count, sum_loss, samples, targets,  
+                                                    model, teacher_model, criterion, optimizer,
+                                                    rehearsal_classes, train_check, current_classes)
         del samples, targets, train_check
 
         # 정완 디버그
