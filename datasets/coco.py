@@ -28,6 +28,13 @@ class CocoDetection(TvCocoDetection):
                  cache_mode=False, local_rank=0, local_size=1, img_ids = None, class_ids = None):
         super(CocoDetection, self).__init__(img_folder, ann_file,
                                             cache_mode=cache_mode, local_rank=local_rank, local_size=local_size, ids_list=img_ids, class_ids=class_ids)
+        
+        # self.coco.cats가 ann file이 아니라 class_ids를 참조하도록 변경
+        cats = {}
+        for class_id in class_ids:
+            cats[class_id] = self.coco.cats[class_id]
+        self.coco.cats = cats
+        
         self._transforms = transforms
         self._origin_transform = origin_transforms
         self.prepare = ConvertCocoPolysToMask(return_masks)

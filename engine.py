@@ -167,7 +167,7 @@ def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, out
         loss_dict_reduced_scaled = {k: v * weight_dict[k]
                                     for k, v in loss_dict_reduced.items() if k in weight_dict}
         loss_dict_reduced_unscaled = {f'{k}_unscaled': v
-                                      for k, v in loss_dict_reduced.items()}
+                                    for k, v in loss_dict_reduced.items()}
         metric_logger.update(loss=sum(loss_dict_reduced_scaled.values()),
                              **loss_dict_reduced_scaled,
                              **loss_dict_reduced_unscaled)
@@ -181,7 +181,7 @@ def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, out
             results = postprocessors['segm'](results, outputs, orig_target_sizes, target_sizes)
         res = {target['image_id'].item(): output for target, output in zip(targets, results)}
         
-        gt = outputs[0]['gt'] if args.model_name == 'dn_detr' else outputs[0]['gt']
+        gt = outputs[0]['gt'] if args.model_name == 'dn_detr' else outputs['gt']
         
         # cocoeval에서 gt와 dt를 맞추어주기 위함
         if gt is not None :
