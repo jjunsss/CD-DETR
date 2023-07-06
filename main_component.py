@@ -313,8 +313,8 @@ class TrainingPipeline:
                 ve_idx = filename_list.index('ve')
                 filename_list.pop(ve_idx)
                 filename_list.extend(['ve10', 've2021', 'vemulti']) # 실제 파일 이름에 해당 키워드가 포함되어 있어야 함
-            elif 'coco' in cur_file_name:
-                cur_file_name = 'test'
+            elif 'coco' in filename_list:
+                filename_list = 'test'
             
             print(colored(f"check filename list : {filename_list}", "red"))
             with open(self.DIR, 'a') as f:

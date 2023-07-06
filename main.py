@@ -57,15 +57,11 @@ def main(args):
     print("Start training")
     start_time = time.time()
     # Training loop over tasks ( for incremental learning )
-<<<<<<< HEAD
     if pipeline.start_task > 0: # for resume
         is_task_changed = True
     else:
         is_task_changed = False
     
-=======
-    is_task_changed = False
->>>>>>> df79523eaeefdcc2e4136b3023673bcd8b25a706
     for idx, task_idx in enumerate(range(pipeline.start_task, pipeline.tasks)):
         last_task = (task_idx+1 == pipeline.tasks)
         first_training = (task_idx == 0)
