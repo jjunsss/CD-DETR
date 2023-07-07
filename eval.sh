@@ -15,4 +15,5 @@ python main.py\
     --eval \
     --pretrained_model "./logs/upperbound/checkpoints/cp_01_01.pth" \
     --coco_path "../COCODIR/" \
-    --test_file_list coco
+    --test_file_list coco \
+    --orgcocopath

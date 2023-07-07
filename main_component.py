@@ -125,10 +125,10 @@ class TrainingPipeline:
         else:
             if self.args.eval:
                 task_idx = len(self.Divided_Classes)
-            previous_classes = sum(self.Divided_Classes[:task_idx], []) # For distillation options.
             current_class = sum(self.Divided_Classes[:task_idx+1], [])
             num_classes = len(current_class) + 1
             
+        previous_classes = sum(self.Divided_Classes[:task_idx], []) # For distillation options.
         self.previous_classes = previous_classes
         self.current_class = current_class
         self.num_classes = num_classes
@@ -272,7 +272,7 @@ class TrainingPipeline:
         
         if args.all_data == True:
             # eval과 train의 coco_path를 다르게 설정
-            dir_list = glob(os.path.join(args.coco_path, '*'))
+            dir_list = [f for f in glob(os.path.join(args.coco_path, '*')) if os.path.isdir(f)]
             if os.path.isfile(self.DIR):
                 os.remove(self.DIR) # self.DIR = args.output_dir + 'mAP_TEST.txt'
         else:
@@ -313,8 +313,6 @@ class TrainingPipeline:
                 ve_idx = filename_list.index('ve')
                 filename_list.pop(ve_idx)
                 filename_list.extend(['ve10', 've2021', 'vemulti']) # 실제 파일 이름에 해당 키워드가 포함되어 있어야 함
-            elif 'coco' in filename_list:
-                filename_list = 'test'
             
             print(colored(f"check filename list : {filename_list}", "red"))
             with open(self.DIR, 'a') as f:
@@ -324,8 +322,11 @@ class TrainingPipeline:
             for task_idx, cur_file_name in enumerate(filename_list):
                 if 've' in cur_file_name:
                     task_idx = ve_idx
-                elif 'coco' in cur_file_name:
+                elif args.orgcocopath:
+                    cur_file_name = 'val'
+                elif 'coco' in cur_file_name and not arg.orgcocopath:
                     cur_file_name = 'test'
+                    
                 
                 # TODO: VE - eval인 경우도 고려하기
                 file_link = [name for name in dir_list if cur_file_name in os.path.basename(name).lower()]
@@ -375,7 +376,7 @@ class TrainingPipeline:
 
             # Save model each epoch
             save_model_params(self.model_without_ddp, self.optimizer, self.lr_scheduler, args, args.output_dir, 
-                              task_idx, int(self.tasks), epoch)
+                            task_idx, int(self.tasks), epoch)
         
         # For generating buffer with extra epoch
         if last_task == False and args.Rehearsal:
@@ -388,7 +389,7 @@ class TrainingPipeline:
             
         # For task information
         save_model_params(self.model_without_ddp, self.optimizer, self.lr_scheduler, args, args.output_dir, 
-                          task_idx, int(self.tasks), -1)
+                        task_idx, int(self.tasks), -1)
         self.load_replay.extend(self.Divided_Classes[task_idx])
         self.teacher_model = self.model_without_ddp # teacher model change to new trained model architecture before next task
         self.teacher_model = teacher_model_freeze(self.teacher_model)
@@ -412,5 +413,5 @@ class TrainingPipeline:
         
         # Normal training with each epoch
         self.incremental_train_epoch(task_idx=0, last_task=True, dataset_train=dataset_train,
-                                         data_loader_train=data_loader_train, sampler_train=sampler_train,
-                                         list_CC=list_CC)
+                                        data_loader_train=data_loader_train, sampler_train=sampler_train,
+                                        list_CC=list_CC)

@@ -28,6 +28,16 @@ class CocoDetection(TvCocoDetection):
                  cache_mode=False, local_rank=0, local_size=1, img_ids = None, class_ids = None):
         super(CocoDetection, self).__init__(img_folder, ann_file,
                                             cache_mode=cache_mode, local_rank=local_rank, local_size=local_size, ids_list=img_ids, class_ids=class_ids)
+        
+        # self.coco.cats가 ann file이 아니라 class_ids를 참조하도록 변경
+        cats = {}
+        for class_id in class_ids:
+            try:
+                cats[class_id] = self.coco.cats[class_id]
+            except KeyError:
+                pass
+        self.coco.cats = cats
+        
         self._transforms = transforms
         self._origin_transform = origin_transforms
         self.prepare = ConvertCocoPolysToMask(return_masks)
@@ -212,15 +222,19 @@ def build(image_set, args, img_ids = None, class_ids = None):
     root = Path(args.coco_path)
     assert root.exists(), f'provided COCO path {root} does not exist'
     mode = 'instances'
-    # PATHS = {
-    #     "train": (root / "images", root / 'output_json' / 'train.json'),
-    #     "val": (root / "images", root / 'output_json' / 'train.json'),
-    # }
-    PATHS = {
-        "train": (root / "train2017", root / "annotations" / f'{mode}_train2017.json'),
-        "val": (root / "val2017", root / "annotations" / f'{mode}_val2017.json'),
-        "extra": (root / "train2017", root / "annotations" / f'{mode}_train2017.json'),
-    }
+    if args.orgcocopath:
+        if args.eval: root = root.parent
+        PATHS = {
+            "train": (root / "train2017", root / "annotations" / f'{mode}_train2017.json'),
+            "val": (root / "val2017", root / "annotations" / f'{mode}_val2017.json'),
+            "extra": (root / "train2017", root / "annotations" / f'{mode}_train2017.json'),
+        }
+    else:
+        PATHS = {
+        "train": (root / "images", root / 'output_json' / 'train.json'),
+        "val": (root / "images", root / 'output_json' / 'train.json'),
+        "extra": (root / "images", root / 'output_json' / 'train.json'),
+        }
     print(root)
     print(PATHS)
 
