@@ -32,7 +32,10 @@ class CocoDetection(TvCocoDetection):
         # self.coco.cats가 ann file이 아니라 class_ids를 참조하도록 변경
         cats = {}
         for class_id in class_ids:
-            cats[class_id] = self.coco.cats[class_id]
+            try:
+                cats[class_id] = self.coco.cats[class_id]
+            except KeyError:
+                pass
         self.coco.cats = cats
         
         self._transforms = transforms
@@ -165,8 +168,8 @@ def make_coco_transforms(image_set, fix_size=False):
 
     normalize = T.Compose([
         T.ToTensor(),
-        T.Normalize([0.312, 0.315, 0.294], [0.120, 0.122, 0.131]) # For LG
-        #T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])# third (11.14 ~ )
+        # T.Normalize([0.312, 0.315, 0.294], [0.120, 0.122, 0.131]) # For LG
+        T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])# third (11.14 ~ )
     ])
 
     scales = [480, 512, 544, 576, 608, 640, 672, 704]
@@ -219,15 +222,21 @@ def build(image_set, args, img_ids = None, class_ids = None):
     root = Path(args.coco_path)
     assert root.exists(), f'provided COCO path {root} does not exist'
     mode = 'instances'
-    # PATHS = {
-    #     "train": (root / "images", root / 'output_json' / 'train.json'),
-    #     "val": (root / "images", root / 'output_json' / 'train.json'),
-    # }
-    PATHS = {
+    if args.orgcocopath:
+        if args.eval: root = root.parent
+        PATHS = {
+            "train": (root / "train2017", root / "annotations" / f'{mode}_train2017.json'),
+            "val": (root / "val2017", root / "annotations" / f'{mode}_val2017.json'),
+            "extra": (root / "train2017", root / "annotations" / f'{mode}_train2017.json'),
+        }
+    else:
+        PATHS = {
         "train": (root / "images", root / 'output_json' / 'train.json'),
-        "val": (root / "images", root / 'output_json' / 'test.json'),
-        "extra": (root / "images", root / 'output_json' / 'train.json'), # same thing train path
-    }
+        "val": (root / "images", root / 'output_json' / 'train.json'),
+        "extra": (root / "images", root / 'output_json' / 'train.json'),
+        }
+    print(root)
+    print(PATHS)
 
     img_folder, ann_file = PATHS[image_set]
     dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms(image_set, args.Sampling_strategy=='icarl'), origin_transforms=origin_transform(image_set), return_masks=args.masks,

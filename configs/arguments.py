@@ -212,4 +212,6 @@ def dn_detr_parser(parser):
     parser.add_argument("--local_rank", type=int, help='local rank for DistributedDataParallel')
     parser.add_argument('--amp', action='store_true',help="Train with mixed precision")
     
+    parser.add_argument('--orgcocopath', action='store_true', help='for original coco directory path')
+    
     return parser    

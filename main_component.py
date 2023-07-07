@@ -272,7 +272,7 @@ class TrainingPipeline:
         
         if args.all_data == True:
             # eval과 train의 coco_path를 다르게 설정
-            dir_list = glob(os.path.join(args.coco_path, '*'))
+            dir_list = [f for f in glob(os.path.join(args.coco_path, '*')) if os.path.isdir(f)]
             if os.path.isfile(self.DIR):
                 os.remove(self.DIR) # self.DIR = args.output_dir + 'mAP_TEST.txt'
         else:
@@ -322,8 +322,11 @@ class TrainingPipeline:
             for task_idx, cur_file_name in enumerate(filename_list):
                 if 've' in cur_file_name:
                     task_idx = ve_idx
-                elif 'coco' in cur_file_name:
+                elif args.orgcocopath:
+                    cur_file_name = 'val'
+                elif 'coco' in cur_file_name and not arg.orgcocopath:
                     cur_file_name = 'test'
+                    
                 
                 # TODO: VE - eval인 경우도 고려하기
                 file_link = [name for name in dir_list if cur_file_name in os.path.basename(name).lower()]
@@ -345,7 +348,9 @@ class TrainingPipeline:
         args = self.args
         if isinstance(dataset_train, list):
             temp_dataset, temp_loader, temp_sampler = copy.deepcopy(dataset_train), copy.deepcopy(data_loader_train), copy.deepcopy(sampler_train)
+
         T_epochs = args.Task_Epochs[0] if isinstance(args.Task_Epochs, list) else args.Task_Epochs
+        
         for epoch in range(self.start_epoch, T_epochs): #어차피 Task마다 훈련을 진행해야 하고, 중간점음 없을 것이므로 TASK마다 훈련이 되도록 만들어도 상관이 없음
             if args.MixReplay and args.Rehearsal and task_idx >= 1:
                 dataset_index = epoch % 2 
@@ -388,6 +393,9 @@ class TrainingPipeline:
         self.load_replay.extend(self.Divided_Classes[task_idx])
         self.teacher_model = self.model_without_ddp # teacher model change to new trained model architecture before next task
         self.teacher_model = teacher_model_freeze(self.teacher_model)
+
+        if utils.get_world_size() > 1:
+            dist.barrier()
 
 
     # when only construct replay buffer    

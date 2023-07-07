@@ -148,8 +148,10 @@ class DABDETR(nn.Module):
             nn.init.constant_(self.bbox_embed.layers[-1].weight.data, 0)
             nn.init.constant_(self.bbox_embed.layers[-1].bias.data, 0)
 
-        # current_class가 None이면 self.gt도 None을 갖도록 변경
-        self.gt = current_class            
+        if current_class is not None:
+            self.gt = current_class
+        else:
+            self.gt = None            
 
 
     # def forward(self, samples: NestedTensor, dn_args=None):
@@ -181,7 +183,7 @@ class DABDETR(nn.Module):
         # prepare for dn
         input_query_label, input_query_bbox, attn_mask, mask_dict = \
             prepare_for_dn(dn_args, embedweight, src.size(0), self.training, self.num_queries, self.num_classes,
-                           self.hidden_dim, self.label_enc, self.gt if self.gt is not None else None)        
+                           self.hidden_dim, self.label_enc, self.gt)        
             # prepare_for_dn(dn_args, embedweight, src.size(0), self.training, self.num_queries, self.num_classes,
             #                self.hidden_dim, self.label_enc)
 
