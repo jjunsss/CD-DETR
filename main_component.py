@@ -49,8 +49,8 @@ class TrainingPipeline:
         self.device = torch.device(args.device)
         self.Divided_Classes, self.dataset_name, self.start_epoch, self.start_task, self.tasks = self._incremental_setting()
         self.model, self.model_without_ddp, self.criterion, self.postprocessors, self.teacher_model = self._build_and_setup_model(task_idx=args.start_task)
-        # if self.args.Branch_Incremental and not args.eval and args.pretrained_model is not None:
-        #     self.make_branch(self.start_task, self.args, replay=True)
+        if self.args.Branch_Incremental and not args.eval and args.pretrained_model is not None:
+            self.make_branch(self.start_task, self.args, is_init=True)
         self.optimizer, self.lr_scheduler = self._setup_optimizer_and_scheduler()
         self.output_dir = Path(args.output_dir)
         self.load_replay, self.rehearsal_classes = self._load_replay_buffer()
