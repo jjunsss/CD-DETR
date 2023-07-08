@@ -97,9 +97,8 @@ def _change_available_list_mode(mode, rehearsal_dict, need_to_include, least_ima
         image_counts_in_rehearsal = {class_label: sum(class_label in classes for _, (_, classes, _) in rehearsal_dict.items()) for class_label in current_classes}
         print(f"replay counts : {image_counts_in_rehearsal}")
         
-        changed_available_dict = {key: (losses, classes, bboxes) for key, (losses, classes, bboxes) in rehearsal_dict.items() if all(image_counts_in_rehearsal[class_label] > least_image for class_label in classes)}
-        # print(f"available counts : {changed_available_dict}")
-        
+        changed_available_dict = {key: (losses, classes, bboxes) for key, (losses, classes, bboxes) in rehearsal_dict.items() if all(image_counts_in_rehearsal.get(class_label, 0) > least_image for class_label in classes)}
+
         if len(changed_available_dict.keys()) == 0 :
             # this process is protected to generate error messages
             # include classes that have at least one class in need_to_include
@@ -436,7 +435,6 @@ from Custom_Dataset import *
 from custom_prints import *
 from engine import extra_epoch_for_replay
 from custom_utils import buffer_checker
-
 def construct_replay_extra_epoch(args, Divided_Classes, model, criterion, device, rehearsal_classes={}, task_num=0):
     
     # 0. Initialization
@@ -466,3 +464,20 @@ def construct_replay_extra_epoch(args, Divided_Classes, model, criterion, device
     print(colored(f"Complete constructing buffer","red", "on_yellow"))
     
     return rehearsal_classes
+
+from engine import extra_epoch_for_fisher
+def calc_fisher_process(args, rehearsal_dict, old_classes, criterion, model, optimizer):
+    
+    '''
+        buffer내에서의 fisher 정보량을 계산하기 위해서 진행하는 프로세스.
+        fisher의 양은 
+    '''
+    soted_rehearsal_dict = dict(sorted(rehearsal_dict.items(), key=lambda x: x[0]))
+    _, fisher_data_loader, _ = fisher_dataset_loader(args, soted_rehearsal_dict, old_classes)
+    fisher_dict = extra_epoch_for_fisher(args, dataset_name="", data_loader=fisher_data_loader, model=model, criterion=criterion, 
+                                         device=args.device, optimizer=optimizer, rehearsal_classes=soted_rehearsal_dict)
+
+    # check none fisher dictionary    
+    assert all(value is not None for value in fisher_dict.values())
+
+    return fisher_dict

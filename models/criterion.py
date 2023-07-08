@@ -106,7 +106,7 @@ class SetCriterion(nn.Module):
             for i in range(len(indices)):
                 # each batch's idx value to new tuple function
                 i_idx = (idx[0][idx[0] == i], idx[1][idx[0] == i])
-                if indices[1][0].nelement() == 0:
+                if indices[i][0].nelement() == 0:
                     self.losses_for_replay['loss_bbox'].append(torch.tensor(100., device=targets[0]['boxes'].device))
                     self.losses_for_replay['loss_giou'].append(torch.tensor(100., device=targets[0]['boxes'].device))
                     print(colored(f"high loss input to each loss in batch, becuase no target", "red", "on_yellow"))
@@ -127,7 +127,7 @@ class SetCriterion(nn.Module):
                     box_ops.box_cxcywh_to_xyxy(src_boxes),
                     box_ops.box_cxcywh_to_xyxy(target_boxes)))
                 
-                if indices[1][0].nelement() == 0 :
+                if indices[i][0].nelement() == 0 :
                     # If not calc each loss both bbox or giou, so then we put high loss to temporary var
                     self.losses_for_replay['loss_bbox'].append(torch.tensor(100., device=targets[0]['boxes'].device))
                     self.losses_for_replay['loss_giou'].append(torch.tensor(100., device=targets[0]['boxes'].device))
@@ -231,6 +231,11 @@ class SetCriterion(nn.Module):
              targets: list of dicts, such that len(targets) == batch_size.
                       The expected keys in each dict depends on the losses applied, see each loss' doc
         """
+        # for initialization
+        self.losses_for_replay = {}
+        self.losses_for_replay['loss_bbox'] = []
+        self.losses_for_replay['loss_giou'] = []
+        self.losses_for_replay['loss_labels'] = []
         if self.model_name == 'dn_detr':
             mask_dict = outputs[1]            
             outputs = outputs[0]

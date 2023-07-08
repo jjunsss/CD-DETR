@@ -11,7 +11,9 @@ from termcolor import colored
 def Incre_Dataset(Task_Num, args, Incre_Classes, extra_dataset = False):    
     current_classes = Incre_Classes[Task_Num]
     print(f"current_classes : {current_classes}")
-    all_classes = sum(Incre_Classes[:Task_Num+1], []) # ALL : old task clsses + new task clsses(after training, soon to be changed)
+    all_classes = sum(Incre_Classes[:Task_Num+1], []) # ALL : old task clsses + new task clsses(after training, soon to be changed)\
+    print(colored(f"collected all_classes : {all_classes}", "blue", "on_yellow"))
+          
     if not extra_dataset:
         if not args.eval:
             # For real model traning
@@ -19,7 +21,6 @@ def Incre_Dataset(Task_Num, args, Incre_Classes, extra_dataset = False):
     else :
         # For generating buffer with whole dataset
         # previous classes are used to generate buffer of all classe before New task dataset
-        print(colored(f"Extra Option classes : {all_classes}", "light_red", "on_yellow"))
         dataset_train = build_dataset(image_set='extra', args=args, class_ids=all_classes)
     
     if args.eval :
@@ -109,13 +110,6 @@ def DivideTask_for_incre(Task_Counts: int, Total_Classes: int, DivisionOfNames: 
             Divided_Classes.append([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, ]) # DID + PZ
             Divided_Classes.append([28, 32, 35, 41, 56]) # PZ 
             Divided_Classes.append([24, 29, 30, 39, 40, 42]) # custom VE
-            # # Train
-            # # # LG Incremental Learning
-            # Divided_Classes.append([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 28, 32, 35, 41, 56]) #DID + PZ
-            # # Divided_Classes.append([28, 32, 35, 41, 56]) #photozone ,
-            # Divided_Classes.append([24, 29, 30, 39, 40, 42]) # 야채칸 중 일부(mAP 높은 일부),
-            # # original VE
-            # # #Divided_Classes.append([23, 24, 25, 26, 27, 29, 30, 31, 33,34,36, 37, 38, 39, 40,42,43,44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 57, 58, 59]) #VE              
         return Divided_Classes
 
     # For auto division dataset(T2 training) (40-40 and), (70-10 or 10-70) to be used better performance setting
@@ -188,7 +182,7 @@ def weight_dataset(args, re_dict):
 
 
 import copy
-from custom_utils import calc_fisher_process
+from sklearn.preprocessing import RobustScaler
 class CustomDataset(torch.utils.data.Dataset):
     '''
         replay buffer configuration
@@ -196,18 +190,25 @@ class CustomDataset(torch.utils.data.Dataset):
         2. Fisher based Circular Experience Replay (FCER)
         3. Fisher based ER
     '''
-    def __init__(self, args, re_dict, old_classes, fisher_dict = None):
+    def __init__(self, args, re_dict, old_classes, fisher_dict = None, fisher_mode = False):
         self.re_dict = copy.deepcopy(re_dict)
         self.old_classes = old_classes
-        self.keys, self.weights = weight_dataset(args, re_dict)
-        self.datasets = build_dataset(image_set='train', args=args, class_ids=self.old_classes, img_ids=self.keys)
+        if args.CER == "weight":
+            self.keys, self.weights = weight_dataset(args, re_dict)
+            self.datasets = build_dataset(image_set='train', args=args, class_ids=self.old_classes, img_ids=self.keys)
+        elif args.CER == "fisher":
+            self.keys = list(self.re_dict.keys())
+            self.weights = None
+            self.datasets = build_dataset(image_set='val', args=args, class_ids=self.old_classes, img_ids=self.keys)
+            
         
         if fisher_dict is not None:
             # Convert fisher_dict values to a list and move to tensor
             fisher_values = torch.tensor(list(fisher_dict.values()))
-
+            scaled_fisher_values = self.scaling(fisher_values)
+            
             # Calculate softmax weights
-            self.fisher_softmax_weights = torch.softmax(fisher_values, dim=0)
+            self.fisher_softmax_weights = torch.softmax(scaled_fisher_values, dim=0)
 
         else:
             self.fisher_softmax_weights = None
@@ -222,8 +223,13 @@ class CustomDataset(torch.utils.data.Dataset):
         samples, targets, new_samples, new_targets = self.datasets[idx]
 
         return samples, targets, new_samples, new_targets
+    
+    def scaling(self, tensor):
+        # RobustScaler 생성
+        summation = torch.sum(tensor, dim=0)
+        scaled_tensor = tensor / summation
 
-
+        return scaled_tensor
 
 class NewDatasetSet(torch.utils.data.Dataset):
     def __init__(self, args, datasets, OldDataset, OldDataset_weights, fisher_weight, AugReplay=False, ):
@@ -242,15 +248,15 @@ class NewDatasetSet(torch.utils.data.Dataset):
         img, target, origin_img, origin_target = self.Datasets[index] #No normalize pixel, Normed Targets
 
         if self.AugReplay == True :
-            if self.args.CER == "fisher":
+            if self.args.CER == "fisher": # fisher CER
                 index = np.random.choice(np.arange(len(self.Rehearsal_dataset)), p=self.fisher_weights)
                 O_img, O_target, _, _ = self.Rehearsal_dataset[index] #No shuffle because weight sorting.
                 return img, target, origin_img, origin_target, O_img, O_target
-            elif self.args.CER == "weight":
+            elif self.args.CER == "weight": # weight CER
                 index = np.random.choice(np.arange(len(self.Rehearsal_dataset)), p=self.OldDataset_weights)
                 O_img, O_target, _, _ = self.Rehearsal_dataset[index] #No shuffle because weight sorting.
                 return img, target, origin_img, origin_target, O_img, O_target
-            elif self.args.CER == "original":
+            elif self.args.CER == "original": # original CER
                 if index > (len(self.Rehearsal_dataset)-1):
                     index = index % len(self.Rehearsal_dataset)
                     O_img, O_target, _, _ = self.Rehearsal_dataset[index] #No shuffle because weight sorting.
@@ -263,7 +269,6 @@ class NewDatasetSet(torch.utils.data.Dataset):
 
     
 #For Rehearsal
-from custom_utils import fisher_process
 def CombineDataset(args, RehearsalData, CurrentDataset, 
                    Worker, Batch_size, old_classes, fisher_dict=None, MixReplay = None):
     '''
@@ -288,7 +293,7 @@ def CombineDataset(args, RehearsalData, CurrentDataset,
         
     print(f"current Dataset length : {len(CurrentDataset)}")
     print(f"Total Dataset length : {len(CurrentDataset)} +  old dataset length : {len(OldDataset)}")
-    print(f"********** sucess combined Dataset ***********")
+    print(colored(f"********** sucess combined Dataset ***********", "blue"))
     
     if args.distributed:
         if args.cache_mode:
@@ -334,16 +339,11 @@ def IcarlDataset(args, single_class:int):
     return dataset, data_loader, sampler
 
 
-def fisher_dataset(args, RehearsalData, old_classes):
+def fisher_dataset_loader(args, RehearsalData, old_classes):
     buffer_dataset = CustomDataset(args, RehearsalData, old_classes)
     
-    if args.distributed:
-        if args.cache_mode:
-            sampler_train = samplers.NodeDistributedSampler(buffer_dataset, shuffle=False)
-        else:
-            sampler_train = samplers.DistributedSampler(buffer_dataset, shuffle=False)
-    else:
-        sampler_train = torch.utils.data.RandomSampler(buffer_dataset, shuffle=False)
+
+    sampler_train = torch.utils.data.SequentialSampler(buffer_dataset)
         
     batch_sampler_train = torch.utils.data.BatchSampler(sampler_train, batch_size=1, drop_last=True)
     

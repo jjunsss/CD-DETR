@@ -343,7 +343,7 @@ class TrainingPipeline:
                                                 data_loader_val, base_ds, self.device, args.output_dir, self.DIR, args)
 
 
-    def incremental_train_epoch(self, task_idx, last_task, dataset_train, data_loader_train, sampler_train, list_CC):
+    def incremental_train_epoch(self, task_idx, last_task, dataset_train, data_loader_train, sampler_train, list_CC, first_training):
         args = self.args
         if isinstance(dataset_train, list):
             temp_dataset, temp_loader, temp_sampler = copy.deepcopy(dataset_train), copy.deepcopy(data_loader_train), copy.deepcopy(sampler_train)
@@ -359,14 +359,14 @@ class TrainingPipeline:
 
             if args.distributed:
                 sampler_train.set_epoch(epoch)#TODO: 추후에 epoch를 기준으로 batch sampler를 추출하는 행위 자체가 오류를 일으킬 가능성이 있음 Incremental Learning에서                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
-            print(f"task id : {task_idx} / {self.tasks-1}")
-            print(f"each epoch id : {epoch} , Dataset length : {len(dataset_train)}, current classes :{list_CC}")
-            print(f"Task is Last : {last_task}")
+            print(colored(f"task id : {task_idx} / {self.tasks-1}", "blue", "on_white"))
+            print(colored(f"each epoch id : {epoch} , Dataset length : {len(dataset_train)}, current classes :{list_CC}", "blue", "on_white"))
+            print(colored(f"Task is Last : {last_task}", "blue", "on_white"))
             
             # Training process
             train_one_epoch(args, last_task, epoch, self.model, self.teacher_model, self.criterion, 
                             data_loader_train, self.optimizer, self.lr_scheduler,
-                            self.device, self.dataset_name, list_CC, self.rehearsal_classes)
+                            self.device, self.dataset_name, list_CC, self.rehearsal_classes, first_training)
             
             # set a lr scheduler.
             self.lr_scheduler.step()
@@ -407,5 +407,37 @@ class TrainingPipeline:
         
         # Normal training with each epoch
         self.incremental_train_epoch(task_idx=0, last_task=True, dataset_train=dataset_train,
-                                         data_loader_train=data_loader_train, sampler_train=sampler_train,
-                                         list_CC=list_CC)
+                                     data_loader_train=data_loader_train, sampler_train=sampler_train,
+                                     list_CC=list_CC, first_training=False)
+
+from copy import deepcopy
+def generate_dataset(first_training, task_idx, args, pipeline):
+    # Generate new dataset(current classes)
+    dataset_train, data_loader_train, sampler_train, list_CC = Incre_Dataset(task_idx, args, pipeline.Divided_Classes)
+
+    if not first_training and args.Rehearsal:
+        
+        # Ready for replay training strategy
+        temp_replay_dataset = deepcopy(pipeline.rehearsal_classes)
+        replay_dataset = dict(sorted(temp_replay_dataset.items(), key=lambda x: x[0]))
+        previous_classes = sum(pipeline.Divided_Classes[:task_idx], []) # Not now current classe 
+        fisher_dict = calc_fisher_process(args, pipeline.rehearsal_classes, previous_classes, 
+                                          pipeline.criterion, pipeline.model, pipeline.optimizer)
+        # Combine dataset for original and AugReplay(Circular)
+        original_dataset, original_loader, original_sampler = CombineDataset(
+            args, replay_dataset, dataset_train, args.num_workers, args.batch_size, 
+            old_classes=previous_classes, fisher_dict=fisher_dict, MixReplay="Original")
+
+        AugRplay_dataset, AugRplay_loader, AugRplay_sampler = CombineDataset(
+            args, replay_dataset, dataset_train, args.num_workers, args.batch_size, 
+            old_classes=previous_classes, fisher_dict=fisher_dict, MixReplay="AugReplay") 
+
+        # Set a certain configuration
+        dataset_train, data_loader_train, sampler_train = dataset_configuration(
+            args, original_dataset, original_loader, original_sampler, AugRplay_dataset, AugRplay_loader, AugRplay_sampler)
+
+        # Task change for learning rate scheduler
+        # this lr changed value
+        pipeline.lr_scheduler.task_change()
+
+    return dataset_train, data_loader_train, sampler_train, list_CC
