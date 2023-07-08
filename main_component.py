@@ -415,3 +415,35 @@ class TrainingPipeline:
         self.incremental_train_epoch(task_idx=0, last_task=True, dataset_train=dataset_train,
                                         data_loader_train=data_loader_train, sampler_train=sampler_train,
                                         list_CC=list_CC)
+        
+from copy import deepcopy
+def generate_dataset(first_training, task_idx, args, pipeline):
+    # Generate new dataset(current classes)
+    dataset_train, data_loader_train, sampler_train, list_CC = Incre_Dataset(task_idx, args, pipeline.Divided_Classes)
+
+    if not first_training and args.Rehearsal:
+        
+        # Ready for replay training strategy
+        temp_replay_dataset = deepcopy(pipeline.rehearsal_classes)
+        replay_dataset = dict(sorted(temp_replay_dataset.items(), key=lambda x: x[0]))
+        previous_classes = sum(pipeline.Divided_Classes[:task_idx], []) # Not now current classe 
+        fisher_dict = calc_fisher_process(args, pipeline.rehearsal_classes, previous_classes, 
+                                          pipeline.criterion, pipeline.model, pipeline.optimizer)
+        # Combine dataset for original and AugReplay(Circular)
+        original_dataset, original_loader, original_sampler = CombineDataset(
+            args, replay_dataset, dataset_train, args.num_workers, args.batch_size, 
+            old_classes=previous_classes, fisher_dict=fisher_dict, MixReplay="Original")
+
+        AugRplay_dataset, AugRplay_loader, AugRplay_sampler = CombineDataset(
+            args, replay_dataset, dataset_train, args.num_workers, args.batch_size, 
+            old_classes=previous_classes, fisher_dict=fisher_dict, MixReplay="AugReplay") 
+
+        # Set a certain configuration
+        dataset_train, data_loader_train, sampler_train = dataset_configuration(
+            args, original_dataset, original_loader, original_sampler, AugRplay_dataset, AugRplay_loader, AugRplay_sampler)
+
+        # Task change for learning rate scheduler
+        # this lr changed value
+        pipeline.lr_scheduler.task_change()
+
+    return dataset_train, data_loader_train, sampler_train, list_CC
