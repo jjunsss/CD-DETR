@@ -77,7 +77,7 @@ def check_class(verbose, LG_Dataset: bool, targets: Dict, label_dict: Dict, curr
             label_tensor_unique = torch.unique(label_tensor)
             
             # Normal Limited Training (for equivalent Performance)
-            if CL_Limited is 0 :
+            if CL_Limited == 0 :
                 check_list = [idx.item() for idx in label_tensor_unique if idx.item() in label_dict  if idx.item() <= 21 and label_dict[idx.item()] > DID_COUNT] #did
                 check_list2 = [idx.item() for idx in label_tensor_unique if idx.item() in label_dict  if idx.item() in limit2 and label_dict[idx.item()] > PZ_COUNT] #pz
                 check_list3 = [idx.item() for idx in label_tensor_unique if idx.item() in label_dict  if idx.item() in limit3 and label_dict[idx.item()] > VE_COUNT] #ve (more)
@@ -284,7 +284,7 @@ def control_lr_backbone(args, optimizer, frozen):
 
 from torch.optim.lr_scheduler import StepLR
 def dataset_configuration(args, original_dataset, original_loader, original_sampler,
-                          AugRplay_dataset, AugRplay_loader, AugRplay_sampler):
+                          AugRplay_dataset=None, AugRplay_loader=None, AugRplay_sampler=None):
     
     if args.AugReplay :
         return AugRplay_dataset, AugRplay_loader, AugRplay_sampler

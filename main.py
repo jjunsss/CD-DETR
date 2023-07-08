@@ -66,7 +66,7 @@ def main(args):
         last_task = (task_idx+1 == pipeline.tasks)
         first_training = (task_idx == 0)
         if is_task_changed and args.Branch_Incremental:
-            pipeline.make_branch(task_idx, args)
+            pipeline.make_branch(task_idx, args, replay=is_task_changed)
             is_task_changed = False
         pipeline._load_state()
         

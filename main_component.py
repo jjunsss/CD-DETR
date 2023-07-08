@@ -49,8 +49,8 @@ class TrainingPipeline:
         self.device = torch.device(args.device)
         self.Divided_Classes, self.dataset_name, self.start_epoch, self.start_task, self.tasks = self._incremental_setting()
         self.model, self.model_without_ddp, self.criterion, self.postprocessors, self.teacher_model = self._build_and_setup_model(task_idx=args.start_task)
-        if self.args.Branch_Incremental and not args.eval and args.pretrained_model is not None:
-            self.make_branch(self.start_task, self.args, replay=True)
+        # if self.args.Branch_Incremental and not args.eval and args.pretrained_model is not None:
+        #     self.make_branch(self.start_task, self.args, replay=True)
         self.optimizer, self.lr_scheduler = self._setup_optimizer_and_scheduler()
         self.output_dir = Path(args.output_dir)
         self.load_replay, self.rehearsal_classes = self._load_replay_buffer()
@@ -132,7 +132,7 @@ class TrainingPipeline:
         self.current_class = current_class
         self.num_classes = num_classes
 
-    def _build_and_setup_model(self, task_idx, replay=False):
+    def _build_and_setup_model(self, task_idx):
         self.update_class(task_idx)
 
         model, criterion, postprocessors = get_models(self.args.model_name, self.args, self.num_classes, self.current_class)
@@ -141,8 +141,7 @@ class TrainingPipeline:
             pre_model, _, _ = get_models(self.args.model_name, self.args, self.num_classes, self.current_class)
         #FIXME: If we use the pre_model option, we need to load the pre-trained model architecture.
         #FIXME: because previous version of the model does not match the current version(branch incremental option)
-        model.to(self.device)
-        if self.args.pretrained_model is not None and not self.args.eval and not replay:
+        if self.args.pretrained_model is not None and not self.args.eval:
             model = load_model_params("main", model, self.args.pretrained_model)
         model_without_ddp = model
         
@@ -428,18 +427,21 @@ def generate_dataset(first_training, task_idx, args, pipeline):
         temp_replay_dataset = deepcopy(pipeline.rehearsal_classes)
         replay_dataset = dict(sorted(temp_replay_dataset.items(), key=lambda x: x[0]))
         previous_classes = sum(pipeline.Divided_Classes[:task_idx], []) # Not now current classe
-        fisher_dict = None
         if args.AugReplay:
             fisher_dict = calc_fisher_process(args, pipeline.rehearsal_classes, previous_classes, 
                                             pipeline.criterion, pipeline.model, pipeline.optimizer)
+            AugRplay_dataset, AugRplay_loader, AugRplay_sampler = CombineDataset(
+                args, replay_dataset, dataset_train, args.num_workers, args.batch_size, 
+                old_classes=previous_classes, fisher_dict=fisher_dict, MixReplay="AugReplay")
+        else:
+            fisher_dict = None
+            AugRplay_dataset, AugRplay_loader, AugRplay_sampler = None, None, None
+
         # Combine dataset for original and AugReplay(Circular)
         original_dataset, original_loader, original_sampler = CombineDataset(
             args, replay_dataset, dataset_train, args.num_workers, args.batch_size, 
             old_classes=previous_classes, fisher_dict=fisher_dict, MixReplay="Original")
 
-        AugRplay_dataset, AugRplay_loader, AugRplay_sampler = CombineDataset(
-            args, replay_dataset, dataset_train, args.num_workers, args.batch_size, 
-            old_classes=previous_classes, fisher_dict=fisher_dict, MixReplay="AugReplay") 
 
         # Set a certain configuration
         dataset_train, data_loader_train, sampler_train = dataset_configuration(
