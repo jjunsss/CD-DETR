@@ -222,7 +222,13 @@ def build(image_set, args, img_ids = None, class_ids = None):
     root = Path(args.coco_path)
     assert root.exists(), f'provided COCO path {root} does not exist'
     mode = 'instances'
-    if args.orgcocopath:
+    if args.LG:
+        PATHS = {
+        "train": (root / "images", root / 'output_json' / 'train.json'),
+        "val": (root / "images", root / 'output_json' / 'test.json'),
+        "extra": (root / "images", root / 'output_json' / 'train.json'),
+        }
+    elif args.orgcocopath:
         if args.eval: root = root.parent
         PATHS = {
             "train": (root / "train2017", root / "annotations" / f'{mode}_train2017.json'),
