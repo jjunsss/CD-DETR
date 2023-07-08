@@ -129,7 +129,7 @@ def deform_detr_parser(parser):
     # * Backbone
     parser.add_argument('--position_embedding_scale', default=2 * np.pi, type=float, help="position / size * scale")   
 
-    # * Transformer 
+    # * Transformer f
     parser.add_argument('--dim_feedforward', default=1024, type=int, help="Intermediate size of the feedforward layers in the transformer blocks")
     parser.add_argument('--dropout', default=0.1, type=float, help="Dropout applied in the transformer")    
 

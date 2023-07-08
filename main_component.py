@@ -196,6 +196,7 @@ class TrainingPipeline:
     def _load_state(self):
         args = self.args
         # For extra epoch training, because It's not affected to DDP.
+        self.model = self.model.to(self.device)
         if args.distributed:
             self.model = torch.nn.parallel.DistributedDataParallel(self.model, device_ids=[args.gpu])
             self.model_without_ddp = self.model.module
@@ -426,9 +427,11 @@ def generate_dataset(first_training, task_idx, args, pipeline):
         # Ready for replay training strategy
         temp_replay_dataset = deepcopy(pipeline.rehearsal_classes)
         replay_dataset = dict(sorted(temp_replay_dataset.items(), key=lambda x: x[0]))
-        previous_classes = sum(pipeline.Divided_Classes[:task_idx], []) # Not now current classe 
-        fisher_dict = calc_fisher_process(args, pipeline.rehearsal_classes, previous_classes, 
-                                          pipeline.criterion, pipeline.model, pipeline.optimizer)
+        previous_classes = sum(pipeline.Divided_Classes[:task_idx], []) # Not now current classe
+        fisher_dict = None
+        if args.AugReplay:
+            fisher_dict = calc_fisher_process(args, pipeline.rehearsal_classes, previous_classes, 
+                                            pipeline.criterion, pipeline.model, pipeline.optimizer)
         # Combine dataset for original and AugReplay(Circular)
         original_dataset, original_loader, original_sampler = CombineDataset(
             args, replay_dataset, dataset_train, args.num_workers, args.batch_size, 

@@ -193,13 +193,24 @@ class CustomDataset(torch.utils.data.Dataset):
     def __init__(self, args, re_dict, old_classes, fisher_dict = None, fisher_mode = False):
         self.re_dict = copy.deepcopy(re_dict)
         self.old_classes = old_classes
-        if args.CER == "weight":
+        if args.CER == "weight" and args.AugReplay:
+            self.fisher_softmax_weights = None
             self.keys, self.weights = weight_dataset(args, re_dict)
             self.datasets = build_dataset(image_set='train', args=args, class_ids=self.old_classes, img_ids=self.keys)
-        elif args.CER == "fisher":
-            self.keys = list(self.re_dict.keys())
+        elif args.CER == "fisher" and args.AugReplay:
             self.weights = None
-            self.datasets = build_dataset(image_set='val', args=args, class_ids=self.old_classes, img_ids=self.keys)
+            self.keys = list(self.re_dict.keys())
+            self.datasets = build_dataset(image_set='extra', args=args, class_ids=self.old_classes, img_ids=self.keys)
+            fisher_values = torch.tensor(list(fisher_dict.values()))
+            scaled_fisher_values = self.scaling(fisher_values)
+            
+            # Calculate softmax weights
+            self.fisher_softmax_weights = torch.softmax(scaled_fisher_values, dim=0)
+        else :
+            self.weights = None
+            self.fisher_softmax_weights = None
+            self.keys = list(self.re_dict.keys())
+            self.datasets = build_dataset(image_set='train', args=args, class_ids=self.old_classes, img_ids=self.keys)
             
         
         if fisher_dict is not None:
