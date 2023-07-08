@@ -273,8 +273,8 @@ class TrainingPipeline:
         if args.all_data == True:
             # eval과 train의 coco_path를 다르게 설정
             dir_list = glob(os.path.join(args.coco_path, '*'))
-            # if os.path.isfile(self.DIR):
-            #     os.remove(self.DIR) # self.DIR = args.output_dir + 'mAP_TEST.txt'
+            if os.path.isfile(self.DIR):
+                os.remove(self.DIR) # self.DIR = args.output_dir + 'mAP_TEST.txt'
         else:
             dir_list = [args.coco_path] # "/home/user/Desktop/vscode"+ 
         
