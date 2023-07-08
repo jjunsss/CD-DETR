@@ -218,8 +218,8 @@ def build(image_set, args, img_ids = None, class_ids = None):
     # }
     PATHS = {
         "train": (root / "train/images", root / 'train/output_json' / 'train.json'),
-        "val": (root / "test/images", root / 'test/output_json' / 'train.json'),
-        "extra": (root / "images", root / 'output_json' / 'train.json'), # same thing train path
+        "val": (root / "test/images", root / 'test/output_json' / 'test.json'),
+        "extra": (root / "train/images", root / 'train/output_json' / 'train.json'), # same thing train path
     }
 
     img_folder, ann_file = PATHS[image_set]
