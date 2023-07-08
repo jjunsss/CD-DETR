@@ -293,8 +293,10 @@ def load_rehearsal(dir, task=None, memory=None):
     if os.path.exists(all_dir) :
         with open(all_dir, 'rb') as f :
             temp = pickle.load(f)
-            print(colored(f"********** Loading replay data ***********", "light_red", "on_yellow"))
+            print(colored(f"********** Loading replay data ***********", "blue", "on_yellow"))
             return temp
+    else:
+        print(colored(f"not exist file. plz check your replay file path or existence", "blue", "on_yellow"))
 
 
 def _handle_rehearsal(args, dir, limit_memory_size, gpu_counts, task, epoch, least_image, list_CC, include_all=False):
@@ -423,7 +425,7 @@ def merge_rehearsal_process(args, task:int ,dir:str ,rehearsal:dict ,epoch:int
         # save combined replay buffer data for next training
         # _save_rehearsal output : save total buffer dataset to dir
         _save_rehearsal(rehearsal_classes, dir, task, limit_memory_size) 
-        # buffer_checker(rehearsal=rehearsal_classes)
+        buffer_checker(rehearsal=rehearsal_classes)
     
     # wait main process to synchronization
     if utils.get_world_size() > 1:    

@@ -52,7 +52,6 @@ class TrainingPipeline:
         if self.args.Branch_Incremental and not args.eval and args.pretrained_model is not None:
             self.make_branch(self.start_task, self.args, replay=True)
         self.optimizer, self.lr_scheduler = self._setup_optimizer_and_scheduler()
-        # self._load_state()
         self.output_dir = Path(args.output_dir)
         self.load_replay, self.rehearsal_classes = self._load_replay_buffer()
         self.DIR = os.path.join(self.output_dir, 'mAP_TEST.txt')
@@ -81,7 +80,7 @@ class TrainingPipeline:
 
     def make_branch(self, task_idx, args, replay=False):
         if not replay:
-            self.update_class(self, task_idx)          
+            self.update_class(task_idx)          
             self.model, self.criterion, self.postprocessors = get_models(self.args.model_name, self.args, self.num_classes, self.current_class)
         
         if replay:
@@ -246,11 +245,12 @@ class TrainingPipeline:
         #* Load for Replay
         if args.Rehearsal:
             rehearsal_classes = load_rehearsal(args.Rehearsal_file, 0, args.limit_image)
-        
             try:
-                if len(rehearsal_classes) == 0:
+                if len(list(rehearsal_classes.keys())) == 0:
                     print(f"No rehearsal file. Initialization rehearsal dict")
                     rehearsal_classes = {}
+                else:
+                    print(f"replay keys length :{len(list(rehearsal_classes.keys()))}")
             except:
                 print(f"Rehearsal File Error. Generate new empty rehearsal dict.")
                 rehearsal_classes = {}
