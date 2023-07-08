@@ -81,7 +81,7 @@ class TrainingPipeline:
 
     def make_branch(self, task_idx, args, replay=False):
         if not replay:
-            self.update_class(self, task_idx)          
+            self.update_class(task_idx)          
             self.model, self.criterion, self.postprocessors = get_models(self.args.model_name, self.args, self.num_classes, self.current_class)
         
         if replay:
