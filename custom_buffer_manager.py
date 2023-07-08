@@ -22,13 +22,13 @@ def _replacment_strategy(args, loss_value, targeted, rehearsal_classes,
             rehearsal_classes[image_id] = [loss_value, label_tensor_unique_list, num_bounding_boxes]
             return rehearsal_classes
         
-    if args.Sampling_strategy  == "high_uniq": # This is same that "hard sampling"
+    if args.Sampling_strategy  == "RODEO": # This is same that "RODEO sampling strategy"
         if ( len(targeted[1][1]) < len(label_tensor_unique_list) ): #Low buffer construct
             print(colored(f"high-unique counts based buffer change strategy", "blue"))
             del rehearsal_classes[targeted[0]]
             rehearsal_classes[image_id] = [loss_value, label_tensor_unique_list, num_bounding_boxes]
             return rehearsal_classes
-            
+        
     if args.Sampling_strategy  == "random" :
         print(colored(f"random counts based buffer change strategy", "blue"))
         key_to_delete = random.choice(list(rehearsal_classes.keys()))
@@ -72,7 +72,7 @@ def _change_available_list_mode(mode, rehearsal_dict, need_to_include, least_ima
         # no limit and no least images
         changed_available_dict = rehearsal_dict
         
-    if mode == "GuaranteeMinimum": # GM 모드
+    if mode == "GM": # GM 모드
         '''
             'normal'과 'classification'에서의 버퍼 분할 방법에서 발생할 수 있는 여러 문제를 해결하기위해 우리는 GuaranteeMinimum 이라는 방법을 제안합니다.
             우선 우리는 최소한으로 보장할 이미지의 개수를 하이퍼 파라미터로 가집니다. 이는 특정 클래스에 해당하는 객체가 데이터 내에 하나라도 존재한다면(Unique) 해당 객체를 포함하는 데이터라고 가정합니다.
@@ -97,9 +97,8 @@ def _change_available_list_mode(mode, rehearsal_dict, need_to_include, least_ima
         image_counts_in_rehearsal = {class_label: sum(class_label in classes for _, (_, classes, _) in rehearsal_dict.items()) for class_label in current_classes}
         print(f"replay counts : {image_counts_in_rehearsal}")
         
-        changed_available_dict = {key: (losses, classes, bboxes) for key, (losses, classes, bboxes) in rehearsal_dict.items() if all(image_counts_in_rehearsal[class_label] > least_image for class_label in classes)}
-        # print(f"available counts : {changed_available_dict}")
-        
+        changed_available_dict = {key: (losses, classes, bboxes) for key, (losses, classes, bboxes) in rehearsal_dict.items() if all(image_counts_in_rehearsal.get(class_label, 0) > least_image for class_label in classes)}
+
         if len(changed_available_dict.keys()) == 0 :
             # this process is protected to generate error messages
             # include classes that have at least one class in need_to_include
@@ -140,6 +139,7 @@ def construct_rehearsal(args, losses_dict: dict, targets, rehearsal_dict: List,
     for enum, target in enumerate(targets): #! 배치 개수 ex) 4개 
         loss_value = losses_dict["loss_bbox"][enum] + losses_dict["loss_giou"][enum] + losses_dict["loss_labels"][enum]
         if loss_value > 10.0 :
+            "너무 높은 loss를 가지는 객체들은 모일 필요없음."
             continue
         # Get the unique labels and the count of each label
         label_tensor = target['labels']
@@ -147,18 +147,19 @@ def construct_rehearsal(args, losses_dict: dict, targets, rehearsal_dict: List,
         image_id = target['image_id'].item()
         label_tensor_unique = torch.unique(label_tensor)
         label_tensor_unique_list = label_tensor_unique.tolist()
-        #if unique tensor composed by Old Dataset, So then pass iteration [Replay constructig shuld not operate in last task training]
-        # if set(label_tensor_unique_list).issubset(current_classes) is False: 
-        #     continue
 
         if len(rehearsal_dict.keys()) <  limit_image :
             # when under the buffer 
             rehearsal_dict[image_id] = [loss_value, label_tensor_unique_list, bbox_counts]
         else :
-            if args.Sampling_strategy == "hard" : 
-                rehearsal_dict = _replacment_strategy(args=args, loss_value=loss_value, targeted=targeted, 
-                                                        rehearsal_classes=rehearsal_dict, label_tensor_unique_list=label_tensor_unique_list,
-                                                        image_id=image_id)
+            if args.Sampling_strategy == "hard" or args.Sampling_strategy == "RODEO": # Hard, RODEO strategy is not using GM mode.
+                if args.Sampling_mode != "GM" : # GM : GuaranteeMinimum
+                    targeted = _calc_target(rehearsal_classes=rehearsal_dict, replace_strategy=args.Sampling_strategy, )
+                    rehearsal_dict = _replacment_strategy(args=args, loss_value=loss_value, targeted=targeted, 
+                                                            rehearsal_classes=rehearsal_dict, label_tensor_unique_list=label_tensor_unique_list,
+                                                            image_id=image_id)
+                    
+                    return rehearsal_dict
                 
                 
             # First, generate a dictionary with counts of each class label in rehearsal_classes
@@ -211,9 +212,9 @@ def _calc_target(rehearsal_classes, replace_strategy="hierarchical", ):
         # second change condition: low loss based change
         sorted_result = max(changed_list, key=lambda x: x[1][0])
         
-    elif replace_strategy == "high_uniq": 
+    elif replace_strategy == "RODEO": # RODEO == delete high unqiue classes
         # only high unique based change, mode is "normal" or "random"
-        sorted_result = min(changed_list, key=lambda x: len(x[1][1]))
+        sorted_result = min(rehearsal_classes, key=lambda x: len(x[1][1]))
         
     elif replace_strategy == "random":
         # only random change, mode is "normal" or "random"
@@ -435,9 +436,8 @@ def merge_rehearsal_process(args, task:int ,dir:str ,rehearsal:dict ,epoch:int
 
 from Custom_Dataset import *
 from custom_prints import *
-from engine import _extra_epoch_for_replay
+from engine import extra_epoch_for_replay
 from custom_utils import buffer_checker
-
 def construct_replay_extra_epoch(args, Divided_Classes, model, criterion, device, rehearsal_classes={}, task_num=0):
     
     # 0. Initialization
@@ -453,7 +453,7 @@ def construct_replay_extra_epoch(args, Divided_Classes, model, criterion, device
     _, data_loader_train, _, list_CC = Incre_Dataset(task_num, args, Divided_Classes, extra_epoch) 
     
     # 2. Extra epoch, 모든 이미지들의 Loss를 측정
-    rehearsal_classes = _extra_epoch_for_replay(args, dataset_name="", data_loader=data_loader_train, model=model, criterion=criterion, 
+    rehearsal_classes = extra_epoch_for_replay(args, dataset_name="", data_loader=data_loader_train, model=model, criterion=criterion, 
                                                 device=device, current_classes=list_CC, rehearsal_classes=rehearsal_classes)
 
     # 3. 수집된 Buffer를 특정 파일에 저장
@@ -467,3 +467,20 @@ def construct_replay_extra_epoch(args, Divided_Classes, model, criterion, device
     print(colored(f"Complete constructing buffer","red", "on_yellow"))
     
     return rehearsal_classes
+
+from engine import extra_epoch_for_fisher
+def calc_fisher_process(args, rehearsal_dict, old_classes, criterion, model, optimizer):
+    
+    '''
+        buffer내에서의 fisher 정보량을 계산하기 위해서 진행하는 프로세스.
+        fisher의 양은 
+    '''
+    soted_rehearsal_dict = dict(sorted(rehearsal_dict.items(), key=lambda x: x[0]))
+    _, fisher_data_loader, _ = fisher_dataset_loader(args, soted_rehearsal_dict, old_classes)
+    fisher_dict = extra_epoch_for_fisher(args, dataset_name="", data_loader=fisher_data_loader, model=model, criterion=criterion, 
+                                         device=args.device, optimizer=optimizer, rehearsal_classes=soted_rehearsal_dict)
+
+    # check none fisher dictionary    
+    assert all(value is not None for value in fisher_dict.values())
+
+    return fisher_dict

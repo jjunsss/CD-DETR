@@ -27,8 +27,7 @@ from custom_buffer_manager import *
 from custom_training import rehearsal_training
 
 from datasets import build_dataset, get_coco_api_from_dataset
-from engine import evaluate, train_one_epoch
-from main_component import TrainingPipeline
+from main_component import TrainingPipeline, generate_dataset
 from glob import glob
 
 from configs.arguments import get_args_parser, deform_detr_parser, dn_detr_parser
@@ -41,6 +40,7 @@ def main(args):
     # Constructing only the replay buffer
     if args.Construct_Replay :
         pipeline.construct_replay_buffer()
+        print(colored("construct replay option", "blue", "on_yellow"))
         return
 
     # Evaluation mode
@@ -71,16 +71,16 @@ def main(args):
         pipeline._load_state()
         
         # Call your new function here
-        dataset_train, data_loader_train, sampler_train, list_CC = generate_dataset(task_idx, args, pipeline)
+        dataset_train, data_loader_train, sampler_train, list_CC = generate_dataset(first_training, task_idx, args, pipeline)
             
         # Incremental training for each epoch
         pipeline.set_task_epoch(args, idx)
         pipeline.incremental_train_epoch(task_idx=task_idx, last_task=last_task, dataset_train=dataset_train,
                                         data_loader_train=data_loader_train, sampler_train=sampler_train,
-                                        list_CC=list_CC)
+                                        list_CC=list_CC, first_training=first_training)
         
         is_task_changed = True
-            
+
     # Calculate and print the total time taken for training
     import datetime
     total_time = time.time() - start_time

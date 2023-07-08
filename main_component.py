@@ -344,7 +344,7 @@ class TrainingPipeline:
                                                 data_loader_val, base_ds, self.device, args.output_dir, self.DIR, args)
 
 
-    def incremental_train_epoch(self, task_idx, last_task, dataset_train, data_loader_train, sampler_train, list_CC):
+    def incremental_train_epoch(self, task_idx, last_task, dataset_train, data_loader_train, sampler_train, list_CC, first_training):
         args = self.args
         if isinstance(dataset_train, list):
             temp_dataset, temp_loader, temp_sampler = copy.deepcopy(dataset_train), copy.deepcopy(data_loader_train), copy.deepcopy(sampler_train)
@@ -362,14 +362,14 @@ class TrainingPipeline:
 
             if args.distributed:
                 sampler_train.set_epoch(epoch)#TODO: 추후에 epoch를 기준으로 batch sampler를 추출하는 행위 자체가 오류를 일으킬 가능성이 있음 Incremental Learning에서                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
-            print(f"task id : {task_idx} / {self.tasks-1}")
-            print(f"each epoch id : {epoch} , Dataset length : {len(dataset_train)}, current classes :{list_CC}")
-            print(f"Task is Last : {last_task}")
+            print(colored(f"task id : {task_idx} / {self.tasks-1}", "blue", "on_white"))
+            print(colored(f"each epoch id : {epoch} , Dataset length : {len(dataset_train)}, current classes :{list_CC}", "blue", "on_white"))
+            print(colored(f"Task is Last : {last_task}", "blue", "on_white"))
             
             # Training process
             train_one_epoch(args, last_task, epoch, self.model, self.teacher_model, self.criterion, 
                             data_loader_train, self.optimizer, self.lr_scheduler,
-                            self.device, self.dataset_name, list_CC, self.rehearsal_classes)
+                            self.device, self.dataset_name, list_CC, self.rehearsal_classes, first_training)
             
             # set a lr scheduler.
             self.lr_scheduler.step()

@@ -282,11 +282,7 @@ def control_lr_backbone(args, optimizer, frozen):
             
     return optimizer
 
-import torch.optim as optim
 from torch.optim.lr_scheduler import StepLR
-import copy
-from Custom_Dataset import CombineDataset
-
 def dataset_configuration(args, original_dataset, original_loader, original_sampler,
                           AugRplay_dataset, AugRplay_loader, AugRplay_sampler):
     
@@ -299,36 +295,9 @@ def dataset_configuration(args, original_dataset, original_loader, original_samp
     else :
         return original_dataset, original_loader, original_sampler
 
-from Custom_Dataset import Incre_Dataset
-from copy import deepcopy
-def generate_dataset(task_idx, args, pipeline):
-    # Generate new dataset
-    dataset_train, data_loader_train, sampler_train, list_CC = Incre_Dataset(task_idx, args, pipeline.Divided_Classes)
-
-    if task_idx != 0 and args.Rehearsal:
-        # Ready for replay training strategy
-        replay_dataset = deepcopy(pipeline.rehearsal_classes)
-        previous_classes = sum(pipeline.Divided_Classes[:task_idx], [])
-
-        # Combine dataset for original and AugReplay(Circular)
-        original_dataset, original_loader, original_sampler = CombineDataset(
-            args, replay_dataset, dataset_train, args.num_workers, args.batch_size, old_classes=previous_classes, MixReplay="Original")
-
-        AugRplay_dataset, AugRplay_loader, AugRplay_sampler = CombineDataset(
-            args, replay_dataset, dataset_train, args.num_workers, args.batch_size, old_classes=previous_classes, MixReplay="AugReplay") 
-
-        # Set a certain configuration
-        dataset_train, data_loader_train, sampler_train = dataset_configuration(
-            args, original_dataset, original_loader, original_sampler, AugRplay_dataset, AugRplay_loader, AugRplay_sampler)
-
-        # Task change for learning rate scheduler
-        pipeline.lr_scheduler.task_change()
-
-    return dataset_train, data_loader_train, sampler_train, list_CC
-
 #* Just CL_StepLR(CLStepLR)
 class ContinualStepLR(StepLR):
-    def __init__(self, optimizer, step_size, gamma=0.1, task_gamma=0.85, replay_gamma=10, last_epoch=-1, verbose=False):
+    def __init__(self, optimizer, step_size, gamma=0.1, task_gamma=0.85, last_epoch=-1, verbose=False):
         super(ContinualStepLR, self).__init__(optimizer, step_size, gamma, last_epoch, verbose)
         self.task_gamma = task_gamma
 
