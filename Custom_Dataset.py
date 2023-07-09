@@ -89,7 +89,7 @@ def make_class(test_file):
     return class_dict['class_idx'][idx]
 
 
-def DivideTask_for_incre(args, Task_Counts: int, Total_Classes: int, DivisionOfNames: Boolean, eval=False, test_file_list=None):
+def DivideTask_for_incre(args, Task_Counts: int, Total_Classes: int, DivisionOfNames: Boolean, eval_config=False, test_file_list=None):
     '''
         DivisionofNames == True인 경우 Task_Counts는 필요 없어짐 Domain을 기준으로 class task가 자동 분할
         False라면 Task_Counts, Total_Classes를 사용해서 적절하게 분할
@@ -121,29 +121,19 @@ def DivideTask_for_incre(args, Task_Counts: int, Total_Classes: int, DivisionOfN
     start = 0
     end = Task
     Divided_Classes = []
-    if args.eval :
-        Task = int(Total_Classes / args.test_task )
-        Rest_Classes_num = Total_Classes % args.test_task
+
+    for _ in range(Task_Counts):
+        Divided_Classes.append(classes[start:end])
+        start += Task
+        end += Task
+    if Rest_Classes_num != 0:
+        Rest_Classes = classes[-Rest_Classes_num:]
+        Divided_Classes[-1].extend(Rest_Classes)
     
-        start = 0
-        end = Task
-        Divided_Classes = []
-        for _ in range(args.test_task):
-            Divided_Classes.append(classes[start:end])
-            start += Task
-            end += Task
-        if Rest_Classes_num != 0:
-            Rest_Classes = classes[-Rest_Classes_num:]
-            Divided_Classes[-1].extend(Rest_Classes)
-    else :
-        for _ in range(Task_Counts):
-            Divided_Classes.append(classes[start:end])
-            start += Task
-            end += Task
-        if Rest_Classes_num != 0:
-            Rest_Classes = classes[-Rest_Classes_num:]
-            Divided_Classes[-1].extend(Rest_Classes)
-    
+    if eval_config :
+        classes = [idx+1 for idx in range(args.Test_Classes)]
+        Divided_Classes = [classes]
+        
     return Divided_Classes
 
 #현재 (Samples, Targets)의 정보를 가진 형태로 데이터가 구성되어 있음(딕셔너리로 각각의 Class 정보를 가진 채로 구성됨)
