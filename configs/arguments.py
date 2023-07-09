@@ -112,7 +112,8 @@ def get_args_parser():
     parser.add_argument('--test_file_list', default=["didtest", "pztest", "VE2021", "VEmultisingle", "VE10test"], type=str, nargs='+', \
         help='Test folder name')
     parser.add_argument('--FPP', default=False, action='store_true', help="Forgetting metrics")
-    parser.add_argument('--test_task', default=2, type=int, help="test task(T1, T2). you can devide all classes through this value")
+    parser.add_argument('--Test_Classes', default=45, type=int, help="2 task eval(coco) : T1=45 / T2=90, 3task eval(coco) T1=30 T2=60 T3=90\
+                                                                      this value be used to config model architecture in the adequate task")
     return parser    
 
 
