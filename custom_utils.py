@@ -267,9 +267,9 @@ def check_training_gpu(train_check):
 
     return True
 
-def buffer_checker(rehearsal):
+def buffer_checker(args, rehearsal):
     #print text file
-    check_components(rehearsal, True)
+    check_components(args, rehearsal, True)
         
         
 def control_lr_backbone(args, optimizer, frozen):

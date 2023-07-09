@@ -108,7 +108,7 @@ def get_args_parser():
     parser.add_argument('--num_debug_dataset', default=10, type=int) # 디버그 데이터셋 개수
 
     #* EVALUATION
-    parser.add_argument('--all_data', default=False, action='store_true', help ="save your model output image")
+    parser.add_argument('--all_data', default=False, action='store_true', help ="save your model output image") # I think this option is depreciated, so temporarily use for 79 path, and modify later ... .
     parser.add_argument('--test_file_list', default=["didtest", "pztest", "VE2021", "VEmultisingle", "VE10test"], type=str, nargs='+', \
         help='Test folder name')
     parser.add_argument('--FPP', default=False, action='store_true', help="Forgetting metrics")
