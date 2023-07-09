@@ -374,7 +374,7 @@ class TrainingPipeline:
             else:
                 test_epoch = 1 if args.Total_Classes != args.Test_Classes else args.Task
                 for task_idx in range(test_epoch) :
-                    print(colored(f"evaluation task number {task_idx + 1} / {self.tasks}", "blue", "on_yellow"))
+                    print(colored(f"evaluation task number {task_idx + 1} / {test_epoch}", "blue", "on_yellow"))
                     Divided_Classes = DivideTask_for_incre(args, self.tasks, args.Total_Classes, False, False, args.test_file_list)
                     dataset_val, data_loader_val, _, _  = Incre_Dataset(task_idx, args, Divided_Classes)
                     base_ds = get_coco_api_from_dataset(dataset_val)
