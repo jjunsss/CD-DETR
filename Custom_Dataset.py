@@ -196,6 +196,17 @@ def weight_dataset(args, re_dict):
     return keys, weights
 
 
+def img_id_config_no_circular_training(args, re_dict):
+    if args.Sampling_strategy == 'icarl':
+        keys = []
+        for cls, val in re_dict.items():
+            img_ids = np.array(val[1])
+            keys.extend(list(img_ids[:, 0].astype(int)))
+        return keys
+    else:
+        return list(re_dict.keys())
+
+
 
 import copy
 class CustomDataset(torch.utils.data.Dataset):
@@ -224,7 +235,7 @@ class CustomDataset(torch.utils.data.Dataset):
         else :
             self.weights = None
             self.fisher_softmax_weights = None
-            self.keys = list(self.re_dict.keys())
+            self.keys = img_id_config_no_circular_training(args, re_dict)
             self.datasets = build_dataset(image_set='train', args=args, class_ids=self.old_classes, img_ids=self.keys)
             
         

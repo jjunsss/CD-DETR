@@ -19,7 +19,7 @@ def write_to_addfile(filename):
 
 from collections import Counter
 @write_to_addfile("./check/check_replay_limited.txt")
-def check_components(rehearsal_classes: Dict, print_stat: bool=False):
+def check_components(args, rehearsal_classes: Dict, print_stat: bool=False):
     '''
         1. check each instance usage capacity
         2. print each classes counts
@@ -28,17 +28,26 @@ def check_components(rehearsal_classes: Dict, print_stat: bool=False):
     '''
     if len(rehearsal_classes) == 0:
         raise Exception("No replay classes")
-    class_counts = Counter(cls for _ ,(_, classes, _) in rehearsal_classes.items() for cls in classes)
     
     if print_stat == True:
         # check each instance usage capacity
         
         # To print the current time
-        print(f"--------------------------------------------------------\n")
-        print("Current Time =", datetime.now())
-        print(f"The number of buffer: {len(rehearsal_classes.keys())}")
-        for key in sorted(class_counts):
-            print(f"{key}: {class_counts[key]}")            
+        if args.Sampling_strategy == 'icarl':
+            class_counts = {cls: len(item[1]) for cls, item in rehearsal_classes.items()}
+            print(f"--------------------------------------------------------\n")
+            print("Current Time =", datetime.now())
+            print(f"The number of buffer: {len(rehearsal_classes.keys())}")
+            for key in sorted(class_counts):
+                print(f"{key}: {class_counts[key]}")  
+        else:
+            class_counts = Counter(cls for _ ,(_, classes, _) in rehearsal_classes.items() for cls in classes)
+            # To print the current time
+            print(f"--------------------------------------------------------\n")
+            print("Current Time =", datetime.now())
+            print(f"The number of buffer: {len(rehearsal_classes.keys())}")
+            for key in sorted(class_counts):
+                print(f"{key}: {class_counts[key]}")         
             
 def Memory_checker():
     '''
