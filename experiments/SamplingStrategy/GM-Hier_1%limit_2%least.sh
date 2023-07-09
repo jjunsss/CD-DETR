@@ -3,21 +3,21 @@
 set -x
 
 # Define variables
-PUS_PER_NODE=5
+PUS_PER_NODE=4
 BATCH_SIZE=8
 MODEL_NAME="dn_detr"
-COCO_PATH="/data/LG/coco/cocodataset/" # /home/user/sumin/paper/COCODIR/ for 79 server.
-OUTPUT_DIR="./GM_Hier_Train_1%/"
+COCO_PATH="/home/user/sumin/paper/COCODIR/"  # /home/user/sumin/paper/COCODIR/ for 79 server. /data/LG/coco/cocodataset for 129
+OUTPUT_DIR="./GM_Hier_Train_1%_least2%/"
 START_TASK=1
-START_EPOCH=0
+START_EPOCH=2
 TASK_EPOCHS=12
 NUM_WORKERS=24
 TOTAL_CLASSES=90
 LIMIT_IMAGE=1200
-LEAST_IMAGE=12
+LEAST_IMAGE=24 # 2% 
 TASK=2
-REHEARSAL_FILE="./GM_Hier_Train_1%/"
-PRETRAINED_MODEL="./DN_Task1_40-40.pth"
+REHEARSAL_FILE="./GM_Hier_Train_1%_least2%/"
+PRETRAINED_MODEL="./GM_Hier_Train_1%_least2%/checkpoints/cp_02_02_1.pth"
 SAMPLING_STRATEGY="hierarchical"
 SAMPLING_MODE="GM"
 
@@ -40,8 +40,10 @@ CMD="PUS_PER_NODE=4 ./tools/run_dist_launch.sh $PUS_PER_NODE ./configs/r50_dn_de
     --Rehearsal_file $REHEARSAL_FILE \
     --pretrained_model $PRETRAINED_MODEL \
     --Rehearsal \
+    --orgcocopath \
     --Sampling_strategy $SAMPLING_STRATEGY \
-    --Sampling_mode $SAMPLING_MODE"
+    --Sampling_mode $SAMPLING_MODE \
+    $@"
 
 # Print the command
 echo $CMD

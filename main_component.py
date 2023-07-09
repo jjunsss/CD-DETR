@@ -261,7 +261,7 @@ class TrainingPipeline:
 
 
     def evaluation_only_mode(self):
-        print(colored(f"evaluation only mode start !!", "red"))
+        print(colored(f"evaluation only mode start !!", "blue", "on_yellow"))
         args = self.args
         dir_list = []
         filename_list = [test_file.split('+') if '+' in test_file else test_file for test_file in args.test_file_list]
