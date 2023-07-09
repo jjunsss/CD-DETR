@@ -369,13 +369,13 @@ class TrainingPipeline:
             else:
                 test_epoch = 1 if args.Total_Classes != args.Test_Classes else args.Task
                 for task_idx in range(test_epoch) :
-                    print(colored(f"evaluation task number {task_idx + 1} / {self.tasks}", "blue", "on_yellow"))
+                    print(colored(f"evaluation task number {task_idx + 1} / {test_epoch}", "blue", "on_yellow"))
                     Divided_Classes = DivideTask_for_incre(args, self.tasks, args.Total_Classes, False, False, args.test_file_list)
                     dataset_val, data_loader_val, _, _  = Incre_Dataset(task_idx, args, Divided_Classes)
                     base_ds = get_coco_api_from_dataset(dataset_val)
                     with open(self.DIR, 'a') as f:
                         f.write(f"-----------------------task working----------------------\n")
-                        f.write(f"NOW TASK num : {task_idx + 1} / {self.tasks}, checked classes : {sum(self.Divided_Classes[:task_idx+1], [])} \t ")
+                        f.write(f"NOW TASK num : {task_idx + 1} / {test_epoch}, checked classes : {sum(self.Divided_Classes[:task_idx+1], [])} \t ")
                         
                     _, _ = evaluate(self.model, self.criterion, self.postprocessors,
                                                     data_loader_val, base_ds, self.device, args.output_dir, self.DIR, args)
