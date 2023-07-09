@@ -25,6 +25,7 @@ from datasets import build_dataset, get_coco_api_from_dataset
 from engine import evaluate, train_one_epoch
 from models import get_models
 from glob import glob
+import torch.backends.cudnn as cudnn
 
 
 def init(args):
@@ -38,6 +39,8 @@ def init(args):
         torch.manual_seed(seed)
         np.random.seed(seed)
         random.seed(seed)
+        cudnn.benchmark = False
+        cudnn.deterministic = True
         
 
 
@@ -246,8 +249,10 @@ class TrainingPipeline:
             start_task = args.start_task
             
         dataset_name = "Original"
-        if args.AugReplay == True:
+        if args.AugReplay :
             dataset_name = "AugReplay"
+        elif args.Mosaic :
+            dataset_name = "Mosaic"
 
         return Divided_Classes, dataset_name, start_epoch, start_task, tasks
     
@@ -375,7 +380,7 @@ class TrainingPipeline:
                     base_ds = get_coco_api_from_dataset(dataset_val)
                     with open(self.DIR, 'a') as f:
                         f.write(f"-----------------------task working----------------------\n")
-                        f.write(f"NOW TASK num : {task_idx + 1} / {self.tasks}, checked classes : {sum(self.Divided_Classes[:task_idx+1], [])} \t ")
+                        f.write(f"NOW TASK num : {task_idx + 1} / {self.tasks}, checked classes : {Divided_Classes} \t ")
                         
                     _, _ = evaluate(self.model, self.criterion, self.postprocessors,
                                                     data_loader_val, base_ds, self.device, args.output_dir, self.DIR, args)
@@ -470,6 +475,7 @@ def generate_dataset(first_training, task_idx, args, pipeline):
         replay_dataset = dict(sorted(temp_replay_dataset.items(), key=lambda x: x[0]))
         previous_classes = sum(pipeline.Divided_Classes[:task_idx], []) # Not now current classe
         if args.AugReplay:
+            #TODO: need to Fisher condition
             fisher_dict = calc_fisher_process(args, pipeline.rehearsal_classes, previous_classes, 
                                             pipeline.criterion, pipeline.model, pipeline.optimizer)
             AugRplay_dataset, AugRplay_loader, AugRplay_sampler = CombineDataset(
@@ -478,6 +484,13 @@ def generate_dataset(first_training, task_idx, args, pipeline):
         else:
             fisher_dict = None
             AugRplay_dataset, AugRplay_loader, AugRplay_sampler = None, None, None
+        assert (args.Mosaic and ~args.AugReplay) or (~args.Mosaic and args.AugReplay)
+            
+        if args.Mosaic and not args.AugReplay:
+            mosaic_dataset, mosaic_loader, mosaic_sampler = CombineDataset(
+                args, replay_dataset, dataset_train, args.num_workers, args.batch_size, 
+                old_classes=previous_classes, fisher_dict=None)
+            return dataset_train, data_loader_train, sampler_train, list_CC
 
         # Combine dataset for original and AugReplay(Circular)
         original_dataset, original_loader, original_sampler = CombineDataset(

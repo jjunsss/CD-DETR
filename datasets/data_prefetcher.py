@@ -32,6 +32,7 @@ class data_prefetcher():
                         temp = [[self.next_samples, self.next_targets ,self.next_origin_samples, self.next_origin_targets], [self.next_Current_samples, self.next_Current_target, None, None], [self.next_Diff_samples, self.next_Diff_targets, None, None]]
                     else: #CB = 2
                         # in AugReplay. next_Current_target, next_Current_samples are next_replay_samples, next_replay_targets
+                        # in mosaic. next_Current_target, next_Current_samples are mosaic_targets, mosaic_samples
                         self.next_samples, self.next_targets, self.next_origin_samples, self.next_origin_targets, self.next_Current_samples, self.next_Current_target = next(self.loader)
                         temp = [[self.next_samples, self.next_targets ,self.next_origin_samples, self.next_origin_targets], [self.next_Current_samples, self.next_Current_target, None, None]]
                         

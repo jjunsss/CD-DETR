@@ -104,6 +104,8 @@ def create_prefetcher(dataset_name: str, data_loader: Iterable, device: torch.de
         return data_prefetcher(data_loader, device, prefetch=True, Mosaic=False)
     elif dataset_name == "AugReplay":
         return data_prefetcher(data_loader, device, prefetch=True, Mosaic=True, Continual_Batch=2)
+    elif dataset_name == "Mosaic":
+        return data_prefetcher(data_loader, device, prefetch=True, Mosaic=True, Continual_Batch=2)
     else:
         return data_prefetcher(data_loader, device, prefetch=True, Mosaic=False)
 
@@ -127,13 +129,18 @@ def train_one_epoch(args, last_task, epo, model: torch.nn.Module, teacher_model,
         samples, targets, _, _ = prefetcher.next()
         samples = samples.to(ex_device)
         targets = [{k: v.to(ex_device) for k, v in t.items()} for t in targets]
+        train_check = True
         
         if args.AugReplay and not first_training:
             replay_samples, replay_targets, _, _ = prefetcher.next()
             replay_samples = replay_samples.to(ex_device)
             replay_targets = [{k: v.to(ex_device) for k, v in t.items()} for t in replay_targets]
+            
+        if args.Mosaic and not first_training:
+            samples, targets, _, _ = prefetcher.next() # 
+            samples = samples.to(ex_device)
+            targets = [{k: v.to(ex_device) for k, v in t.items()} for t in targets]
 
-        train_check = True
         #Stage 1 -> T1에 대한 모든 훈련
         #Stage 2 -> T2에 대한 모든 훈련, AugReplay 사용하지 않을 때에는 일반적인 Replay 전략과 동일한 형태로 훈련을 수행
         if not args.AugReplay or first_training:
