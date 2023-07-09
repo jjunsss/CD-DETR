@@ -12,18 +12,19 @@ def Incre_Dataset(Task_Num, args, Incre_Classes, extra_dataset = False):
     current_classes = Incre_Classes[Task_Num]
     print(f"current_classes : {current_classes}")
     all_classes = sum(Incre_Classes[:Task_Num+1], []) # ALL : old task clsses + new task clsses(after training, soon to be changed)\
-    print(colored(f"collected all_classes : {all_classes}", "blue", "on_yellow"))
           
-    if not extra_dataset:
-        if not args.eval:
+    if not extra_dataset and not args.eval:
             # For real model traning
             dataset_train = build_dataset(image_set='train', args=args, class_ids=current_classes)
-    else :
+            
+    elif  extra_dataset and not args.eval:
         # For generating buffer with whole dataset
         # previous classes are used to generate buffer of all classe before New task dataset
+        print(colored(f"collected all_classes : {all_classes}", "blue", "on_yellow"))
         dataset_train = build_dataset(image_set='extra', args=args, class_ids=all_classes)
     
     if args.eval :
+        print(colored(f"evaluation previous_classes check : {all_classes}", "blue", "on_yellow"))
         dataset_val = build_dataset(image_set='val', args=args, class_ids=current_classes)
         
     if args.distributed:
@@ -88,7 +89,7 @@ def make_class(test_file):
     return class_dict['class_idx'][idx]
 
 
-def DivideTask_for_incre(Task_Counts: int, Total_Classes: int, DivisionOfNames: Boolean, eval=False, test_file_list=None):
+def DivideTask_for_incre(args, Task_Counts: int, Total_Classes: int, DivisionOfNames: Boolean, eval=False, test_file_list=None):
     '''
         DivisionofNames == True인 경우 Task_Counts는 필요 없어짐 Domain을 기준으로 class task가 자동 분할
         False라면 Task_Counts, Total_Classes를 사용해서 적절하게 분할
@@ -120,13 +121,28 @@ def DivideTask_for_incre(Task_Counts: int, Total_Classes: int, DivisionOfNames: 
     start = 0
     end = Task
     Divided_Classes = []
-    for _ in range(Task_Counts):
-        Divided_Classes.append(classes[start:end])
-        start += Task
-        end += Task
-    if Rest_Classes_num != 0:
-        Rest_Classes = classes[-Rest_Classes_num:]
-        Divided_Classes[-1].extend(Rest_Classes)
+    if args.eval :
+        Task = int(Total_Classes / args.test_task )
+        Rest_Classes_num = Total_Classes % args.test_task
+    
+        start = 0
+        end = Task
+        Divided_Classes = []
+        for _ in range(args.test_task):
+            Divided_Classes.append(classes[start:end])
+            start += Task
+            end += Task
+        if Rest_Classes_num != 0:
+            Rest_Classes = classes[-Rest_Classes_num:]
+            Divided_Classes[-1].extend(Rest_Classes)
+    else :
+        for _ in range(Task_Counts):
+            Divided_Classes.append(classes[start:end])
+            start += Task
+            end += Task
+        if Rest_Classes_num != 0:
+            Rest_Classes = classes[-Rest_Classes_num:]
+            Divided_Classes[-1].extend(Rest_Classes)
     
     return Divided_Classes
 
