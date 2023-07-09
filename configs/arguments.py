@@ -60,28 +60,27 @@ def get_args_parser():
     parser.add_argument('--seed', default=42, type=int)
 
     
+    #* Setting 
     parser.add_argument('--LG', default=False, action='store_true', help="for LG Dataset process")
     parser.add_argument('--file_name', default='./saved_rehearsal', type=str)
-
-    #* CL Setting 
-    # parser.add_argument('--pretrained_model', default=None, help='resume from checkpoint')
-    parser.add_argument('--pretrained_model', default=None, type=str, nargs='+', help='resume from checkpoint')
-    parser.add_argument('--pretrained_model_dir', default=None, type=str, help='test all parameters')
-    parser.add_argument('--start_epoch', default=15, type=int, metavar='N', help='start epoch')
-    parser.add_argument('--start_task', default=0, type=int, metavar='N', help='start task, if you set the construct_replay method, \
-                                                                                so then you should set the start_task value. becuase start_task is task number of construct replay options ')
-    parser.add_argument('--eval', action='store_true')
     parser.add_argument('--verbose', default=False, action='store_true')
     parser.add_argument('--num_workers', default=16, type=int)
     parser.add_argument('--cache_mode', default=False, action='store_true', help='whether to cache images on memory')
+    parser.add_argument('--eval', action='store_true')
+    # parser.add_argument('--pretrained_model', default=None, help='resume from checkpoint')
+    parser.add_argument('--pretrained_model', default=None, type=str, nargs='+', help='resume from checkpoint')
+    parser.add_argument('--pretrained_model_dir', default=None, type=str, help='test all parameters')
+
 
     #* Continual Learning 
+    parser.add_argument('--start_epoch', default=0, type=int, metavar='N', help='start epoch')
+    parser.add_argument('--start_task', default=0, type=int, metavar='N', help='start task, if you set the construct_replay method, \
+                                                                                so then you should set the start_task value. becuase start_task is task number of construct replay options ')
     parser.add_argument('--Task', default=2, type=int, help='The task is the number that divides the entire dataset, like a domain.') #if Task is 1, so then you could use it for normal training.
     parser.add_argument('--Task_Epochs', default=[16], type=int, nargs='+', help='each Task epoch, e.g. 1 task is 5 of 10 epoch training.. ')
     parser.add_argument('--Total_Classes', default=59, type=int, help='number of classes in custom COCODataset. e.g. COCO : 80 / LG : 59')
     parser.add_argument('--Total_Classes_Names', default=False, action='store_true', help="division of classes through class names (DID, PZ, VE). This option is available for LG Dataset")
     parser.add_argument('--CL_Limited', default=0, type=int, help='Use Limited Training in CL. If you choose False, you may encounter data imbalance in training.')
-    
 
     #* Rehearsal method
     parser.add_argument('--Rehearsal', default=False, action='store_true', help="use Rehearsal strategy in diverse CL method")
@@ -90,11 +89,13 @@ def get_args_parser():
     parser.add_argument('--Rehearsal_file', default=None, type=str)
     parser.add_argument('--Construct_Replay', default=False, action='store_true', help="For cunnstructing replay dataset")
     
-    parser.add_argument('--Sampling_strategy', default='hierarchical', type=str, help="hierarchical(ours), high_uniq, random")
-    parser.add_argument('--Sampling_mode', default='GuaranteeMinimum', type=str, help="normal, GuaranteeMinimum(ours), ")
+    parser.add_argument('--Sampling_strategy', default='hierarchical', type=str, help="hierarchical(ours), RODEO(del low unique labels), random")
+    parser.add_argument('--Sampling_mode', default='GM', type=str, help="normal, GM(GuaranteeMinimum, ours), ")
     parser.add_argument('--least_image', default=5, type=int, help='least image of each class, must need to exure_min mode')
     parser.add_argument('--limit_image', default=100, type=int, help='maximum image of all classes, must need to exure_min mode')
     
+    parser.add_argument('--CER', default='fisher', type=str, help="fisher(ours), original, weight. This processes are used with \
+                                                                   Augreplay ER")
     #* CL Strategy
     parser.add_argument('--Fake_Query', default=False, action='store_true', help="retaining previous task target through predict query")
     parser.add_argument('--Distill', default=False, action='store_true', help="retaining previous task target through predict query")
@@ -110,6 +111,8 @@ def get_args_parser():
     parser.add_argument('--all_data', default=False, action='store_true', help ="save your model output image") # I think this option is depreciated, so temporarily use for 79 path, and modify later ... .
     parser.add_argument('--test_file_list', default=["didtest", "pztest", "VE2021", "VEmultisingle", "VE10test"], type=str, nargs='+', \
         help='Test folder name')
+    parser.add_argument('--FPP', default=False, action='store_true', help="Forgetting metrics")
+    parser.add_argument('--test_task', default=2, type=int, help="test task(T1, T2). you can devide all classes through this value")
     return parser    
 
 
@@ -128,7 +131,7 @@ def deform_detr_parser(parser):
     # * Backbone
     parser.add_argument('--position_embedding_scale', default=2 * np.pi, type=float, help="position / size * scale")   
 
-    # * Transformer 
+    # * Transformer f
     parser.add_argument('--dim_feedforward', default=1024, type=int, help="Intermediate size of the feedforward layers in the transformer blocks")
     parser.add_argument('--dropout', default=0.1, type=float, help="Dropout applied in the transformer")    
 
