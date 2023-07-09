@@ -260,26 +260,8 @@ class TrainingPipeline:
         return load_replay, rehearsal_classes
 
 
-    def evaluation_only_mode(self):
+    def evaluation_only_mode(self,):
         print(colored(f"evaluation only mode start !!", "red"))
-        args = self.args
-        dir_list = []
-        filename_list = [test_file.split('+') if '+' in test_file else test_file for test_file in args.test_file_list]
-        try:
-            filename_list = sum(filename_list, [])
-        except:
-            pass
-        
-        if args.all_data == True:
-            # eval과 train의 coco_path를 다르게 설정
-            dir_list = [f for f in glob(os.path.join(args.coco_path, '*')) if os.path.isdir(f)]
-            if os.path.isfile(self.DIR):
-                os.remove(self.DIR) # self.DIR = args.output_dir + 'mAP_TEST.txt'
-        else:
-            dir_list = [args.coco_path] # "/home/user/Desktop/vscode"+ 
-        
-        # FIXME: change directory list
-        # filename_list = ["didtest", "pztest", "VE2021", "VEmultisingle", "VE10test"] # for DID, PZ, VE, VE, VE
         def load_all_files(directory):
             all_files = []
             for root, _, files in os.walk(directory):
@@ -295,7 +277,24 @@ class TrainingPipeline:
                 return int(numbers[-1])  # return the last number
             else:
                 return 0  # return 0 if there are no numbers
-
+            
+        args = self.args
+        dir_list = []
+        if args.LG :
+            filename_list = [test_file.split('+') if '+' in test_file else test_file for test_file in args.test_file_list]
+            try:
+                filename_list = sum(filename_list, [])
+            except:
+                pass
+    
+        if args.all_data == True:
+            # eval과 train의 coco_path를 다르게 설정
+            dir_list = [f for f in glob(os.path.join(args.coco_path, '*')) if os.path.isdir(f)]
+            if os.path.isfile(self.DIR):
+                os.remove(self.DIR) # self.DIR = args.output_dir + 'mAP_TEST.txt'
+        else:
+            dir_list = [args.coco_path] # "/home/user/Desktop/vscode"+ 
+        
         # load all files in data
         if self.args.pretrained_model_dir is not None:
             self.args.pretrained_model = load_all_files(self.args.pretrained_model_dir)
@@ -309,39 +308,58 @@ class TrainingPipeline:
             if predefined_model is not None:
                 self.model = load_model_params("eval", self.model, predefined_model)
             
-            if 've' in filename_list:
+            if args.LG and 've' in filename_list:
                 ve_idx = filename_list.index('ve')
                 filename_list.pop(ve_idx)
                 filename_list.extend(['ve10', 've2021', 'vemulti']) # 실제 파일 이름에 해당 키워드가 포함되어 있어야 함
             
-            print(colored(f"check filename list : {filename_list}", "red"))
+                print(colored(f"check filename list : {filename_list}", "red"))
+                
             with open(self.DIR, 'a') as f:
                 f.write(f"\n-----------------------pth file----------------------\n")
-                f.write(f"file_name : {str(predefined_model)}\n")
-                
-            for task_idx, cur_file_name in enumerate(filename_list):
-                if 've' in cur_file_name:
-                    task_idx = ve_idx
-                elif args.orgcocopath:
-                    cur_file_name = 'val'
-                elif 'coco' in cur_file_name and not arg.orgcocopath:
-                    cur_file_name = 'test'
+                f.write(f"file_name : {os.path.basename(predefined_model)}\n")  # 파일 이름
+                f.write(f"file_path : {os.path.abspath(os.path.dirname(predefined_model))}\n")  # 파일 절대 경로
+
+            if args.LG:  
+                for task_idx, cur_file_name in enumerate(filename_list):
+                    if 've' in cur_file_name:
+                        task_idx = ve_idx
+                    elif args.orgcocopath:
+                        cur_file_name = 'val'
+                    elif 'coco' in cur_file_name and not arg.orgcocopath:
+                        cur_file_name = 'test'
+                        
+                    # TODO: VE - eval인 경우도 고려하기
+                    file_link = [name for name in dir_list if cur_file_name in os.path.basename(name).lower()]
+                    args.coco_path = file_link[0]
+                    print(colored(f"now evaluating file name : {args.coco_path}", "red"))
+                    print(colored(f"now eval classes: {self.Divided_Classes[task_idx]}", "red"))
+                    dataset_val, data_loader_val, _, _  = Incre_Dataset(task_idx, args, self.Divided_Classes)
+                    base_ds = get_coco_api_from_dataset(dataset_val)
                     
-                
-                # TODO: VE - eval인 경우도 고려하기
-                file_link = [name for name in dir_list if cur_file_name in os.path.basename(name).lower()]
-                args.coco_path = file_link[0]
-                print(colored(f"now evaluating file name : {args.coco_path}", "red"))
-                print(colored(f"now eval classes: {self.Divided_Classes[task_idx]}", "red"))
-                dataset_val, data_loader_val, _, _  = Incre_Dataset(task_idx, args, self.Divided_Classes)
-                base_ds = get_coco_api_from_dataset(dataset_val)
-                
-                with open(self.DIR, 'a') as f:
-                    f.write(f"-----------------------task working----------------------\n")
-                    f.write(f"NOW TASK num : {task_idx}, checked classes : {self.Divided_Classes[task_idx]} \t ")
+                    with open(self.DIR, 'a') as f:
+                        f.write(f"-----------------------task working----------------------\n")
+                        f.write(f"NOW TASK num : {task_idx}, checked classes : {self.Divided_Classes[task_idx]} \t ")
+                        
+                    _, _ = evaluate(self.model, self.criterion, self.postprocessors,
+                                                    data_loader_val, base_ds, self.device, args.output_dir, self.DIR, args)
+            else:
+                for task_idx in range(self.tasks) :
+                    previous_classes = sum(self.Divided_Classes[:task_idx+1], []) # Not now current classe
+                    print(colored(f"evaluation task number {task_idx} / {self.tasks}", "blue", "on_yellow"))
+                    print(colored(f"evaluation previous_classes check : {previous_classes}", "blue", "on_yellow"))
+                    dataset_val, data_loader_val, _, _  = Incre_Dataset(task_idx, args, previous_classes)
+                    with open(self.DIR, 'a') as f:
+                        f.write(f"-----------------------task working----------------------\n")
+                        f.write(f"NOW TASK num : {task_idx} / {self.tasks}, checked classes : {self.Divided_Classes[task_idx]} \t ")
+                        
+                    _, _ = evaluate(self.model, self.criterion, self.postprocessors,
+                                                    data_loader_val, base_ds, self.device, args.output_dir, self.DIR, args)
                     
-                _, _ = evaluate(self.model, self.criterion, self.postprocessors,
-                                                data_loader_val, base_ds, self.device, args.output_dir, self.DIR, args)
+                    if args.FPP :
+                        #TODO: We should provide two pth file for calculating difference value (M1, M2 foretting)
+                        _, _ = evaluate(self.model, self.criterion, self.postprocessors,
+                                                    data_loader_val, base_ds, self.device, args.output_dir, self.DIR, args)
 
 
     def incremental_train_epoch(self, task_idx, last_task, dataset_train, data_loader_train, sampler_train, list_CC, first_training):

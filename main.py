@@ -40,7 +40,6 @@ def main(args):
     # Constructing only the replay buffer
     if args.Construct_Replay :
         pipeline.construct_replay_buffer()
-        print(colored("construct replay option", "blue", "on_yellow"))
         return
 
     # Evaluation mode
