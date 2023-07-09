@@ -111,6 +111,7 @@ def get_args_parser():
     parser.add_argument('--all_data', default=False, action='store_true', help ="save your model output image")
     parser.add_argument('--test_file_list', default=["didtest", "pztest", "VE2021", "VEmultisingle", "VE10test"], type=str, nargs='+', \
         help='Test folder name')
+    parser.add_argument('--FPP', default=False, action='store_true', help="Forgetting metrics")
     return parser    
 
 
