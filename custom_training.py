@@ -169,7 +169,10 @@ def icarl_prototype_setup(args, feature_extractor, device, current_classes):
             if args.debug and _cnt == 10:
                 break
 
-        proto[cls] = proto[cls] / _dataset.__len__()
+        try:
+            proto[cls] = proto[cls] / _dataset.__len__()
+        except ZeroDivisionError:
+            pass
         if args.debug and cls == 10:
             break
 
@@ -237,24 +240,26 @@ def rehearsal_training(args, samples, targets, model: torch.nn.Module, criterion
     '''
         replay를 위한 데이터를 수집 시에 모델은 영향을 받지 않도록 설정
     '''
-    model.eval()
+    model.eval() # For Fisher informations
     criterion.eval()
+    
     device = torch.device("cuda")
     ex_device = torch.device("cpu")
     model.to(device)
     samples, targets = _process_samples_and_targets(samples, targets, device)
-    for_replay = True
 
     outputs = inference_model(args, model, samples, targets, eval=True)
     # TODO : new input to model. plz change dn-detr model input (self.buffer_construct_loss)
+    
     _ = criterion(outputs, targets, buffer_construct_loss=True)
     
-        
+    # This is collect replay buffer
     with torch.no_grad():
         batch_loss_dict = {}
         
         # Transform tensor to scarlar value for rehearsal step
-        # TODO : Undecided, but whether to input Term to control Loss factors
+        # This values sorted by batch index so first add all loss and second iterate each batch loss for update and lastly 
+        # calculate all fisher information for updating all parameters
         batch_loss_dict["loss_bbox"] = [loss.item() for loss in criterion.losses_for_replay["loss_bbox"]]
         batch_loss_dict["loss_giou"] = [loss.item() for loss in criterion.losses_for_replay["loss_giou"]]
         batch_loss_dict["loss_labels"] = [loss.item() for loss in criterion.losses_for_replay["loss_labels"]]
@@ -265,9 +270,47 @@ def rehearsal_training(args, samples, targets, model: torch.nn.Module, criterion
                                                 current_classes=current_classes,
                                                 least_image=args.least_image,
                                                 limit_image=args.limit_image)
+    
+    
     if utils.get_world_size() > 1:    
         dist.barrier()
     return rehearsal_classes
+
+def fisher_training(args, samples, targets, model: torch.nn.Module, criterion: torch.nn.Module, 
+                    optimizer, fisher_dict):
+    '''
+        replay buffer 내의 데이터들을 fisher 정보를 통해서 정렬하기 위해서 사용하려고 만들었음
+        TODO: only training a one GPU processing (uitls.main_process())
+    '''
+    model.train() # For Fisher informations
+    criterion.train()
+    optimizer.zero_grad()
+    device = torch.device("cuda")
+    model.to(device)
+    samples, targets = _process_samples_and_targets(samples, targets, device)
+
+    outputs = inference_model(args, model, samples, targets)
+    _ = criterion(outputs, targets, buffer_construct_loss=True)
+    
+    lbbox = criterion.losses_for_replay["loss_bbox"]
+    lgiou = criterion.losses_for_replay["loss_giou"]
+    llabels = criterion.losses_for_replay["loss_labels"]
+    
+    losses = sum(lbbox) + sum(lgiou) + sum(llabels)
+    losses.backward()
+    # Now, for each parameter in the model...
+    FIM_value = 0
+    for _, param in model.named_parameters():
+        if param.grad is not None:
+            # The gradient of the loss w.r.t. this parameter gives us information about how changing this parameter would affect the loss.
+            # We square the gradient and sum over all elements to get a scalar quantity.
+            FIM_value += torch.sum(param.grad.data.clone().pow(2)).item()
+            param.grad = None
+            
+    # Use the overall index to get the correct key
+    fisher_dict[targets[0]["image_id"].item()] = FIM_value
+
+    return fisher_dict
 
 
 def _process_samples_and_targets(samples, targets, device):

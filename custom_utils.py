@@ -77,7 +77,7 @@ def check_class(verbose, LG_Dataset: bool, targets: Dict, label_dict: Dict, curr
             label_tensor_unique = torch.unique(label_tensor)
             
             # Normal Limited Training (for equivalent Performance)
-            if CL_Limited is 0 :
+            if CL_Limited == 0 :
                 check_list = [idx.item() for idx in label_tensor_unique if idx.item() in label_dict  if idx.item() <= 21 and label_dict[idx.item()] > DID_COUNT] #did
                 check_list2 = [idx.item() for idx in label_tensor_unique if idx.item() in label_dict  if idx.item() in limit2 and label_dict[idx.item()] > PZ_COUNT] #pz
                 check_list3 = [idx.item() for idx in label_tensor_unique if idx.item() in label_dict  if idx.item() in limit3 and label_dict[idx.item()] > VE_COUNT] #ve (more)
@@ -173,8 +173,7 @@ def _rearrange_targets(no_use_count: int, samples: utils.NestedTensor, targets: 
     return (batch_size, no_use_count, samples, targets, origin_samples, origin_targets, used_number)
 
 
-def load_model_params(mode, model: model,
-                      dir: str = None):
+def load_model_params(mode, model: model, dir: str = None):
     new_model_dict = model.state_dict()
     
     if isinstance(dir, list):
@@ -268,9 +267,9 @@ def check_training_gpu(train_check):
 
     return True
 
-def buffer_checker(rehearsal):
+def buffer_checker(args, rehearsal):
     #print text file
-    check_components(rehearsal, True)
+    check_components(args, rehearsal, True)
         
         
 def control_lr_backbone(args, optimizer, frozen):
@@ -283,13 +282,9 @@ def control_lr_backbone(args, optimizer, frozen):
             
     return optimizer
 
-import torch.optim as optim
 from torch.optim.lr_scheduler import StepLR
-import copy
-from Custom_Dataset import CombineDataset
-
 def dataset_configuration(args, original_dataset, original_loader, original_sampler,
-                          AugRplay_dataset, AugRplay_loader, AugRplay_sampler):
+                          AugRplay_dataset=None, AugRplay_loader=None, AugRplay_sampler=None):
     
     if args.AugReplay :
         return AugRplay_dataset, AugRplay_loader, AugRplay_sampler
@@ -302,7 +297,7 @@ def dataset_configuration(args, original_dataset, original_loader, original_samp
 
 #* Just CL_StepLR(CLStepLR)
 class ContinualStepLR(StepLR):
-    def __init__(self, optimizer, step_size, gamma=0.1, task_gamma=0.85, replay_gamma=10, last_epoch=-1, verbose=False):
+    def __init__(self, optimizer, step_size, gamma=0.1, task_gamma=0.85, last_epoch=-1, verbose=False):
         super(ContinualStepLR, self).__init__(optimizer, step_size, gamma, last_epoch, verbose)
         self.task_gamma = task_gamma
 

@@ -12,6 +12,8 @@ def get_models(model_name, args, num_classes, current_class):
     return build_model(args, num_classes, current_class)
 
 def inference_model(args, model, samples, targets=None, eval=False):
+    model.to(args.device)
+    
     if args.model_name == 'deform_detr':
         return model(samples)
     

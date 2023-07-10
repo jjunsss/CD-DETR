@@ -81,7 +81,7 @@ class CCB(object):
             return False
         mosaic_labels = self._make_resized_targets(mosaic_labels)
         
-        if self.Continual_Batch == 3: #For 3 CBB Training
+        if self.Continual_Batch == 3: # For 3 CBB Training
             Diff_mosaic_labels = copy.deepcopy(Current_mosaic_labels)
             Diff_mosaic_img, Diff_bbox, Diff_labels  = _HorizontalFlip(Current_mosaic_img, Current_mosaic_labels['boxes'], Current_mosaic_labels['labels'])
             Diff_mosaic_labels = self._make_resized_targets(Diff_bbox, Diff_labels)

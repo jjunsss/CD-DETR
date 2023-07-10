@@ -79,7 +79,7 @@ class COCOeval:
         self.DIR = DIR
         if not cocoGt is None:
             self.params.imgIds = sorted(cocoGt.getImgIds())
-            self.params.catIds = sorted(cocoGt.getCatIds())
+            self.params.catIds = sorted(cocoGt.getCatIds(catIds=cocoGt.cats))
 
 
     def _prepare(self):
@@ -455,13 +455,16 @@ class COCOeval:
             else:
                 mean_s = np.mean(s[s>-1])
                 
-            if (ap == 1 and iouThr == .5 and areaRng == 'all') :
-                with open(self.DIR, 'a') as f :
-                    f.write(f" IOU=0.5 mAP:{mean_s}")
-            if (ap == 0 and areaRng == 'all' and maxDets == 100):
-                with open(self.DIR, 'a') as f :
-                    f.write(f" dets=100 Recall:{mean_s} \n")
+            # if (ap == 1 and iouThr == .5 and areaRng == 'all') :
+            #     with open(self.DIR, 'a') as f :
+            #         f.write(f" IOU=0.5 mAP:{mean_s}")
+            # if (ap == 0 and areaRng == 'all' and maxDets == 100):
+            #     with open(self.DIR, 'a') as f :
+            #         f.write(f" dets=100 Recall:{mean_s} \n")
             print(iStr.format(titleStr, typeStr, iouStr, areaRng, maxDets, mean_s))
+            with open(self.DIR, 'a') as f :
+                f.write(iStr.format(titleStr, typeStr, iouStr, areaRng, maxDets, mean_s) + " \n")
+
             return mean_s
         
         def _summarizeDets():

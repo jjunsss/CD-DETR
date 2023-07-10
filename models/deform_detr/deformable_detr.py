@@ -114,8 +114,8 @@ class DeformableDETR(nn.Module):
             for box_embed in self.bbox_embed:
                 nn.init.constant_(box_embed.layers[-1].bias.data[2:], 0.0)
 
-        if current_class is not None:
-            self.gt = current_class
+        # current_class가 None인 경우 gt도 None을 갖도록 하였습니다. -> 이렇게 안하면 에러뜸
+        self.gt = current_class
 
 
     def forward(self, samples: NestedTensor, pre_att=None):
