@@ -86,6 +86,7 @@ def get_args_parser():
     parser.add_argument('--Rehearsal', default=False, action='store_true', help="use Rehearsal strategy in diverse CL method")
     parser.add_argument('--AugReplay', default=False, action='store_true', help="use Our augreplay strategy in step 2")
     parser.add_argument('--MixReplay', default=False, action='store_true', help="1:1 Mix replay solution, First Circular Training. Second Original Training")
+    parser.add_argument('--Mosaic', default=False, action='store_true', help="mosaic augmentation for autonomous training")
     parser.add_argument('--Rehearsal_file', default=None, type=str)
     parser.add_argument('--Construct_Replay', default=False, action='store_true', help="For cunnstructing replay dataset")
     
@@ -99,7 +100,6 @@ def get_args_parser():
     #* CL Strategy
     parser.add_argument('--Fake_Query', default=False, action='store_true', help="retaining previous task target through predict query")
     parser.add_argument('--Distill', default=False, action='store_true', help="retaining previous task target through predict query")
-    parser.add_argument('--Mosaic', default=False, action='store_true', help="mosaic augmentation for autonomous training")
     parser.add_argument('--Branch_Incremental', default=False, action='store_true', help="MLP or something incremental with class")
     parser.add_argument('--teacher_model', default=None, type=str)
     parser.add_argument('--Continual_Batch_size', default=2, type=int, help='continual batch traiing method')

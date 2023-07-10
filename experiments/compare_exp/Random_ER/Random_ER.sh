@@ -14,12 +14,12 @@ TASK_EPOCHS=12
 NUM_WORKERS=24
 TOTAL_CLASSES=90
 LIMIT_IMAGE=1200
-LEAST_IMAGE=48 # 4% 
+LEAST_IMAGE=24
 TASK=2
 REHEARSAL_FILE="./Random_ER/"
 PRETRAINED_MODEL="./Random_ER/checkpoints/cp_02_01.pth"
-SAMPLING_STRATEGY="hierarchical"
-SAMPLING_MODE="GM"
+SAMPLING_STRATEGY="random"
+SAMPLING_MODE="normal"
 
 # Prepare the command
 CMD="PUS_PER_NODE=4 ./tools/run_dist_launch.sh $PUS_PER_NODE ./configs/r50_dn_detr.sh \
