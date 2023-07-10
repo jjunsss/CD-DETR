@@ -159,11 +159,10 @@ def construct_rehearsal(args, losses_dict: dict, targets, rehearsal_dict: List,
             rehearsal_dict[image_id] = [loss_value, label_tensor_unique_list, bbox_counts]
         else :
             if args.Sampling_mode == "normal": # Hard, RODEO strategy is not using GM mode.
-                if args.Sampling_mode != "GM" : # GM : GuaranteeMinimum
                     targeted = _calc_target(rehearsal_classes=rehearsal_dict, replace_strategy=args.Sampling_strategy, )
                     rehearsal_dict = _replacment_strategy(args=args, loss_value=loss_value, targeted=targeted, 
                                                             rehearsal_classes=rehearsal_dict, label_tensor_unique_list=label_tensor_unique_list,
-                                                            image_id=image_id)
+                                                            image_id=image_id, num_bounding_boxes=bbox_counts)
                     
                     return rehearsal_dict
                 
