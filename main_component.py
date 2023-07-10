@@ -371,7 +371,7 @@ class TrainingPipeline:
                     base_ds = get_coco_api_from_dataset(dataset_val)
                     with open(self.DIR, 'a') as f:
                         f.write(f"-----------------------task working----------------------\n")
-                        f.write(f"NOW TASK num : {task_idx + 1} / {test_epoch}, checked classes : {sum(self.Divided_Classes[:task_idx+1], [])} \t ")
+                        f.write(f"NOW TASK num : {task_idx + 1} / {test_epoch}, checked classes : {sum(Divided_Classes[:task_idx+1], [])} \t ")
                         
                     _, _ = evaluate(self.model, self.criterion, self.postprocessors,
                                                     data_loader_val, base_ds, self.device, args.output_dir, self.DIR, args)
