@@ -10,7 +10,8 @@ COCO_PATH="/data/coco/cocodataset/"
 #/home/user/sumin/paper/COCODIR/ for 79 server. 
 #/data/LG/coco/cocodataset for 129
 #/data/coco/cocodataset/ for local
-OUTPUT_DIR="/data/eval/GM-Hier-Testing/limit1%-least1%/"
+OUTPUT_DIR="/data/eval/GM-Hier-Testing/limit1%-least5%/"
+# OUTPUT_DIR="/data/eval/UpperUnder/Under/"
 TASK_EPOCHS=12
 NUM_WORKERS=24
 TOTAL_CLASSES=90
@@ -18,8 +19,8 @@ TEST_CLASSES=90
 LIMIT_IMAGE=1200
 LEAST_IMAGE=12
 TASK=2
-REHEARSAL_FILE="/data/eval/GM-Hier-Testing/limit1%-least1%/"
-PRETRAINED_MODEL="/data/eval/GM-Hier-Testing/limit1%-least1%/cp_02_02.pth"
+REHEARSAL_FILE="/data/eval/GM-Hier-Testing/limit1%-least5%/"
+PRETRAINED_MODEL="/data/eval/GM-Hier-Testing/limit1%-least5%/cp_02_02_8.pth"
 SAMPLING_STRATEGY="hierarchical"
 SAMPLING_MODE="GM"
 
