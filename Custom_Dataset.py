@@ -20,16 +20,16 @@ def Incre_Dataset(Task_Num, args, Incre_Classes, extra_dataset = False):
     elif  extra_dataset and not args.eval:
         # For generating buffer with whole dataset
         # previous classes are used to generate buffer of all classe before New task dataset
+        print(colored(f"collecte class categories in extre epoch: {all_classes}", "blue", "on_yellow"))
+        dataset_train = build_dataset(image_set='extra', args=args, class_ids=all_classes)
+    
+    if args.eval :
         if args.LG : 
             print(colored(f"evaluation class categories : {current_classes}", "blue", "on_yellow"))
             dataset_train = build_dataset(image_set='extra', args=args, class_ids=current_classes)
         else:
-            print(colored(f"evaluation class categories : {all_classes}", "blue", "on_yellow"))
-            dataset_train = build_dataset(image_set='extra', args=args, class_ids=all_classes)
-    
-    if args.eval :
-        print(colored(f"evaluation check : {all_classes}", "blue", "on_yellow"))
-        dataset_val = build_dataset(image_set='val', args=args, class_ids=all_classes)
+            print(colored(f"evaluation check : {all_classes}", "blue", "on_yellow"))
+            dataset_val = build_dataset(image_set='val', args=args, class_ids=all_classes)
         
     if args.distributed:
         if args.cache_mode:

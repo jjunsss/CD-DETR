@@ -10,6 +10,7 @@ COCO_PATH="/data/coco/cocodataset/"
 #/home/user/sumin/paper/COCODIR/ for 79 server. 
 #/data/LG/coco/cocodataset for 129
 #/data/coco/cocodataset/ for local
+#/home/uvll/Desktop/jjunsss/dataset/cocodataset/
 OUTPUT_DIR="/data/eval/GM-Hier-Testing/limit1%-least1%/"
 TASK_EPOCHS=12
 NUM_WORKERS=24

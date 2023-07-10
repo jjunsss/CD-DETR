@@ -161,7 +161,7 @@ def construct_rehearsal(args, losses_dict: dict, targets, rehearsal_dict: List,
             rehearsal_dict[image_id] = [loss_value, label_tensor_unique_list, bbox_counts]
         else :
             if args.Sampling_mode == "normal": # Hard, RODEO strategy is not using GM mode.
-                    targeted = _calc_target(rehearsal_classes=rehearsal_dict, replace_strategy=args.Sampling_strategy, )
+usg                    targeted = _calc_target(rehearsal_classes=rehearsal_dict, replace_strategy=args.Sampling_strategy, )
                     rehearsal_dict = _replacment_strategy(args=args, loss_value=loss_value, targeted=targeted, 
                                                             rehearsal_classes=rehearsal_dict, label_tensor_unique_list=label_tensor_unique_list,
                                                             image_id=image_id, num_bounding_boxes=bbox_counts)
@@ -211,7 +211,7 @@ def _calc_target(rehearsal_classes, replace_strategy="hierarchical", ):
         
     elif replace_strategy == "RODEO": # RODEO == delete high unqiue classes
         # only high unique based change, mode is "normal" or "random"
-        sorted_result = min(rehearsal_classes, key=lambda x: len(x[1][1]))
+        sorted_result = min(rehearsal_classes.items(), key=lambda x: len(x[1][1]))
         
     elif replace_strategy == "random":
         # only random change, mode is "normal" or "random"
@@ -219,11 +219,11 @@ def _calc_target(rehearsal_classes, replace_strategy="hierarchical", ):
         
     elif replace_strategy == "low_loss":
         # only low loss based change, mode is "normal" or "random"
-        sorted_result = max(rehearsal_classes, key=lambda x: x[1][0])
+        sorted_result = max(rehearsal_classes.items(), key=lambda x: x[1][0])
         
     elif replace_strategy == "hard" or replace_strategy == "Adaptive":
         # only high bounding box count based change, mode is "normal" or "random"
-        sorted_result = min(rehearsal_classes.items(), key=lambda x: x[1][2])
+        sorted_result = min(rehearsal_classes.items().items(), key=lambda x: x[1][2])
 
     return sorted_result
 
