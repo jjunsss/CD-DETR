@@ -39,7 +39,7 @@ def _replacment_strategy(args, loss_value, targeted, rehearsal_classes,
             rehearsal_classes[image_id] = [loss_value, label_tensor_unique_list, num_bounding_boxes]
             return rehearsal_classes
     
-    if args.Sampling_strategy == "hard" or args.Sampling_strategy == "Adaptive" :
+    if args.Sampling_strategy == "hard":
         # This is same as "hard sampling"
         if targeted[1][2] < num_bounding_boxes:  # Low buffer construct
             print(colored(f"hard sampling based buffer change strategy", "blue"))
@@ -57,8 +57,6 @@ def _change_available_list_mode(mode, rehearsal_dict, need_to_include, least_ima
         
         영어로 아래 설명을 작성한 부분은 Notion에서 제공됩니다. 
     '''
-    
-    # For Adaptive, Hard, Random, each all others
     if mode == "normal":
         '''
             CIL의 방법을 직접적으로 CIOD 모델에 가져오는 것이 모델 전체의 분포를 가져오는 것에 문제가 있다고 판단하였기 때문에 Replay를 
@@ -161,7 +159,7 @@ def construct_rehearsal(args, losses_dict: dict, targets, rehearsal_dict: List,
             rehearsal_dict[image_id] = [loss_value, label_tensor_unique_list, bbox_counts]
         else :
             if args.Sampling_mode == "normal": # Hard, RODEO strategy is not using GM mode.
-usg                    targeted = _calc_target(rehearsal_classes=rehearsal_dict, replace_strategy=args.Sampling_strategy, )
+                    targeted = _calc_target(rehearsal_classes=rehearsal_dict, replace_strategy=args.Sampling_strategy, )
                     rehearsal_dict = _replacment_strategy(args=args, loss_value=loss_value, targeted=targeted, 
                                                             rehearsal_classes=rehearsal_dict, label_tensor_unique_list=label_tensor_unique_list,
                                                             image_id=image_id, num_bounding_boxes=bbox_counts)
@@ -197,6 +195,16 @@ usg                    targeted = _calc_target(rehearsal_classes=rehearsal_dict,
     return rehearsal_dict
 
 
+def _check_rehearsal_size(limit_memory_size, rehearsal_classes, unique_classes_list, ):
+    if len(rehearsal_classes.keys()) == 0:
+        return True
+    
+    check_list = [len(list(filter(lambda x: index in x[1], list(rehearsal_classes.values())))) for index in unique_classes_list]
+    
+    check = all([value < limit_memory_size for value in check_list])
+    return check
+
+
 def _calc_target(rehearsal_classes, replace_strategy="hierarchical", ): 
 
     if replace_strategy == "hierarchical":
@@ -211,7 +219,7 @@ def _calc_target(rehearsal_classes, replace_strategy="hierarchical", ):
         
     elif replace_strategy == "RODEO": # RODEO == delete high unqiue classes
         # only high unique based change, mode is "normal" or "random"
-        sorted_result = min(rehearsal_classes.items(), key=lambda x: len(x[1][1]))
+        sorted_result = min(rehearsal_classes, key=lambda x: len(x[1][1]))
         
     elif replace_strategy == "random":
         # only random change, mode is "normal" or "random"
@@ -219,11 +227,11 @@ def _calc_target(rehearsal_classes, replace_strategy="hierarchical", ):
         
     elif replace_strategy == "low_loss":
         # only low loss based change, mode is "normal" or "random"
-        sorted_result = max(rehearsal_classes.items(), key=lambda x: x[1][0])
+        sorted_result = max(rehearsal_classes, key=lambda x: x[1][0])
         
-    elif replace_strategy == "hard" or replace_strategy == "Adaptive":
+    elif replace_strategy == "hard":
         # only high bounding box count based change, mode is "normal" or "random"
-        sorted_result = min(rehearsal_classes.items().items(), key=lambda x: x[1][2])
+        sorted_result = min(rehearsal_classes.items(), key=lambda x: x[1][2])
 
     return sorted_result
 
@@ -337,9 +345,6 @@ def _handle_rehearsal(args, dir, limit_memory_size, gpu_counts, task, epoch, lea
 
     if args.Sampling_strategy != 'icarl':
         merge_dict = load_dicts_from_files(dir_list)
-        if args.Sampling_strategy == "adaptive":
-            initial_limit = limit_memory_size
-            limit_image = limit_memory_size * 5
 
         for img_idx in merge_dict.keys():
             loss_value = merge_dict[img_idx][0]
@@ -351,55 +356,46 @@ def _handle_rehearsal(args, dir, limit_memory_size, gpu_counts, task, epoch, lea
             if len(new_buffer_dict.keys()) <  limit_memory_size :                                        
                 new_buffer_dict[img_idx] = merge_dict[img_idx]
             else : 
-                if args.Sampling_mode == "ensure_min":
-                    # First, generate a dictionary with counts of each class label in rehearsal_classes
-                    image_counts_in_rehearsal = {class_label: sum(class_label in classes for _, classes, _ in new_buffer_dict.values()) for class_label in unique_classes_list}
+                # First, generate a dictionary with counts of each class label in rehearsal_classes
+                image_counts_in_rehearsal = {class_label: sum(class_label in classes for _, classes, _ in new_buffer_dict.values()) for class_label in unique_classes_list}
 
-                    # Then, calculate the needed count for each class label and filter out those with a non-positive needed count
-                    need_to_include = {class_label: count - least_image for class_label, count in image_counts_in_rehearsal.items() if (count - least_image) <= 0}
-                    if len(need_to_include) > 0:
-                        changed_available_dict = _change_available_list_mode(mode=args.Sampling_mode, rehearsal_dict=new_buffer_dict,
-                                                    need_to_include=need_to_include, least_image=least_image, current_classes=list_CC)
-                        
-                        # all classes dont meet L requirement
-                        targeted = _calc_target(rehearsal_classes=changed_available_dict, replace_strategy=args.Sampling_strategy, )
-                        
-                        del new_buffer_dict[targeted[0]]
-                        new_buffer_dict[img_idx] = [loss_value, unique_classes_list, bbox_counts]
-                            
-                    else :
-                        changed_available_dict = _change_available_list_mode(mode=args.Sampling_mode, rehearsal_dict=new_buffer_dict,
-                                                    need_to_include=need_to_include, least_image=least_image, current_classes=list_CC)
+                # Then, calculate the needed count for each class label and filter out those with a non-positive needed count
+                need_to_include = {class_label: count - least_image for class_label, count in image_counts_in_rehearsal.items() if (count - least_image) <= 0}
+                if len(need_to_include) > 0:
+                    changed_available_dict = _change_available_list_mode(mode=args.Sampling_mode, rehearsal_dict=new_buffer_dict,
+                                                need_to_include=need_to_include, least_image=least_image, current_classes=list_CC)
                     
-                        # all classes meet L requirement
-                        # Just sampling strategy and replace strategy
-                        targeted = _calc_target(rehearsal_classes=changed_available_dict, replace_strategy=args.Sampling_strategy,)
-
-                        new_buffer_dict = _replacment_strategy(args=args, loss_value=loss_value, targeted=targeted, 
-                                                                rehearsal_classes=new_buffer_dict, label_tensor_unique_list=unique_classes_list,
-                                                                image_id=img_idx, num_bounding_boxes=bbox_counts)
-                # For random, hard, adaptive, each all others
+                    # all classes dont meet L requirement
+                    targeted = _calc_target(rehearsal_classes=changed_available_dict, replace_strategy=args.Sampling_strategy, )
+                    
+                    del new_buffer_dict[targeted[0]]
+                    new_buffer_dict[img_idx] = [loss_value, unique_classes_list, bbox_counts]
+                        
                 else :
                     changed_available_dict = _change_available_list_mode(mode=args.Sampling_mode, rehearsal_dict=new_buffer_dict,
                                                 need_to_include=need_to_include, least_image=least_image, current_classes=list_CC)
-                        
-                    # all classes dont meet L requirement
-                    targeted = _calc_target(rehearsal_classes=changed_available_dict, replace_strategy=args.Sampling_strategy, )
+                
+                    # all classes meet L requirement
+                    # Just sampling strategy and replace strategy
+                    targeted = _calc_target(rehearsal_classes=changed_available_dict, replace_strategy=args.Sampling_strategy,)
+
                     new_buffer_dict = _replacment_strategy(args=args, loss_value=loss_value, targeted=targeted, 
                                                             rehearsal_classes=new_buffer_dict, label_tensor_unique_list=unique_classes_list,
                                                             image_id=img_idx, num_bounding_boxes=bbox_counts)
-    # For ICaRL strategy
+
     else:
         merged_dict = icarl_load_dicts_from_files(dir_list)
+        # for cls, val in merge_dict.items():
+        #     mean_feat = val[0]
+        #     img_ids = val[1] # with difference
+
+        #     if len(img_ids) <= limit_memory_size:
+        #         new_buffer_dict[cls] = val
+        #     else:
         new_buffer_dict = merged_dict
-        
-    if args.Sampling_strategy == 'Adaptive':
-        while len(new_buffer_dict) > limit_memory_size:
-            key_to_delete = random.choice(list(new_buffer_dict.keys()))
-            del new_buffer_dict[key_to_delete]
             
     print(colored(f"Complete generating new buffer", "dark_grey", "on_yellow"))
-    return new_buffer_dict #= {image id : [loss value, [unique classes list], bbox counts]}
+    return new_buffer_dict
 
 
 def _multigpu_rehearsal(args, dir, limit_memory_size, gpu_counts, task, epoch, least_image, list_CC):
