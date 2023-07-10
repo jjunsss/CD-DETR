@@ -86,12 +86,13 @@ def get_args_parser():
     parser.add_argument('--Rehearsal', default=False, action='store_true', help="use Rehearsal strategy in diverse CL method")
     parser.add_argument('--AugReplay', default=False, action='store_true', help="use Our augreplay strategy in step 2")
     parser.add_argument('--MixReplay', default=False, action='store_true', help="1:1 Mix replay solution, First Circular Training. Second Original Training")
+    parser.add_argument('--Mosaic', default=False, action='store_true', help="mosaic augmentation for autonomous training")
     parser.add_argument('--Rehearsal_file', default=None, type=str)
     parser.add_argument('--Construct_Replay', default=False, action='store_true', help="For cunnstructing replay dataset")
     
     parser.add_argument('--Sampling_strategy', default='hierarchical', type=str, help="hierarchical(ours), RODEO(del low unique labels), random")
     parser.add_argument('--Sampling_mode', default='GM', type=str, help="normal, GM(GuaranteeMinimum, ours), ")
-    parser.add_argument('--least_image', default=5, type=int, help='least image of each class, must need to exure_min mode')
+    parser.add_argument('--least_image', default=0, type=int, help='least image of each class, must need to exure_min mode')
     parser.add_argument('--limit_image', default=100, type=int, help='maximum image of all classes, must need to exure_min mode')
     
     parser.add_argument('--CER', default='fisher', type=str, help="fisher(ours), original, weight. This processes are used with \

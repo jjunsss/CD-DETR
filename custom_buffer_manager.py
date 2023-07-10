@@ -12,6 +12,7 @@ import random
 from util.misc import get_world_size
 from termcolor import colored
 
+
 #TODO : Change calc each iamage loss and tracking each object loss avg.
 def _replacment_strategy(args, loss_value, targeted, rehearsal_classes,
                        label_tensor_unique_list, image_id, num_bounding_boxes):
@@ -29,12 +30,14 @@ def _replacment_strategy(args, loss_value, targeted, rehearsal_classes,
             rehearsal_classes[image_id] = [loss_value, label_tensor_unique_list, num_bounding_boxes]
             return rehearsal_classes
         
+    random_prob = random.random() 
     if args.Sampling_strategy  == "random" :
-        print(colored(f"random counts based buffer change strategy", "blue"))
-        key_to_delete = random.choice(list(rehearsal_classes.keys()))
-        del rehearsal_classes[key_to_delete]
-        rehearsal_classes[image_id] = [loss_value, label_tensor_unique_list, num_bounding_boxes]
-        return rehearsal_classes
+        if random_prob > 0.5 :
+            print(colored(f"random counts based buffer change strategy", "blue"))
+            key_to_delete = random.choice(list(rehearsal_classes.keys()))
+            del rehearsal_classes[key_to_delete]
+            rehearsal_classes[image_id] = [loss_value, label_tensor_unique_list, num_bounding_boxes]
+            return rehearsal_classes
     
     if args.Sampling_strategy == "hard":
         # This is same as "hard sampling"
@@ -43,7 +46,6 @@ def _replacment_strategy(args, loss_value, targeted, rehearsal_classes,
             del rehearsal_classes[targeted[0]]
             rehearsal_classes[image_id] = [loss_value, label_tensor_unique_list, num_bounding_boxes]
             return rehearsal_classes
-
 
     print(f"no changed")
     return rehearsal_classes
@@ -156,12 +158,11 @@ def construct_rehearsal(args, losses_dict: dict, targets, rehearsal_dict: List,
             # when under the buffer 
             rehearsal_dict[image_id] = [loss_value, label_tensor_unique_list, bbox_counts]
         else :
-            if args.Sampling_strategy == "hard" or args.Sampling_strategy == "RODEO": # Hard, RODEO strategy is not using GM mode.
-                if args.Sampling_mode != "GM" : # GM : GuaranteeMinimum
+            if args.Sampling_mode == "normal": # Hard, RODEO strategy is not using GM mode.
                     targeted = _calc_target(rehearsal_classes=rehearsal_dict, replace_strategy=args.Sampling_strategy, )
                     rehearsal_dict = _replacment_strategy(args=args, loss_value=loss_value, targeted=targeted, 
                                                             rehearsal_classes=rehearsal_dict, label_tensor_unique_list=label_tensor_unique_list,
-                                                            image_id=image_id)
+                                                            image_id=image_id, num_bounding_boxes=bbox_counts)
                     
                     return rehearsal_dict
                 

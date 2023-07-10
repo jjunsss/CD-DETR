@@ -20,12 +20,16 @@ def Incre_Dataset(Task_Num, args, Incre_Classes, extra_dataset = False):
     elif  extra_dataset and not args.eval:
         # For generating buffer with whole dataset
         # previous classes are used to generate buffer of all classe before New task dataset
-        print(colored(f"collected all_classes : {all_classes}", "blue", "on_yellow"))
+        print(colored(f"collecte class categories in extre epoch: {all_classes}", "blue", "on_yellow"))
         dataset_train = build_dataset(image_set='extra', args=args, class_ids=all_classes)
     
     if args.eval :
-        print(colored(f"evaluation previous_classes check : {all_classes}", "blue", "on_yellow"))
-        dataset_val = build_dataset(image_set='val', args=args, class_ids=current_classes)
+        if args.LG : 
+            print(colored(f"evaluation class categories : {current_classes}", "blue", "on_yellow"))
+            dataset_train = build_dataset(image_set='extra', args=args, class_ids=current_classes)
+        else:
+            print(colored(f"evaluation check : {all_classes}", "blue", "on_yellow"))
+            dataset_val = build_dataset(image_set='val', args=args, class_ids=all_classes)
         
     if args.distributed:
         if args.cache_mode:
@@ -54,7 +58,7 @@ def Incre_Dataset(Task_Num, args, Incre_Classes, extra_dataset = False):
         data_loader_val = DataLoader(dataset_val, args.batch_size, sampler=sampler_val,
                                      drop_last=False, collate_fn=utils.collate_fn, num_workers=args.num_workers,
                                      pin_memory=True)
-        return dataset_val, data_loader_val, sampler_val, current_classes
+        return dataset_val, data_loader_val, sampler_val, all_classes
     
     return dataset_train, data_loader_train, sampler_train, current_classes
 
@@ -257,23 +261,44 @@ class CustomDataset(torch.utils.data.Dataset):
         scaled_tensor = tensor / summation
 
         return scaled_tensor
-
+    
+import random
 class NewDatasetSet(torch.utils.data.Dataset):
-    def __init__(self, args, datasets, OldDataset, OldDataset_weights, fisher_weight, AugReplay=False, ):
+    def __init__(self, args, CCB_augmentation, datasets, OldDataset, OldDataset_weights, fisher_weight, AugReplay=False, Mosaic=False):
         self.args = args
         self.Datasets = datasets #now task
         self.Rehearsal_dataset = OldDataset
         self.AugReplay = AugReplay
         self.OldDataset_weights = OldDataset_weights
         self.fisher_weights = fisher_weight
+        self.Mosaic = Mosaic #for mosaic augmentation
+        self.img_size = (480, 640) #for mosaic augmentation
+        if self.Mosaic == True: 
+            self.old_length = len(OldDataset)
+            self._CCB = CCB_augmentation(self.img_size, self.args.Continual_Batch_size)
 
-        
     def __len__(self):
-            return len(self.Datasets)    
+            return len(self.Datasets)
 
     def __getitem__(self, index): 
         img, target, origin_img, origin_target = self.Datasets[index] #No normalize pixel, Normed Targets
-
+        if self.Mosaic == True :
+            Current_mosaic_index = self._Mosaic_index()
+            image_list = []
+            target_list = []
+            for index in Current_mosaic_index:
+                _, _ , o_img, otarget = self.Datasets[index] #Numpy image / torch.tensor
+                image_list.append(o_img)
+                target_list.append(otarget)
+            
+            if self.Continual_Batch == 2:
+                Cur_img, Cur_lab = self._CCB(image_list, target_list)
+                return img, target, origin_img, origin_target, Cur_img, Cur_lab #cur_img, cur_lab = mosaic images, mosaic labels
+            
+            if self.Continual_Batch == 3:
+                Cur_img, Cur_lab, Dif_img, Dif_lab = self._CCB(image_list, target_list)
+                return img, target, origin_img, origin_target, Cur_img, Cur_lab, Dif_img, Dif_lab
+            
         if self.AugReplay == True :
             if self.args.CER == "fisher": # fisher CER
                 index = np.random.choice(np.arange(len(self.Rehearsal_dataset)), p=self.fisher_weights)
@@ -293,9 +318,23 @@ class NewDatasetSet(torch.utils.data.Dataset):
         else:
             return img, target, origin_img, origin_target
     
-
+    def _Mosaic_index(self): #* Done
+        '''
+            Only Mosaic index printed 
+            index : index in dataset (total dataset = old + new )
+            #TODO : count class variables need !! 
+        '''
+        #*Curretn Class augmentation / Other class AUgmentation
+        
+        Rehearsal_index = random.choices(range(self.old_length), k=2) #TODO : sampling method change.
+        current_index = random.choices(range(self.old_length, len(self.Datasets)), k=2) #TODO : sampling method change.
+            
+        Rehearsal_index.insert(0, current_index[0])
+        Rehearsal_index.insert(0, current_index[1])
+        return random.sample(Rehearsal_index, len(Rehearsal_index))
     
 #For Rehearsal
+from Custom_augmentation import CCB
 def CombineDataset(args, RehearsalData, CurrentDataset, 
                    Worker, Batch_size, old_classes, fisher_dict=None, MixReplay = None):
     '''
@@ -305,18 +344,24 @@ def CombineDataset(args, RehearsalData, CurrentDataset,
     OldDataset = CustomDataset(args, RehearsalData, old_classes, fisher_dict=fisher_dict) #oldDatset[idx]:
     OldDataset_weights = OldDataset.weights
     old_fisher_weight = OldDataset.fisher_softmax_weights
+    
     if args.MixReplay and MixReplay == "original" :
         CombinedDataset = ConcatDataset([OldDataset, CurrentDataset])
-        NewTaskdataset = NewDatasetSet(args, CombinedDataset, OldDataset, OldDataset_weights, old_fisher_weight, False)
+        NewTaskdataset = NewDatasetSet(args, CCB, CombinedDataset, OldDataset, OldDataset_weights, old_fisher_weight, False)
          
     elif args.MixReplay and MixReplay == "AugReplay" : 
-        NewTaskdataset = NewDatasetSet(args, CurrentDataset, OldDataset, OldDataset_weights, old_fisher_weight, args.AugReplay)
+        NewTaskdataset = NewDatasetSet(args, CCB, CurrentDataset, OldDataset, OldDataset_weights, old_fisher_weight, args.AugReplay)
         
     if args.AugReplay and ~args.MixReplay :
-        NewTaskdataset = NewDatasetSet(args, CurrentDataset, OldDataset, OldDataset_weights, old_fisher_weight, args.AugReplay)
+        NewTaskdataset = NewDatasetSet(args, CCB, CurrentDataset, OldDataset, OldDataset_weights, old_fisher_weight, args.AugReplay)
+    elif ~args.AugReplay and ~args.MixReplay and args.Mosaic :
+        # mosaic dataset configuration
+        CombinedDataset = ConcatDataset([OldDataset, CurrentDataset])
+        NewTaskdataset = NewDatasetSet(args, CCB, CombinedDataset, OldDataset, OldDataset_weights, old_fisher_weight, AugReplay=False, Mosaic=True) \
+            
     elif ~args.AugReplay and ~args.MixReplay :
         CombinedDataset = ConcatDataset([OldDataset, CurrentDataset])
-        NewTaskdataset = NewDatasetSet(args, CombinedDataset, OldDataset, OldDataset_weights, old_fisher_weight, False) 
+        NewTaskdataset = NewDatasetSet(args, CCB, CombinedDataset, OldDataset, OldDataset_weights, old_fisher_weight, False) 
         
     print(f"current Dataset length : {len(CurrentDataset)}")
     print(f"Total Dataset length : {len(CurrentDataset)} +  old dataset length : {len(OldDataset)}")
