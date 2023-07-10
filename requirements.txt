@@ -1,8 +1,0 @@
-torch
-torchvision
-torchaudio
-tqdm
-pycocotools
-termcolor
-timm
-scipy
