@@ -429,7 +429,7 @@ def merge_rehearsal_process(args, task:int ,dir:str ,rehearsal:dict ,epoch:int
         # save combined replay buffer data for next training
         # _save_rehearsal output : save total buffer dataset to dir
         _save_rehearsal(rehearsal_classes, dir, task, limit_memory_size) 
-        buffer_checker(rehearsal=rehearsal_classes)
+        buffer_checker(args, rehearsal=rehearsal_classes)
     
     # wait main process to synchronization
     if utils.get_world_size() > 1:    
