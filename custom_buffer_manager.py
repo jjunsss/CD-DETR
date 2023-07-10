@@ -107,12 +107,16 @@ def _change_available_list_mode(mode, rehearsal_dict, need_to_include, least_ima
 
             # sort the temporary dictionary by values (counts of classes from need_to_include)
             sorted_temp_dict = dict(sorted(temp_dict.items(), key=lambda item: item[1]))
-
+            
             # get the first key in the sorted dictionary as min_key
-            min_key = next(iter(sorted_temp_dict))
+            try :
+                min_key = next(iter(sorted_temp_dict))
 
-            # create the new changed_available_dict with entries that have the minimum number of classes from need_to_include
-            changed_available_dict = {key:items for key, items in rehearsal_dict.items() if len([c for c in items[1] if c in need_to_include]) == sorted_temp_dict[min_key]}
+                # create the new changed_available_dict with entries that have the minimum number of classes from need_to_include
+                changed_available_dict = {key:items for key, items in rehearsal_dict.items() if len([c for c in items[1] if c in need_to_include]) == sorted_temp_dict[min_key]}
+            except:
+                print(colored(f"no changed available items, so now all rehearsal dictionary used to changing. recommend to you change the least_image value", "red", "on_yellow"))
+                changed_available_dict = rehearsal_dict
     
     # TODO:  in CIL method, {K / |C|} usage
     # if mode == "classification":
@@ -405,7 +409,6 @@ def merge_rehearsal_process(args, task:int ,dir:str ,rehearsal:dict ,epoch:int
                                  ,limit_memory_size:int , list_CC:list, gpu_counts:int, ) -> dict:
     least_image = args.least_image
     # total_size = limit_memory_size * get_world_size()
-    dir = os.path.join(dir, 'replay')
     all_dir = os.path.join(dir, "Buffer_T_" + str(task) +"_" + str(limit_memory_size))
     
     #file save of each GPUs
@@ -425,7 +428,7 @@ def merge_rehearsal_process(args, task:int ,dir:str ,rehearsal:dict ,epoch:int
         # save combined replay buffer data for next training
         # _save_rehearsal output : save total buffer dataset to dir
         _save_rehearsal(rehearsal_classes, dir, task, limit_memory_size) 
-        buffer_checker(rehearsal=rehearsal_classes)
+        buffer_checker(args, rehearsal=rehearsal_classes)
     
     # wait main process to synchronization
     if utils.get_world_size() > 1:    

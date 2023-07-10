@@ -48,7 +48,9 @@ class TrainingPipeline:
         self.args = args
         self.device = torch.device(args.device)
         self.Divided_Classes, self.dataset_name, self.start_epoch, self.start_task, self.tasks = self._incremental_setting()
-        self.model, self.model_without_ddp, self.criterion, self.postprocessors, self.teacher_model = self._build_and_setup_model(task_idx=args.start_task)
+        if self.args.eval :
+            self.args.start_task = 0
+        self.model, self.model_without_ddp, self.criterion, self.postprocessors, self.teacher_model = self._build_and_setup_model(task_idx=self.args.start_task)
         if self.args.Branch_Incremental and not args.eval and args.pretrained_model is not None:
             self.make_branch(self.start_task, self.args, is_init=True)
         self.optimizer, self.lr_scheduler = self._setup_optimizer_and_scheduler()
@@ -145,8 +147,6 @@ class TrainingPipeline:
             num_classes = 60 if self.args.LG else 91
             current_class = None
         else:
-            if self.args.eval:
-                task_idx = len(self.Divided_Classes)
             current_class = sum(self.Divided_Classes[:task_idx+1], [])
             num_classes = len(current_class) + 1
             
@@ -234,7 +234,7 @@ class TrainingPipeline:
         start_epoch = 0
         start_task = 0
         tasks = args.Task
-        Divided_Classes = DivideTask_for_incre(args.Task, args.Total_Classes, args.Total_Classes_Names, args.eval, args.test_file_list)
+        Divided_Classes = DivideTask_for_incre(args, args.Task, args.Total_Classes, args.Total_Classes_Names, args.eval, args.test_file_list)
         if args.Total_Classes_Names == True :
             # If you use the Total Classes names, you don't need to write args.tasks(you can use the any value)
             tasks = len(Divided_Classes)    
@@ -362,19 +362,20 @@ class TrainingPipeline:
                     
                     with open(self.DIR, 'a') as f:
                         f.write(f"-----------------------task working----------------------\n")
-                        f.write(f"NOW TASK num : {task_idx}, checked classes : {self.Divided_Classes[task_idx]} \t ")
+                        f.write(f"NOW TASK num : {task_idx} , checked classes : {self.Divided_Classes[task_idx]} \t ")
                         
                     _, _ = evaluate(self.model, self.criterion, self.postprocessors,
                                                     data_loader_val, base_ds, self.device, args.output_dir, self.DIR, args)
             else:
-                for task_idx in range(self.tasks) :
-                    previous_classes = sum(self.Divided_Classes[:task_idx+1], []) # Not now current classe
-                    print(colored(f"evaluation task number {task_idx} / {self.tasks}", "blue", "on_yellow"))
-                    print(colored(f"evaluation previous_classes check : {previous_classes}", "blue", "on_yellow"))
-                    dataset_val, data_loader_val, _, _  = Incre_Dataset(task_idx, args, previous_classes)
+                test_epoch = 1 if args.Total_Classes != args.Test_Classes else args.Task
+                for task_idx in range(test_epoch) :
+                    print(colored(f"evaluation task number {task_idx + 1} / {test_epoch}", "blue", "on_yellow"))
+                    Divided_Classes = DivideTask_for_incre(args, self.tasks, args.Total_Classes, False, False, args.test_file_list)
+                    dataset_val, data_loader_val, _, _  = Incre_Dataset(task_idx, args, Divided_Classes)
+                    base_ds = get_coco_api_from_dataset(dataset_val)
                     with open(self.DIR, 'a') as f:
                         f.write(f"-----------------------task working----------------------\n")
-                        f.write(f"NOW TASK num : {task_idx} / {self.tasks}, checked classes : {self.Divided_Classes[task_idx]} \t ")
+                        f.write(f"NOW TASK num : {task_idx + 1} / {test_epoch}, checked classes : {sum(self.Divided_Classes[:task_idx+1], [])} \t ")
                         
                     _, _ = evaluate(self.model, self.criterion, self.postprocessors,
                                                     data_loader_val, base_ds, self.device, args.output_dir, self.DIR, args)

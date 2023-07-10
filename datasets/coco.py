@@ -229,7 +229,6 @@ def build(image_set, args, img_ids = None, class_ids = None):
         "extra": (root / "images", root / 'output_json' / 'train.json'),
         }
     elif args.orgcocopath:
-        if args.eval: root = root.parent
         PATHS = {
             "train": (root / "train2017", root / "annotations" / f'{mode}_train2017.json'),
             "val": (root / "val2017", root / "annotations" / f'{mode}_val2017.json'),

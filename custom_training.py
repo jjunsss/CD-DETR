@@ -169,7 +169,10 @@ def icarl_prototype_setup(args, feature_extractor, device, current_classes):
             if args.debug and _cnt == 10:
                 break
 
-        proto[cls] = proto[cls] / _dataset.__len__()
+        try:
+            proto[cls] = proto[cls] / _dataset.__len__()
+        except ZeroDivisionError:
+            pass
         if args.debug and cls == 10:
             break
 

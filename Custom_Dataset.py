@@ -12,18 +12,19 @@ def Incre_Dataset(Task_Num, args, Incre_Classes, extra_dataset = False):
     current_classes = Incre_Classes[Task_Num]
     print(f"current_classes : {current_classes}")
     all_classes = sum(Incre_Classes[:Task_Num+1], []) # ALL : old task clsses + new task clsses(after training, soon to be changed)\
-    print(colored(f"collected all_classes : {all_classes}", "blue", "on_yellow"))
           
-    if not extra_dataset:
-        if not args.eval:
+    if not extra_dataset and not args.eval:
             # For real model traning
             dataset_train = build_dataset(image_set='train', args=args, class_ids=current_classes)
-    else :
+            
+    elif  extra_dataset and not args.eval:
         # For generating buffer with whole dataset
         # previous classes are used to generate buffer of all classe before New task dataset
+        print(colored(f"collected all_classes : {all_classes}", "blue", "on_yellow"))
         dataset_train = build_dataset(image_set='extra', args=args, class_ids=all_classes)
     
     if args.eval :
+        print(colored(f"evaluation previous_classes check : {all_classes}", "blue", "on_yellow"))
         dataset_val = build_dataset(image_set='val', args=args, class_ids=current_classes)
         
     if args.distributed:
@@ -88,7 +89,7 @@ def make_class(test_file):
     return class_dict['class_idx'][idx]
 
 
-def DivideTask_for_incre(Task_Counts: int, Total_Classes: int, DivisionOfNames: Boolean, eval=False, test_file_list=None):
+def DivideTask_for_incre(args, Task_Counts: int, Total_Classes: int, DivisionOfNames: Boolean, eval_config=False, test_file_list=None):
     '''
         DivisionofNames == True인 경우 Task_Counts는 필요 없어짐 Domain을 기준으로 class task가 자동 분할
         False라면 Task_Counts, Total_Classes를 사용해서 적절하게 분할
@@ -120,6 +121,7 @@ def DivideTask_for_incre(Task_Counts: int, Total_Classes: int, DivisionOfNames: 
     start = 0
     end = Task
     Divided_Classes = []
+
     for _ in range(Task_Counts):
         Divided_Classes.append(classes[start:end])
         start += Task
@@ -128,6 +130,10 @@ def DivideTask_for_incre(Task_Counts: int, Total_Classes: int, DivisionOfNames: 
         Rest_Classes = classes[-Rest_Classes_num:]
         Divided_Classes[-1].extend(Rest_Classes)
     
+    if eval_config :
+        classes = [idx+1 for idx in range(args.Test_Classes)]
+        Divided_Classes = [classes]
+        
     return Divided_Classes
 
 #현재 (Samples, Targets)의 정보를 가진 형태로 데이터가 구성되어 있음(딕셔너리로 각각의 Class 정보를 가진 채로 구성됨)
@@ -180,9 +186,19 @@ def weight_dataset(args, re_dict):
     return keys, weights
 
 
+def img_id_config_no_circular_training(args, re_dict):
+    if args.Sampling_strategy == 'icarl':
+        keys = []
+        for cls, val in re_dict.items():
+            img_ids = np.array(val[1])
+            keys.extend(list(img_ids[:, 0].astype(int)))
+        return keys
+    else:
+        return list(re_dict.keys())
+
+
 
 import copy
-from sklearn.preprocessing import RobustScaler
 class CustomDataset(torch.utils.data.Dataset):
     '''
         replay buffer configuration
@@ -209,7 +225,7 @@ class CustomDataset(torch.utils.data.Dataset):
         else :
             self.weights = None
             self.fisher_softmax_weights = None
-            self.keys = list(self.re_dict.keys())
+            self.keys = img_id_config_no_circular_training(args, re_dict)
             self.datasets = build_dataset(image_set='train', args=args, class_ids=self.old_classes, img_ids=self.keys)
             
         
