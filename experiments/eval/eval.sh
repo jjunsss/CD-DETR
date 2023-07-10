@@ -12,6 +12,8 @@ COCO_PATH="/data/coco/cocodataset/"
 #/data/coco/cocodataset/ for local
 OUTPUT_DIR="/data/eval/GM-Hier-Testing/limit1%-least5%/"
 # OUTPUT_DIR="/data/eval/UpperUnder/Under/"
+#/home/uvll/Desktop/jjunsss/dataset/cocodataset/
+# OUTPUT_DIR="/data/eval/GM-Hier-Testing/limit1%-least1%/"
 TASK_EPOCHS=12
 NUM_WORKERS=24
 TOTAL_CLASSES=90

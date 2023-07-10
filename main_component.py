@@ -1,27 +1,18 @@
-import argparse
-import datetime
-import json
 import random
-import time
-import pickle
 from pathlib import Path
 import os
 import numpy as np
 import torch
-from torch.utils.data import DataLoader
-import datasets
 import util.misc as utils
-import datasets.samplers as samplers
-import torch.distributed as dist
+
 import re
 
 from Custom_Dataset import *
 from custom_utils import *
 from custom_prints import *
 from custom_buffer_manager import *
-from custom_training import rehearsal_training
 
-from datasets import build_dataset, get_coco_api_from_dataset
+from datasets import get_coco_api_from_dataset
 from engine import evaluate, train_one_epoch
 from models import get_models
 from glob import glob
