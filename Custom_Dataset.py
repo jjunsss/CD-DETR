@@ -58,7 +58,7 @@ def Incre_Dataset(Task_Num, args, Incre_Classes, extra_dataset = False):
         data_loader_val = DataLoader(dataset_val, args.batch_size, sampler=sampler_val,
                                      drop_last=False, collate_fn=utils.collate_fn, num_workers=args.num_workers,
                                      pin_memory=True)
-        return dataset_val, data_loader_val, sampler_val, current_classes
+        return dataset_val, data_loader_val, sampler_val, all_classes
     
     return dataset_train, data_loader_train, sampler_train, current_classes
 
