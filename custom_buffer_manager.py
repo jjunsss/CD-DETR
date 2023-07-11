@@ -16,7 +16,7 @@ from termcolor import colored
 #TODO : Change calc each iamage loss and tracking each object loss avg.
 def _replacment_strategy(args, loss_value, targeted, rehearsal_classes,
                        label_tensor_unique_list, image_id, num_bounding_boxes):
-    if args.Sampling_strategy == "hierarchical" : 
+    if args.Sampling_strategy == "hierarchical" or args.Sampling_strategy == "hier_highlabels": 
         if ( targeted[1][0] > loss_value ): #Low buffer construct
             print(colored(f"hierarchical based buffer change strategy", "blue"))
             del rehearsal_classes[targeted[0]]
@@ -233,6 +233,17 @@ def _calc_target(rehearsal_classes, replace_strategy="hierarchical", ):
     
         # second change condition: high loss based change
         sorted_result = min(changed_list, key=lambda x: x[1][0])
+        
+    elif replace_strategy == "hier_highlabels":
+        # ours for effective, mode is "GuaranteeMinimum"
+        # x[2] = the number of bbox labels[int]
+        min_class_length = min(x[2] for x in rehearsal_classes.values())
+        
+        # first change condition: low unique based change
+        changed_list = [(index, values) for index, values in rehearsal_classes.items() if len(values[1]) == min_class_length]
+    
+        # second change condition: high loss based change
+        sorted_result = max(changed_list, key=lambda x: x[1][0])
         
     elif replace_strategy == "RODEO": # RODEO == delete high unqiue classes
         # only high unique based change, mode is "normal" or "random"
