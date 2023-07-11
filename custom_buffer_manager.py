@@ -30,6 +30,13 @@ def _replacment_strategy(args, loss_value, targeted, rehearsal_classes,
             rehearsal_classes[image_id] = [loss_value, label_tensor_unique_list, num_bounding_boxes]
             return rehearsal_classes
         
+    if args.Sampling_strategy == "low_loss" : 
+        if ( targeted[1][0] > loss_value ): # high loss buffer construct
+            print(colored(f"low_loss based buffer change strategy", "blue"))
+            del rehearsal_classes[targeted[0]]
+            rehearsal_classes[image_id] = [loss_value, label_tensor_unique_list, num_bounding_boxes]
+            return rehearsal_classes
+        
     if args.Sampling_strategy  == "RODEO": # This is same that "RODEO sampling strategy"
         if ( len(targeted[1][1]) < len(label_tensor_unique_list) ): #Low buffer construct
             print(colored(f"high-unique counts based buffer change strategy", "blue"))
