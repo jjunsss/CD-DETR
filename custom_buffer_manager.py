@@ -254,7 +254,7 @@ def _calc_target(rehearsal_classes, replace_strategy="hierarchical", ):
         
     elif replace_strategy == "RODEO": # RODEO == delete high unqiue classes
         # only high unique based change, mode is "normal" or "random"
-        sorted_result = min(rehearsal_classes, key=lambda x: len(x[1][1]))
+        sorted_result = min(rehearsal_classes.items(), key=lambda x: len(x[1][1]))
         
     elif replace_strategy == "random":
         # only random change, mode is "normal" or "random"
@@ -262,7 +262,7 @@ def _calc_target(rehearsal_classes, replace_strategy="hierarchical", ):
         
     elif replace_strategy == "low_loss":
         # only low loss based change, mode is "normal" or "random"
-        sorted_result = max(rehearsal_classes, key=lambda x: x[1][0])
+        sorted_result = max(rehearsal_classes.items(), key=lambda x: x[1][0])
         
     elif replace_strategy == "hard":
         # only high bounding box count based change, mode is "normal" or "random"
