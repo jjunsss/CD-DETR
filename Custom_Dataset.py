@@ -224,7 +224,7 @@ class CustomDataset(torch.utils.data.Dataset):
         elif args.CER == "fisher" and args.AugReplay:
             self.weights = None
             self.keys = list(self.re_dict.keys())
-            self.datasets = build_dataset(image_set='extra', args=args, class_ids=self.old_classes, img_ids=self.keys)
+            self.datasets = build_dataset(image_set='train', args=args, class_ids=self.old_classes, img_ids=self.keys)
             fisher_values = torch.tensor(list(fisher_dict.values()))
             scaled_fisher_values = self.scaling(fisher_values)
             
@@ -249,9 +249,8 @@ class CustomDataset(torch.utils.data.Dataset):
         return samples, targets, new_samples, new_targets
     
     def scaling(self, tensor):
-        # RobustScaler 생성
-        summation = torch.sum(tensor, dim=0)
-        scaled_tensor = tensor / summation
+        # 로그 스케일링
+        scaled_tensor = torch.log1p(tensor)
 
         return scaled_tensor
     
@@ -303,7 +302,7 @@ class NewDatasetSet(torch.utils.data.Dataset):
             
         if self.AugReplay == True :
             if self.args.CER == "fisher": # fisher CER
-                index = np.random.choice(np.arange(len(self.Rehearsal_dataset)), p=self.fisher_weights)
+                index = np.random.choice(np.arange(len(self.Rehearsal_dataset)), p=self.fisher_weights.numpy())
                 O_img, O_target, _, _ = self.Rehearsal_dataset[index] #No shuffle because weight sorting.
                 return img, target, origin_img, origin_target, O_img, O_target
             elif self.args.CER == "weight": # weight CER
@@ -399,7 +398,7 @@ def CombineDataset(args, RehearsalData, CurrentDataset,
     if args.num_workers:
         CombinedLoader = DataLoader(NewTaskdataset, batch_sampler=batch_sampler_train,
                         collate_fn=utils.collate_fn, num_workers=Worker,
-                        pin_memory=True, prefetch_factor=4,) #worker_init_fn=worker_init_fn, persistent_workers=args.AugReplay)
+                        pin_memory=True) #worker_init_fn=worker_init_fn, persistent_workers=args.AugReplay)
     else:
         CombinedLoader = DataLoader(NewTaskdataset, batch_sampler=batch_sampler_train,
                         collate_fn=utils.collate_fn, num_workers=Worker,

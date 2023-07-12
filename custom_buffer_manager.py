@@ -518,8 +518,19 @@ def calc_fisher_process(args, rehearsal_dict, old_classes, criterion, model, opt
     '''
     soted_rehearsal_dict = dict(sorted(rehearsal_dict.items(), key=lambda x: x[0]))
     _, fisher_data_loader, _ = fisher_dataset_loader(args, soted_rehearsal_dict, old_classes)
-    fisher_dict = extra_epoch_for_fisher(args, dataset_name="", data_loader=fisher_data_loader, model=model, criterion=criterion, 
-                                         device=args.device, optimizer=optimizer, rehearsal_classes=soted_rehearsal_dict)
+    # fisher_dict = extra_epoch_for_fisher(args, dataset_name="", data_loader=fisher_data_loader, model=model, criterion=criterion, 
+    #                                      device=args.device, optimizer=optimizer, rehearsal_classes=soted_rehearsal_dict)
+    
+    ## Fisher Debugging
+    # # 이미지 아이디는 문자열 'img'에 숫자를 더해 생성합니다.
+    # img_ids = [f'img_{i}' for i in range(1200)]
+
+    # # 0과 1 사이의 랜덤한 실수값을 생성합니다.
+    # random_values = torch.rand(1200)
+
+    # # 이미지 아이디와 랜덤값을 결합하여 딕셔너리를 생성합니다.
+    # fisher_dict = dict(zip(img_ids, random_values.tolist()))
+
     # DDP blocking process
     if utils.get_world_size() > 1:    
         dist.barrier()
