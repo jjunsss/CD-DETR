@@ -42,7 +42,7 @@ class TrainingPipeline:
         self.args = args
         self.device = torch.device(args.device)
         self.Divided_Classes, self.dataset_name, self.start_epoch, self.start_task, self.tasks = self._incremental_setting()
-        if self.args.eval :
+        if self.args.eval:
             self.args.start_task = 0
         self.model, self.model_without_ddp, self.criterion, self.postprocessors, self.teacher_model = self._build_and_setup_model(task_idx=self.args.start_task)
         if self.args.Branch_Incremental and not args.eval and args.pretrained_model is not None:
@@ -141,7 +141,8 @@ class TrainingPipeline:
             num_classes = 60 if self.args.LG else 91
             current_class = None
         else:
-            current_class = sum(self.Divided_Classes[:task_idx+1], [])
+            idx = len(self.Divided_Classes) if self.args.LG and self.args.eval else task_idx+1
+            current_class = sum(self.Divided_Classes[:idx], [])
             num_classes = len(current_class) + 1
             
         previous_classes = sum(self.Divided_Classes[:task_idx], []) # For distillation options.

@@ -16,7 +16,7 @@ from termcolor import colored
 #TODO : Change calc each iamage loss and tracking each object loss avg.
 def _replacment_strategy(args, loss_value, targeted, rehearsal_classes,
                        label_tensor_unique_list, image_id, num_bounding_boxes):
-    if args.Sampling_strategy == "hierarchical" : 
+    if args.Sampling_strategy == "hierarchical" or args.Sampling_strategy == "hier_highlabels": 
         if ( targeted[1][0] > loss_value ): #Low buffer construct
             print(colored(f"hierarchical based buffer change strategy", "blue"))
             del rehearsal_classes[targeted[0]]
@@ -241,13 +241,20 @@ def _calc_target(rehearsal_classes, replace_strategy="hierarchical", ):
         # second change condition: high loss based change
         sorted_result = min(changed_list, key=lambda x: x[1][0])
         
-    elif replace_strategy == "low_loss":
-        #  only low loss based change : containing low loss samples in buffer
-        sorted_result = max(rehearsal_classes.items(), key=lambda x: x[1][0])
+    elif replace_strategy == "hier_highlabels":
+        # ours for effective, mode is "GuaranteeMinimum"
+        # x[2] = the number of bbox labels[int]
+        min_class_length = min(x[2] for x in rehearsal_classes.values())
+        
+        # first change condition: low unique based change
+        changed_list = [(index, values) for index, values in rehearsal_classes.items() if len(values[1]) == min_class_length]
+    
+        # second change condition: high loss based change
+        sorted_result = max(changed_list, key=lambda x: x[1][0])
         
     elif replace_strategy == "RODEO": # RODEO == delete high unqiue classes
         # only high unique based change, mode is "normal" or "random"
-        sorted_result = min(rehearsal_classes, key=lambda x: len(x[1][1]))
+        sorted_result = min(rehearsal_classes.items(), key=lambda x: len(x[1][1]))
         
     elif replace_strategy == "random":
         # only random change, mode is "normal" or "random"
@@ -255,7 +262,7 @@ def _calc_target(rehearsal_classes, replace_strategy="hierarchical", ):
         
     elif replace_strategy == "low_loss":
         # only low loss based change, mode is "normal" or "random"
-        sorted_result = max(rehearsal_classes, key=lambda x: x[1][0])
+        sorted_result = max(rehearsal_classes.items(), key=lambda x: x[1][0])
         
     elif replace_strategy == "hard":
         # only high bounding box count based change, mode is "normal" or "random"
@@ -495,7 +502,7 @@ def construct_replay_extra_epoch(args, Divided_Classes, model, criterion, device
         args.Rehearsal_file = args.output_dir
     # Rehearsal_file 경로의 폴더가 없을 경우 생성
     os.makedirs(os.path.dirname(args.Rehearsal_file), exist_ok=True)
-    rehearsal_classes = merge_rehearsal_process(args=args, task=0, dir=args.Rehearsal_file, rehearsal=rehearsal_classes,
+    rehearsal_classes = merge_rehearsal_process(args=args, task=task_num, dir=args.Rehearsal_file, rehearsal=rehearsal_classes,
                                                     epoch=0, limit_memory_size=args.limit_image, gpu_counts=utils.get_world_size(), list_CC=list_CC)
     
     print(colored(f"Complete constructing buffer","red", "on_yellow"))
