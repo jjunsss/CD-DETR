@@ -502,7 +502,7 @@ def construct_replay_extra_epoch(args, Divided_Classes, model, criterion, device
         args.Rehearsal_file = args.output_dir
     # Rehearsal_file 경로의 폴더가 없을 경우 생성
     os.makedirs(os.path.dirname(args.Rehearsal_file), exist_ok=True)
-    rehearsal_classes = merge_rehearsal_process(args=args, task=0, dir=args.Rehearsal_file, rehearsal=rehearsal_classes,
+    rehearsal_classes = merge_rehearsal_process(args=args, task=task_num, dir=args.Rehearsal_file, rehearsal=rehearsal_classes,
                                                     epoch=0, limit_memory_size=args.limit_image, gpu_counts=utils.get_world_size(), list_CC=list_CC)
     
     print(colored(f"Complete constructing buffer","red", "on_yellow"))

@@ -99,19 +99,26 @@ def DivideTask_for_incre(args, Task_Counts: int, Total_Classes: int, DivisionOfN
         #DivisionOfNames : Domain을 사용해서 분할
     '''
     if DivisionOfNames is True:
+        Divided_Classes = []
         if test_file_list is not None:
-            Divided_Classes = []
             for test_file in test_file_list:
                 Divided_Classes.append(
                     make_class(test_file)
                 )
-            
-            msg = f"{'='*35} Entire Divided Classes {'='*35}\n{Divided_Classes}"
-            print(colored(msg, 'red'))
         else:
-            Divided_Classes.append([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, ]) # DID + PZ
-            Divided_Classes.append([28, 32, 35, 41, 56]) # PZ 
-            Divided_Classes.append([24, 29, 30, 39, 40, 42]) # custom VE
+            if args.LG:
+                Divided_Classes.append([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, ]) # DID + PZ
+                Divided_Classes.append([28, 32, 35, 41, 56]) # PZ 
+                Divided_Classes.append([24, 29, 30, 39, 40, 42]) # custom VE
+            else:                
+                Divided_Classes.append([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 27, 28, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44])
+                Divided_Classes.append([46, 47, 48, 49, 50, 51, 52, 53, 54, 55])
+                Divided_Classes.append([56, 57, 58, 59, 60, 61, 62, 63, 64, 65])
+                Divided_Classes.append([67, 70, 72, 73, 74, 75, 76, 77, 78, 79])
+                Divided_Classes.append([80, 81, 82, 84, 85, 86, 87, 88, 89, 90])
+            
+        msg = f"{'='*35} Entire Divided Classes {'='*35}\n{Divided_Classes}"
+        print(colored(msg, 'red'))
         return Divided_Classes
 
     # For auto division dataset(T2 training) (40-40 and), (70-10 or 10-70) to be used better performance setting
