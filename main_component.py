@@ -209,7 +209,7 @@ class TrainingPipeline:
         return optimizer, lr_scheduler
 
 
-    def _load_state(self):
+    def load_state(self):
         args = self.args
         # For extra epoch training, because It's not affected to DDP.
         self.model = self.model.to(self.device)
@@ -469,12 +469,14 @@ def generate_dataset(first_training, task_idx, args, pipeline):
             #TODO: need to Fisher condition
             fisher_dict = calc_fisher_process(args, pipeline.rehearsal_classes, previous_classes, 
                                             pipeline.criterion, pipeline.model, pipeline.optimizer)
+            
             AugRplay_dataset, AugRplay_loader, AugRplay_sampler = CombineDataset(
                 args, replay_dataset, dataset_train, args.num_workers, args.batch_size, 
                 old_classes=previous_classes, fisher_dict=fisher_dict, MixReplay="AugReplay")
         else:
             fisher_dict = None
             AugRplay_dataset, AugRplay_loader, AugRplay_sampler = None, None, None
+            
         assert (args.Mosaic and ~args.AugReplay) or (~args.Mosaic and args.AugReplay) or (~args.Mosaic and ~args.AugReplay)
             
         if args.Mosaic and not args.AugReplay:

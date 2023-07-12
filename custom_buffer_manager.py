@@ -513,7 +513,9 @@ def calc_fisher_process(args, rehearsal_dict, old_classes, criterion, model, opt
     _, fisher_data_loader, _ = fisher_dataset_loader(args, soted_rehearsal_dict, old_classes)
     fisher_dict = extra_epoch_for_fisher(args, dataset_name="", data_loader=fisher_data_loader, model=model, criterion=criterion, 
                                          device=args.device, optimizer=optimizer, rehearsal_classes=soted_rehearsal_dict)
-
+    # DDP blocking process
+    if utils.get_world_size() > 1:    
+        dist.barrier()
     # check none fisher dictionary    
     assert all(value is not None for value in fisher_dict.values())
 
