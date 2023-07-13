@@ -91,7 +91,7 @@ def get_args_parser():
     parser.add_argument('--Construct_Replay', default=False, action='store_true', help="For cunnstructing replay dataset")
     
     parser.add_argument('--Sampling_strategy', default='hierarchical', type=str, help="hierarchical(ours), RODEO(del low unique labels), random \
-                                                                                     , hier_highloss, hier_highlabels")
+                                                                                     , hier_highloss, hier_highlabels, hier_highlabels_highloss")
     parser.add_argument('--Sampling_mode', default='GM', type=str, help="normal, GM(GuaranteeMinimum, ours), ")
     parser.add_argument('--least_image', default=0, type=int, help='least image of each class, must need to exure_min mode')
     parser.add_argument('--limit_image', default=100, type=int, help='maximum image of all classes, must need to exure_min mode')
