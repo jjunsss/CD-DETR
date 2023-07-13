@@ -513,7 +513,7 @@ def construct_replay_extra_epoch(args, Divided_Classes, model, criterion, device
         args.Rehearsal_file = args.output_dir
     # Rehearsal_file 경로의 폴더가 없을 경우 생성
     os.makedirs(os.path.dirname(args.Rehearsal_file), exist_ok=True)
-    rehearsal_classes = merge_rehearsal_process(args=args, task=0, dir=args.Rehearsal_file, rehearsal=rehearsal_classes,
+    rehearsal_classes = merge_rehearsal_process(args=args, task=task_num, dir=args.Rehearsal_file, rehearsal=rehearsal_classes,
                                                     epoch=0, limit_memory_size=args.limit_image, gpu_counts=utils.get_world_size(), list_CC=list_CC)
     
     print(colored(f"Complete constructing buffer","red", "on_yellow"))
@@ -531,7 +531,20 @@ def calc_fisher_process(args, rehearsal_dict, old_classes, criterion, model, opt
     _, fisher_data_loader, _ = fisher_dataset_loader(args, soted_rehearsal_dict, old_classes)
     fisher_dict = extra_epoch_for_fisher(args, dataset_name="", data_loader=fisher_data_loader, model=model, criterion=criterion, 
                                          device=args.device, optimizer=optimizer, rehearsal_classes=soted_rehearsal_dict)
+    
+    ## Fisher Debugging
+    # # 이미지 아이디는 문자열 'img'에 숫자를 더해 생성합니다.
+    # img_ids = [f'img_{i}' for i in range(1200)]
 
+    # # 0과 1 사이의 랜덤한 실수값을 생성합니다.
+    # random_values = torch.rand(1200)
+
+    # # 이미지 아이디와 랜덤값을 결합하여 딕셔너리를 생성합니다.
+    # fisher_dict = dict(zip(img_ids, random_values.tolist()))
+
+    # DDP blocking process
+    if utils.get_world_size() > 1:    
+        dist.barrier()
     # check none fisher dictionary    
     assert all(value is not None for value in fisher_dict.values())
 

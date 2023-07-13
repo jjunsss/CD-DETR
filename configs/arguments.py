@@ -91,7 +91,8 @@ def get_args_parser():
     parser.add_argument('--Construct_Replay', default=False, action='store_true', help="For cunnstructing replay dataset")
     
     parser.add_argument('--Sampling_strategy', default='hierarchical', type=str, help="hierarchical(ours), RODEO(del low unique labels), random \
-                                                                                     , hier_highloss, hier_highlabels, hier_highlabels_highloss")
+                                                                                     , hier_highloss, hier_highlabels, hier_highlabels_highloss, hard(high labels)")
+
     parser.add_argument('--Sampling_mode', default='GM', type=str, help="normal, GM(GuaranteeMinimum, ours), ")
     parser.add_argument('--least_image', default=0, type=int, help='least image of each class, must need to exure_min mode')
     parser.add_argument('--limit_image', default=100, type=int, help='maximum image of all classes, must need to exure_min mode')
@@ -111,7 +112,7 @@ def get_args_parser():
 
     #* EVALUATION
     parser.add_argument('--all_data', default=False, action='store_true', help ="save your model output image") # I think this option is depreciated, so temporarily use for 79 path, and modify later ... .
-    parser.add_argument('--test_file_list', default=["didtest", "pztest", "VE2021", "VEmultisingle", "VE10test"], type=str, nargs='+', \
+    parser.add_argument('--test_file_list', default=None, type=str, nargs='+', \
         help='Test folder name')
     parser.add_argument('--FPP', default=False, action='store_true', help="Forgetting metrics")
     parser.add_argument('--Test_Classes', default=45, type=int, help="2 task eval(coco) : T1=45 / T2=90, 3task eval(coco) T1=30 T2=60 T3=90\

@@ -42,7 +42,7 @@ class TrainingPipeline:
         self.args = args
         self.device = torch.device(args.device)
         self.Divided_Classes, self.dataset_name, self.start_epoch, self.start_task, self.tasks = self._incremental_setting()
-        if self.args.eval :
+        if self.args.eval:
             self.args.start_task = 0
         self.model, self.model_without_ddp, self.criterion, self.postprocessors, self.teacher_model = self._build_and_setup_model(task_idx=self.args.start_task)
         if self.args.Branch_Incremental and not args.eval and args.pretrained_model is not None:
@@ -141,7 +141,8 @@ class TrainingPipeline:
             num_classes = 60 if self.args.LG else 91
             current_class = None
         else:
-            current_class = sum(self.Divided_Classes[:task_idx+1], [])
+            idx = len(self.Divided_Classes) if self.args.LG and self.args.eval else task_idx+1
+            current_class = sum(self.Divided_Classes[:idx], [])
             num_classes = len(current_class) + 1
             
         previous_classes = sum(self.Divided_Classes[:task_idx], []) # For distillation options.
@@ -209,7 +210,7 @@ class TrainingPipeline:
         return optimizer, lr_scheduler
 
 
-    def _load_state(self):
+    def load_state(self):
         args = self.args
         # For extra epoch training, because It's not affected to DDP.
         self.model = self.model.to(self.device)
@@ -469,19 +470,21 @@ def generate_dataset(first_training, task_idx, args, pipeline):
             #TODO: need to Fisher condition
             fisher_dict = calc_fisher_process(args, pipeline.rehearsal_classes, previous_classes, 
                                             pipeline.criterion, pipeline.model, pipeline.optimizer)
+            
             AugRplay_dataset, AugRplay_loader, AugRplay_sampler = CombineDataset(
                 args, replay_dataset, dataset_train, args.num_workers, args.batch_size, 
                 old_classes=previous_classes, fisher_dict=fisher_dict, MixReplay="AugReplay")
         else:
             fisher_dict = None
             AugRplay_dataset, AugRplay_loader, AugRplay_sampler = None, None, None
+            
         assert (args.Mosaic and ~args.AugReplay) or (~args.Mosaic and args.AugReplay) or (~args.Mosaic and ~args.AugReplay)
             
         if args.Mosaic and not args.AugReplay:
             mosaic_dataset, mosaic_loader, mosaic_sampler = CombineDataset(
                 args, replay_dataset, dataset_train, args.num_workers, args.batch_size, 
                 old_classes=previous_classes, fisher_dict=None)
-            return dataset_train, data_loader_train, sampler_train, list_CC
+            return mosaic_dataset, mosaic_loader, mosaic_sampler, list_CC
 
         # Combine dataset for original and AugReplay(Circular)
         original_dataset, original_loader, original_sampler = CombineDataset(

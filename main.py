@@ -64,10 +64,11 @@ def main(args):
         if is_task_changed and args.Branch_Incremental:
             pipeline.make_branch(task_idx, args, is_init=False)
             is_task_changed = False
-        pipeline._load_state()
+        dataset_train, data_loader_train, sampler_train, list_CC = generate_dataset(first_training, task_idx, args, pipeline)
+        
+        pipeline.load_state()
         
         # Call your new function here
-        dataset_train, data_loader_train, sampler_train, list_CC = generate_dataset(first_training, task_idx, args, pipeline)
             
         # Incremental training for each epoch
         pipeline.set_task_epoch(args, idx)
