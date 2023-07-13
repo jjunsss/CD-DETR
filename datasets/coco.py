@@ -148,8 +148,7 @@ def origin_transform(image_set):
     
     if image_set == 'train':
         return T.Compose([
-            T.RandomResize([224], max_size=1200),
-            image_normalize,
+            normalize,
         ])
 
     if image_set == 'val':
@@ -157,18 +156,21 @@ def origin_transform(image_set):
             T.RandomResize([608], max_size=1333),
         ])
             
-    if image_set == 'extra':
-        return T.Compose([
-            # [
-            T.RandomResize([300], max_size=1200),
-            image_normalize,
-        ])
     if image_set == 'custom':
         return T.Compose([
             # [
             #T.RandomResize(scales, max_size=1200),
             image_normalize,
         ])
+        
+    if image_set == 'extra':
+        return T.Compose([
+            # [
+            T.RandomResize([300], max_size=1200),
+            image_normalize,
+        ])
+        
+
 
 def make_coco_transforms(image_set, fix_size=False):
 

@@ -484,7 +484,7 @@ def generate_dataset(first_training, task_idx, args, pipeline):
             mosaic_dataset, mosaic_loader, mosaic_sampler = CombineDataset(
                 args, replay_dataset, dataset_train, args.num_workers, args.batch_size, 
                 old_classes=previous_classes, fisher_dict=None)
-            return dataset_train, data_loader_train, sampler_train, list_CC
+            return mosaic_dataset, mosaic_loader, mosaic_sampler, list_CC
 
         # Combine dataset for original and AugReplay(Circular)
         original_dataset, original_loader, original_sampler = CombineDataset(
