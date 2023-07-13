@@ -395,14 +395,11 @@ def CombineDataset(args, RehearsalData, CurrentDataset,
         
     batch_sampler_train = torch.utils.data.BatchSampler(sampler_train, Batch_size, drop_last=True)
     
-    if args.num_workers:
-        CombinedLoader = DataLoader(NewTaskdataset, batch_sampler=batch_sampler_train,
-                        collate_fn=utils.collate_fn, num_workers=Worker,
-                        pin_memory=True) #worker_init_fn=worker_init_fn, persistent_workers=args.AugReplay)
-    else:
-        CombinedLoader = DataLoader(NewTaskdataset, batch_sampler=batch_sampler_train,
-                        collate_fn=utils.collate_fn, num_workers=Worker,
-                        pin_memory=True) #worker_init_fn=worker_init_fn, persistent_workers=args.AugReplay)
+    
+    CombinedLoader = DataLoader(NewTaskdataset, batch_sampler=batch_sampler_train,
+                    collate_fn=utils.collate_fn, num_workers=Worker,
+                    pin_memory=True, prefetch_factor=8) #worker_init_fn=worker_init_fn, persistent_workers=args.AugReplay)
+
     
     return NewTaskdataset, CombinedLoader, sampler_train
 
@@ -441,4 +438,4 @@ def fisher_dataset_loader(args, RehearsalData, old_classes):
                                 collate_fn=utils.collate_fn, num_workers=args.num_workers,
                                 pin_memory=True)
     
-    return buffer_dataset, data_loader, sampler_train
+    return data_loader
