@@ -254,11 +254,17 @@ class CustomDataset(torch.utils.data.Dataset):
 
     #     return scaled_tensor
     
+    # def scaling(self, tensor):
+    #     # MinMax 스케일링
+    #     min_val = torch.min(tensor)
+    #     max_val = torch.max(tensor)
+    #     scaled_tensor = (tensor - min_val) / (max_val - min_val)
+
+    #     return scaled_tensor
+    
     def scaling(self, tensor):
-        # MinMax 스케일링
-        min_val = torch.min(tensor)
-        max_val = torch.max(tensor)
-        scaled_tensor = (tensor - min_val) / (max_val - min_val)
+        summation = torch.sum(tensor, dim=0)
+        scaled_tensor = tensor / summation
 
         return scaled_tensor
     
@@ -403,15 +409,11 @@ def CombineDataset(args, RehearsalData, CurrentDataset,
         
     batch_sampler_train = torch.utils.data.BatchSampler(sampler_train, Batch_size, drop_last=True)
     
-    if args.num_workers:
-        CombinedLoader = DataLoader(NewTaskdataset, batch_sampler=batch_sampler_train,
-                        collate_fn=utils.collate_fn, num_workers=Worker,
-                        pin_memory=True) #worker_init_fn=worker_init_fn, persistent_workers=args.AugReplay)
-    else:
-        CombinedLoader = DataLoader(NewTaskdataset, batch_sampler=batch_sampler_train,
-                        collate_fn=utils.collate_fn, num_workers=Worker,
-                        pin_memory=True) #worker_init_fn=worker_init_fn, persistent_workers=args.AugReplay)
-    print(NewTaskdataset[0])
+    CombinedLoader = DataLoader(NewTaskdataset, batch_sampler=batch_sampler_train,
+                    collate_fn=utils.collate_fn, num_workers=Worker,
+                    pin_memory=True, prefetch_factor=8) #worker_init_fn=worker_init_fn, persistent_workers=args.AugReplay)
+
+    # print(NewTaskdataset[0])
     return NewTaskdataset, CombinedLoader, sampler_train
 
 
