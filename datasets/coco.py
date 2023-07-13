@@ -162,6 +162,14 @@ def origin_transform(image_set):
             #T.RandomResize(scales, max_size=1200),
             image_normalize,
         ])
+        
+    if image_set == 'extra':
+        return T.Compose([
+            # [
+            T.RandomResize([300], max_size=1200),
+            image_normalize,
+        ])
+        
 
 
 def make_coco_transforms(image_set, fix_size=False):
