@@ -28,14 +28,15 @@ def visualize_bboxes(img, bboxes, img_size = (1024, 1024), vertical = False):
             cv2.putText(img, label, (int(xmin.item()), int(ymin.item()) - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0,0,255), 2)
         cv2.imwrite("./Combined_"+str(bboxes[0][-1])+".png",img)
     else:
-        #bboxes = bboxes['boxes']
-        bboxes = box_cxcywh_to_xyxy_resize(bboxes)
-        x1, y1, x2, y2 = bboxes.unbind(-1)
-        bboxes = torch.stack([x1, y1, x2, y2 ], dim=-1).tolist()
-        for bbox in bboxes:
-            xmin, ymin, xmax, ymax = torch.tensor(bbox) * torch.tensor((w , h, w, h))
-            cv2.rectangle(img,(int(xmin.item()), int(ymin.item())),(int(xmax.item()), int(ymax.item())), (255, 0, 0), 3)
-        cv2.imwrite("./vertical_"+str(bboxes[0][-1])+".png",img)
+        img = (img * 255).astype(np.uint8)
+        # #bboxes = bboxes['boxes']
+        # bboxes = box_cxcywh_to_xyxy_resize(bboxes)
+        # x1, y1, x2, y2 = bboxes.unbind(-1)
+        # bboxes = torch.stack([x1, y1, x2, y2 ], dim=-1).tolist()
+        # for bbox in bboxes:
+        #     xmin, ymin, xmax, ymax = torch.tensor(bbox) * torch.tensor((w , h, w, h))
+        #     cv2.rectangle(img,(int(xmin.item()), int(ymin.item())),(int(xmax.item()), int(ymax.item())), (255, 0, 0), 3)
+        cv2.imwrite("./vertical_"+str(bboxes[0][-1])+".png", img)
         
 import torchvision.transforms.functional as F
 class CCB(object):
@@ -59,7 +60,7 @@ class CCB(object):
                     Cur_img, Cur_lab, _, _ = result
                     break
             Cur_img, Cur_lab = self.transformed(Cur_img, Cur_lab)
-            #visualize_bboxes(np.clip(Cur_img.permute(1, 2, 0).numpy(), 0, 1).copy(), Cur_lab['boxes'], Cur_img.shape[:-1], True)
+            visualize_bboxes(Cur_img.permute(1, 2, 0).numpy().copy(), Cur_lab['boxes'], Cur_img.shape[:-1], True)
             return Cur_img, Cur_lab
     
    
@@ -74,19 +75,19 @@ class CCB(object):
         Mosaic_size = self.img_size #1024, im_w, im_h : 1024
         #self.mosaic_border = [Mosaic_size[0] // 2, Mosaic_size[1] // 2] # height . width
         Current_mosaic_img, Current_mosaic_labels = self._make_batch_mosaic(image_list, target_list, Mosaic_size)
-        temp_labels = self._make_resized_targets(Current_mosaic_labels)
+        Current_mosaic_labels = self._make_resized_targets(Current_mosaic_labels)
         
-        Current_mosaic_img, mosaic_labels = _crop(Current_mosaic_img, temp_labels['boxes'], temp_labels['labels']) # To 480, 640 random cropiing
-        if mosaic_labels.shape[-1] != 5:
-            return False
-        mosaic_labels = self._make_resized_targets(mosaic_labels)
+        # Current_mosaic_img, mosaic_labels = _crop(Current_mosaic_img, temp_labels['boxes'], temp_labels['labels']) # To 480, 640 random cropiing
+        # if mosaic_labels.shape[-1] != 5:
+        #     return False
+        # mosaic_labels = self._make_resized_targets(mosaic_labels)
         
-        if self.Continual_Batch == 3: # For 3 CBB Training
+        if self.Continual_Batch == 3: #For 3 CBB Training
             Diff_mosaic_labels = copy.deepcopy(Current_mosaic_labels)
             Diff_mosaic_img, Diff_bbox, Diff_labels  = _HorizontalFlip(Current_mosaic_img, Current_mosaic_labels['boxes'], Current_mosaic_labels['labels'])
             Diff_mosaic_labels = self._make_resized_targets(Diff_bbox, Diff_labels)
-            return Current_mosaic_img, mosaic_labels, Diff_mosaic_img, Diff_mosaic_labels
-        return Current_mosaic_img, mosaic_labels, None, None #For 2 CBB Training
+            return Current_mosaic_img, Current_mosaic_labels, Diff_mosaic_img, Diff_mosaic_labels
+        return Current_mosaic_img, Current_mosaic_labels, None, None #For 2 CBB Training
 
     def _make_batch_mosaic(self, image_list, target_list, mosaic_size ):
         mosaic_aug_labels = []
@@ -157,7 +158,7 @@ class CCB(object):
                 temp_bbox[:, 1:-1:2] += (yc / mosaic_size[0])
                 
             mosaic_bboxes = torch.vstack((temp_bbox, mosaic_bboxes))
-        #visualize_bboxes(mosaic_aug_img, mosaic_bboxes, self.img_size)
+        # visualize_bboxes(mosaic_aug_img, mosaic_bboxes, self.img_size)
         return mosaic_aug_img, mosaic_bboxes
     
     def _augment_bboxes(self, img:np.array, target:torch.tensor, xc, yc): #* Checking
@@ -255,37 +256,3 @@ def _HorizontalFlip(img:np.array, bboxes, labels): #* Checking
     transformed_img = torch.tensor(transformed_img, dtype=torch.float32).permute(2, 0, 1)
     #visualize_bboxes(np.clip(transformed_img.permute(1, 2, 0).numpy(), 0, 1).copy(), transformed_bboxes, (1024, 1024), True)
     return  transformed_img, transformed_bboxes, transformed_labels 
-
-def _crop(img:np.array, bboxes, labels): #* Checking
-    """
-        img : torch.tensor(Dataset[idx])
-        resized : size for resizing
-        BBoxes : resize image to (height, width) in a image
-    """
- 
-    boxes = box_cxcywh_to_xyxy_resize(bboxes)
-    boxes[:, :-1].clamp_(min = 0.0, max=1.0)
-    x1, y1, x2, y2 = boxes.unbind(-1)
-    
-    boxes = torch.stack([x1, y1, x2, y2, labels], dim=-1).tolist()
-    
-    # bboxes = bboxes.tolist()
-    class_labels = labels.tolist()
-    temp_img = copy.deepcopy(img)
-    
-    transform = A.Compose([
-        A.RandomCrop(480, 640)
-    ], bbox_params=A.BboxParams(format='albumentations'))
-    
-    #Annoation change
-    transformed = transform(image = temp_img, bboxes = boxes)
-    transformed_bboxes = transformed['bboxes']
-    transformed_img = transformed["image"]
-    
-    temp = torch.tensor(transformed_bboxes)
-    #visualize_bboxes(transformed_img, temp, (480, 640), False)
-    # transformed_bboxes = temp[:, :-1]
-    # transformed_labels = temp[:, -1]
-    #transformed_img = torch.tensor(transformed_img, dtype=torch.float32).permute(2, 0, 1)
-
-    return  transformed_img, temp

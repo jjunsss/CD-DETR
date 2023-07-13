@@ -248,9 +248,17 @@ class CustomDataset(torch.utils.data.Dataset):
 
         return samples, targets, new_samples, new_targets
     
+    # def scaling(self, tensor):
+    #     # 로그 스케일링
+    #     scaled_tensor = torch.log1p(tensor)
+
+    #     return scaled_tensor
+    
     def scaling(self, tensor):
-        # 로그 스케일링
-        scaled_tensor = torch.log1p(tensor)
+        # MinMax 스케일링
+        min_val = torch.min(tensor)
+        max_val = torch.max(tensor)
+        scaled_tensor = (tensor - min_val) / (max_val - min_val)
 
         return scaled_tensor
     
@@ -316,8 +324,6 @@ class NewDatasetSet(torch.utils.data.Dataset):
                     return img, target, origin_img, origin_target, O_img, O_target
                 O_img, O_target, _, _ = self.Rehearsal_dataset[index]
                 return img, target, origin_img, origin_target, O_img, O_target
-        else:
-            return img, target, origin_img, origin_target
     
         if self.Mosaic == True :
             Current_mosaic_index = self._Mosaic_index()
@@ -328,14 +334,16 @@ class NewDatasetSet(torch.utils.data.Dataset):
                 image_list.append(o_img)
                 target_list.append(otarget)
             
-            if self.Continual_Batch == 2:
+            if self.args.Continual_Batch_size == 2:
                 Cur_img, Cur_lab = self._CCB(image_list, target_list)
                 return img, target, origin_img, origin_target, Cur_img, Cur_lab #cur_img, cur_lab = mosaic images, mosaic labels
             
-            if self.Continual_Batch == 3:
+            if self.args.Continual_Batch_size == 3:
                 Cur_img, Cur_lab, Dif_img, Dif_lab = self._CCB(image_list, target_list)
                 return img, target, origin_img, origin_target, Cur_img, Cur_lab, Dif_img, Dif_lab
             
+        return img, target, origin_img, origin_target
+    
     def _Mosaic_index(self): #* Done
         '''
             Only Mosaic index printed 
@@ -377,7 +385,7 @@ def CombineDataset(args, RehearsalData, CurrentDataset,
         CombinedDataset = ConcatDataset([OldDataset, CurrentDataset])
         NewTaskdataset = NewDatasetSet(args, CCB, CombinedDataset, OldDataset, OldDataset_weights, old_fisher_weight, AugReplay=False, Mosaic=True) \
             
-    elif ~args.AugReplay and ~args.MixReplay :
+    elif ~args.AugReplay and ~args.MixReplay and ~args.Mosaic:
         CombinedDataset = ConcatDataset([OldDataset, CurrentDataset])
         NewTaskdataset = NewDatasetSet(args, CCB, CombinedDataset, OldDataset, OldDataset_weights, old_fisher_weight, AugReplay=False) 
         
@@ -403,7 +411,7 @@ def CombineDataset(args, RehearsalData, CurrentDataset,
         CombinedLoader = DataLoader(NewTaskdataset, batch_sampler=batch_sampler_train,
                         collate_fn=utils.collate_fn, num_workers=Worker,
                         pin_memory=True) #worker_init_fn=worker_init_fn, persistent_workers=args.AugReplay)
-    
+    print(NewTaskdataset[0])
     return NewTaskdataset, CombinedLoader, sampler_train
 
 
