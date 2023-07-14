@@ -141,7 +141,7 @@ class TrainingPipeline:
             num_classes = 60 if self.args.LG else 91
             current_class = None
         else:
-            idx = len(self.Divided_Classes) if self.args.LG and self.args.eval else task_idx+1
+            idx = len(self.Divided_Classes) if self.args.eval and self.args.Total_Classes_Names else task_idx+1
             current_class = sum(self.Divided_Classes[:idx], [])
             num_classes = len(current_class) + 1
             
@@ -310,8 +310,8 @@ class TrainingPipeline:
         if args.all_data == True:
             # eval과 train의 coco_path를 다르게 설정
             dir_list = [f for f in glob(os.path.join(args.coco_path, '*')) if os.path.isdir(f)]
-            if os.path.isfile(self.DIR):
-                os.remove(self.DIR) # self.DIR = args.output_dir + 'mAP_TEST.txt'
+            # if os.path.isfile(self.DIR):
+            #     os.remove(self.DIR) # self.DIR = args.output_dir + 'mAP_TEST.txt'
         else:
             dir_list = [args.coco_path] # "/home/user/Desktop/vscode"+ 
         
@@ -363,6 +363,19 @@ class TrainingPipeline:
                         
                     _, _ = evaluate(self.model, self.criterion, self.postprocessors,
                                                     data_loader_val, base_ds, self.device, args.output_dir, self.DIR, args)
+            elif args.Total_Classes_Names:
+                # TODO: VE - eval인 경우도 고려하기
+                print(colored(f"now evaluating file name : {args.coco_path}", "red"))
+                print(colored(f"now eval classes: {self.current_class}", "red"))
+                dataset_val, data_loader_val, _, _  = Incre_Dataset(0, args, [self.current_class])
+                base_ds = get_coco_api_from_dataset(dataset_val)
+                
+                with open(self.DIR, 'a') as f:
+                    f.write(f"-----------------------task working----------------------\n")
+                    f.write(f"NOW TASK num : {0} , checked classes : {self.current_class} \t ")
+                    
+                _, _ = evaluate(self.model, self.criterion, self.postprocessors,
+                                                data_loader_val, base_ds, self.device, args.output_dir, self.DIR, args)                
             else:
                 test_epoch = 1 if args.Total_Classes != args.Test_Classes else args.Task
                 for task_idx in range(test_epoch) :
