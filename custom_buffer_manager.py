@@ -178,33 +178,33 @@ def construct_rehearsal(args, losses_dict: dict, targets, rehearsal_dict: List,
                                                             rehearsal_classes=rehearsal_dict, label_tensor_unique_list=label_tensor_unique_list,
                                                             image_id=image_id, num_bounding_boxes=bbox_counts)
                     
-                    return rehearsal_dict
                 
                 
-            # First, generate a dictionary with counts of each class label in rehearsal_classes
-            image_counts_in_rehearsal = {class_label: sum(class_label in classes for _, classes, _ in rehearsal_dict.values()) for class_label in label_tensor_unique_list}
+            if args.Sampling_mode == "GM":    
+                # First, generate a dictionary with counts of each class label in rehearsal_classes
+                image_counts_in_rehearsal = {class_label: sum(class_label in classes for _, classes, _ in rehearsal_dict.values()) for class_label in label_tensor_unique_list}
 
-            # Then, calculate the needed count for each class label and filter out those with a non-positive needed count
-            need_to_include = {class_label: count - least_image for class_label, count in image_counts_in_rehearsal.items() if count - least_image <= 0}
+                # Then, calculate the needed count for each class label and filter out those with a non-positive needed count
+                need_to_include = {class_label: count - least_image for class_label, count in image_counts_in_rehearsal.items() if count - least_image <= 0}
 
-            if len(need_to_include) > 0:
-                changed_available_dict = _change_available_list_mode(mode=args.Sampling_mode, rehearsal_dict=rehearsal_dict,
-                                            need_to_include=need_to_include, least_image=least_image, current_classes=current_classes)
-                
-                # all classes dont meet L requirement
-                targeted = _calc_target(rehearsal_classes=changed_available_dict, replace_strategy=args.Sampling_strategy, )
-                
-                del rehearsal_dict[targeted[0]]
-                rehearsal_dict[image_id] = [loss_value, label_tensor_unique_list, bbox_counts]
-            else :
-                changed_available_dict = _change_available_list_mode(mode=args.Sampling_mode, rehearsal_dict=rehearsal_dict,
-                                            need_to_include=need_to_include, least_image=least_image, current_classes=current_classes)
-                
-                # all classes dont meet L requirement
-                targeted = _calc_target(rehearsal_classes=changed_available_dict, replace_strategy=args.Sampling_strategy, )
-                rehearsal_dict = _replacment_strategy(args=args, loss_value=loss_value, targeted=targeted, 
-                                        rehearsal_classes=rehearsal_dict, label_tensor_unique_list=label_tensor_unique_list,
-                                        image_id=image_id, num_bounding_boxes=bbox_counts)
+                if len(need_to_include) > 0:
+                    changed_available_dict = _change_available_list_mode(mode=args.Sampling_mode, rehearsal_dict=rehearsal_dict,
+                                                need_to_include=need_to_include, least_image=least_image, current_classes=current_classes)
+                    
+                    # all classes dont meet L requirement
+                    targeted = _calc_target(rehearsal_classes=changed_available_dict, replace_strategy=args.Sampling_strategy, )
+                    
+                    del rehearsal_dict[targeted[0]]
+                    rehearsal_dict[image_id] = [loss_value, label_tensor_unique_list, bbox_counts]
+                else :
+                    changed_available_dict = _change_available_list_mode(mode=args.Sampling_mode, rehearsal_dict=rehearsal_dict,
+                                                need_to_include=need_to_include, least_image=least_image, current_classes=current_classes)
+                    
+                    # all classes dont meet L requirement
+                    targeted = _calc_target(rehearsal_classes=changed_available_dict, replace_strategy=args.Sampling_strategy, )
+                    rehearsal_dict = _replacment_strategy(args=args, loss_value=loss_value, targeted=targeted, 
+                                            rehearsal_classes=rehearsal_dict, label_tensor_unique_list=label_tensor_unique_list,
+                                            image_id=image_id, num_bounding_boxes=bbox_counts)
     
     return rehearsal_dict
 
@@ -402,32 +402,39 @@ def _handle_rehearsal(args, dir, limit_memory_size, gpu_counts, task, epoch, lea
             if len(new_buffer_dict.keys()) <  limit_memory_size :                                        
                 new_buffer_dict[img_idx] = merge_dict[img_idx]
             else : 
-                # First, generate a dictionary with counts of each class label in rehearsal_classes
-                image_counts_in_rehearsal = {class_label: sum(class_label in classes for _, classes, _ in new_buffer_dict.values()) for class_label in unique_classes_list}
-
-                # Then, calculate the needed count for each class label and filter out those with a non-positive needed count
-                need_to_include = {class_label: count - least_image for class_label, count in image_counts_in_rehearsal.items() if (count - least_image) <= 0}
-                if len(need_to_include) > 0:
-                    changed_available_dict = _change_available_list_mode(mode=args.Sampling_mode, rehearsal_dict=new_buffer_dict,
-                                                need_to_include=need_to_include, least_image=least_image, current_classes=list_CC)
-                    
-                    # all classes dont meet L requirement
-                    targeted = _calc_target(rehearsal_classes=changed_available_dict, replace_strategy=args.Sampling_strategy, )
-                    
-                    del new_buffer_dict[targeted[0]]
-                    new_buffer_dict[img_idx] = [loss_value, unique_classes_list, bbox_counts]
-                        
-                else :
-                    changed_available_dict = _change_available_list_mode(mode=args.Sampling_mode, rehearsal_dict=new_buffer_dict,
-                                                need_to_include=need_to_include, least_image=least_image, current_classes=list_CC)
-                
-                    # all classes meet L requirement
-                    # Just sampling strategy and replace strategy
-                    targeted = _calc_target(rehearsal_classes=changed_available_dict, replace_strategy=args.Sampling_strategy,)
-
+                if args.Sampling_mode == "normal":
+                    targeted = _calc_target(rehearsal_classes=new_buffer_dict, replace_strategy=args.Sampling_strategy, )
                     new_buffer_dict = _replacment_strategy(args=args, loss_value=loss_value, targeted=targeted, 
-                                                            rehearsal_classes=new_buffer_dict, label_tensor_unique_list=unique_classes_list,
-                                                            image_id=img_idx, num_bounding_boxes=bbox_counts)
+                                        rehearsal_classes=new_buffer_dict, label_tensor_unique_list=unique_classes_list,
+                                        image_id=img_idx, num_bounding_boxes=bbox_counts)
+                    
+                elif args.Sampling_mode == "GM":    
+                    # First, generate a dictionary with counts of each class label in rehearsal_classes
+                    image_counts_in_rehearsal = {class_label: sum(class_label in classes for _, classes, _ in new_buffer_dict.values()) for class_label in unique_classes_list}
+
+                    # Then, calculate the needed count for each class label and filter out those with a non-positive needed count
+                    need_to_include = {class_label: count - least_image for class_label, count in image_counts_in_rehearsal.items() if (count - least_image) <= 0}
+                    if len(need_to_include) > 0:
+                        changed_available_dict = _change_available_list_mode(mode=args.Sampling_mode, rehearsal_dict=new_buffer_dict,
+                                                    need_to_include=need_to_include, least_image=least_image, current_classes=list_CC)
+                        
+                        # all classes dont meet L requirement
+                        targeted = _calc_target(rehearsal_classes=changed_available_dict, replace_strategy=args.Sampling_strategy, )
+                        
+                        del new_buffer_dict[targeted[0]]
+                        new_buffer_dict[img_idx] = [loss_value, unique_classes_list, bbox_counts]
+                            
+                    else :
+                        changed_available_dict = _change_available_list_mode(mode=args.Sampling_mode, rehearsal_dict=new_buffer_dict,
+                                                    need_to_include=need_to_include, least_image=least_image, current_classes=list_CC)
+                    
+                        # all classes meet L requirement
+                        # Just sampling strategy and replace strategy
+                        targeted = _calc_target(rehearsal_classes=changed_available_dict, replace_strategy=args.Sampling_strategy,)
+
+                        new_buffer_dict = _replacment_strategy(args=args, loss_value=loss_value, targeted=targeted, 
+                                                                rehearsal_classes=new_buffer_dict, label_tensor_unique_list=unique_classes_list,
+                                                                image_id=img_idx, num_bounding_boxes=bbox_counts)
 
     else:
         merged_dict = icarl_load_dicts_from_files(dir_list)
