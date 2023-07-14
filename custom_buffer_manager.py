@@ -535,7 +535,7 @@ def calc_fisher_process(args, rehearsal_dict, old_classes, criterion, model, opt
         fisher의 양은 
     '''
     soted_rehearsal_dict = dict(sorted(rehearsal_dict.items(), key=lambda x: x[0]))
-    _, fisher_data_loader, _ = fisher_dataset_loader(args, soted_rehearsal_dict, old_classes)
+    fisher_data_loader = fisher_dataset_loader(args, soted_rehearsal_dict, old_classes)
     fisher_dict = extra_epoch_for_fisher(args, dataset_name="", data_loader=fisher_data_loader, model=model, criterion=criterion, 
                                          device=args.device, optimizer=optimizer, rehearsal_classes=soted_rehearsal_dict)
     

@@ -451,4 +451,4 @@ def fisher_dataset_loader(args, RehearsalData, old_classes):
                                 collate_fn=utils.collate_fn, num_workers=args.num_workers,
                                 pin_memory=True, prefetch_factor=8)
     
-    return buffer_dataset, data_loader, sampler_train
+    return data_loader
