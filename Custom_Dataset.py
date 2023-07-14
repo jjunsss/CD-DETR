@@ -50,11 +50,11 @@ def Incre_Dataset(Task_Num, args, Incre_Classes, extra_dataset = False):
             sampler_train, args.batch_size, drop_last=True)
         data_loader_train = DataLoader(dataset_train, batch_sampler=batch_sampler_train,
                                     collate_fn=utils.collate_fn, num_workers=args.num_workers,
-                                    pin_memory=True, prefetch_factor=8)
+                                    pin_memory=True, prefetch_factor=4)
     else:
         data_loader_val = DataLoader(dataset_val, args.batch_size, sampler=sampler_val,
                                      drop_last=False, collate_fn=utils.collate_fn, num_workers=args.num_workers,
-                                     pin_memory=True, prefetch_factor=8)
+                                     pin_memory=True, prefetch_factor=4)
         return dataset_val, data_loader_val, sampler_val, all_classes
     
     return dataset_train, data_loader_train, sampler_train, current_classes
@@ -411,7 +411,7 @@ def CombineDataset(args, RehearsalData, CurrentDataset,
     
     CombinedLoader = DataLoader(NewTaskdataset, batch_sampler=batch_sampler_train,
                     collate_fn=utils.collate_fn, num_workers=Worker,
-                    pin_memory=True, prefetch_factor=8) #worker_init_fn=worker_init_fn, persistent_workers=args.AugReplay)
+                    pin_memory=True, prefetch_factor=4) #worker_init_fn=worker_init_fn, persistent_workers=args.AugReplay)
 
     # print(NewTaskdataset[0])
     return NewTaskdataset, CombinedLoader, sampler_train
@@ -449,6 +449,6 @@ def fisher_dataset_loader(args, RehearsalData, old_classes):
     
     data_loader = DataLoader(buffer_dataset, batch_sampler=batch_sampler_train,
                                 collate_fn=utils.collate_fn, num_workers=args.num_workers,
-                                pin_memory=True, prefetch_factor=8)
+                                pin_memory=True, prefetch_factor=4)
     
     return data_loader
