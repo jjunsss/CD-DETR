@@ -364,6 +364,9 @@ class TrainingPipeline:
                     _, _ = evaluate(self.model, self.criterion, self.postprocessors,
                                                     data_loader_val, base_ds, self.device, args.output_dir, self.DIR, args)
             elif args.Total_Classes_Names:
+                if args.Test_idx is not None:
+                    self.current_class = self.Divided_Classes[args.Test_idx]
+
                 # TODO: VE - eval인 경우도 고려하기
                 print(colored(f"now evaluating file name : {args.coco_path}", "red"))
                 print(colored(f"now eval classes: {self.current_class}", "red"))

@@ -117,6 +117,8 @@ def get_args_parser():
     parser.add_argument('--FPP', default=False, action='store_true', help="Forgetting metrics")
     parser.add_argument('--Test_Classes', default=45, type=int, help="2 task eval(coco) : T1=45 / T2=90, 3task eval(coco) T1=30 T2=60 T3=90\
                                                                       this value be used to config model architecture in the adequate task")
+    parser.add_argument('--Test_idx', default=None, type=int, help="Set index of task to test")    
+
     return parser    
 
 
