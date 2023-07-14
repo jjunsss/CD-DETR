@@ -403,7 +403,7 @@ def _handle_rehearsal(args, dir, limit_memory_size, gpu_counts, task, epoch, lea
                 new_buffer_dict[img_idx] = merge_dict[img_idx]
             else : 
                 if args.Sampling_mode == "normal":
-                    targeted = _calc_target(rehearsal_classes=changed_available_dict, replace_strategy=args.Sampling_strategy, )
+                    targeted = _calc_target(rehearsal_classes=new_buffer_dict, replace_strategy=args.Sampling_strategy, )
                     new_buffer_dict = _replacment_strategy(args=args, loss_value=loss_value, targeted=targeted, 
                                         rehearsal_classes=new_buffer_dict, label_tensor_unique_list=unique_classes_list,
                                         image_id=img_idx, num_bounding_boxes=bbox_counts)
