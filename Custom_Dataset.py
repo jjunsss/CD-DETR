@@ -50,11 +50,11 @@ def Incre_Dataset(Task_Num, args, Incre_Classes, extra_dataset = False):
             sampler_train, args.batch_size, drop_last=True)
         data_loader_train = DataLoader(dataset_train, batch_sampler=batch_sampler_train,
                                     collate_fn=utils.collate_fn, num_workers=args.num_workers,
-                                    pin_memory=True, prefetch_factor=4)
+                                    pin_memory=True, prefetch_factor=args.prefetch)
     else:
         data_loader_val = DataLoader(dataset_val, args.batch_size, sampler=sampler_val,
                                      drop_last=False, collate_fn=utils.collate_fn, num_workers=args.num_workers,
-                                     pin_memory=True, prefetch_factor=4)
+                                     pin_memory=True, prefetch_factor=args.prefetch)
         return dataset_val, data_loader_val, sampler_val, all_classes
     
     return dataset_train, data_loader_train, sampler_train, current_classes
@@ -207,6 +207,8 @@ def img_id_config_no_circular_training(args, re_dict):
 
 
 import copy
+from sklearn.preprocessing import QuantileTransformer
+import numpy as np
 class CustomDataset(torch.utils.data.Dataset):
     '''
         replay buffer configuration
@@ -261,13 +263,27 @@ class CustomDataset(torch.utils.data.Dataset):
     #     scaled_tensor = (tensor - min_val) / (max_val - min_val)
 
     #     return scaled_tensor
-    
+
     def scaling(self, tensor):
-        summation = torch.sum(tensor, dim=0)
-        scaled_tensor = tensor / summation
+        # Quantile Scaling
+        qt = QuantileTransformer()
+        
+        # Transform tensor to numpy array for scaling
+        tensor_np = tensor.cpu().detach().numpy()
+        
+        # The fit_transform expects 2D data, so we need to add extra dim
+        tensor_np = np.expand_dims(tensor_np, axis=1)
+        
+        # Fit and transform data
+        scaled_array = qt.fit_transform(tensor_np)
+        
+        # Convert back to tensor
+        scaled_tensor = torch.from_numpy(scaled_array).float()
+        
+        # Remove the extra dimension
+        scaled_tensor = torch.squeeze(scaled_tensor)
 
         return scaled_tensor
-    
 import copy
 class ExtraDataset(torch.utils.data.Dataset):
     '''
@@ -307,6 +323,8 @@ class NewDatasetSet(torch.utils.data.Dataset):
         if self.Mosaic == True: 
             self.old_length = len(OldDataset)
             self._CCB = CCB_augmentation(self.img_size, self.args.Continual_Batch_size)
+        if self.AugReplay == True:
+            self.index_usage = dict()
 
     def __len__(self):
             return len(self.Datasets)
@@ -317,6 +335,7 @@ class NewDatasetSet(torch.utils.data.Dataset):
         if self.AugReplay == True :
             if self.args.CER == "fisher": # fisher CER
                 index = np.random.choice(np.arange(len(self.Rehearsal_dataset)), p=self.fisher_weights.numpy())
+                self.index_usage[index] = self.index_usage.get(index, 0) + 1
                 O_img, O_target, _, _ = self.Rehearsal_dataset[index] #No shuffle because weight sorting.
                 return img, target, origin_img, origin_target, O_img, O_target
             elif self.args.CER == "weight": # weight CER
@@ -350,6 +369,14 @@ class NewDatasetSet(torch.utils.data.Dataset):
             
         return img, target, origin_img, origin_target
     
+    # New method to print the usage of each index
+    def print_index_usage(self):
+        for index, count in self.index_usage.items():
+            print(colored(f'duplicate info. index {index} has been used {count} times', "blue", "on_yellow"))
+    
+    def print_index_usage_reset(self):
+        self.index_usage = dict()
+        
     def _Mosaic_index(self): #* Done
         '''
             Only Mosaic index printed 
@@ -411,7 +438,7 @@ def CombineDataset(args, RehearsalData, CurrentDataset,
     
     CombinedLoader = DataLoader(NewTaskdataset, batch_sampler=batch_sampler_train,
                     collate_fn=utils.collate_fn, num_workers=Worker,
-                    pin_memory=True, prefetch_factor=4) #worker_init_fn=worker_init_fn, persistent_workers=args.AugReplay)
+                    pin_memory=True, prefetch_factor=args.prefetch) #worker_init_fn=worker_init_fn, persistent_workers=args.AugReplay)
 
     # print(NewTaskdataset[0])
     return NewTaskdataset, CombinedLoader, sampler_train
@@ -442,13 +469,12 @@ def IcarlDataset(args, single_class:int):
 def fisher_dataset_loader(args, RehearsalData, old_classes):
     buffer_dataset = ExtraDataset(args, RehearsalData, old_classes)
     
-
     sampler_train = torch.utils.data.SequentialSampler(buffer_dataset)
         
     batch_sampler_train = torch.utils.data.BatchSampler(sampler_train, batch_size=1, drop_last=False)
     
     data_loader = DataLoader(buffer_dataset, batch_sampler=batch_sampler_train,
                                 collate_fn=utils.collate_fn, num_workers=args.num_workers,
-                                pin_memory=True, prefetch_factor=4)
+                                pin_memory=True, prefetch_factor=args.prefetch)
     
     return data_loader
