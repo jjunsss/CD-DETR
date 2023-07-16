@@ -538,7 +538,8 @@ def calc_fisher_process(args, rehearsal_dict, old_classes, criterion, model, opt
     fisher_data_loader = fisher_dataset_loader(args, soted_rehearsal_dict, old_classes)
     fisher_dict = extra_epoch_for_fisher(args, dataset_name="", data_loader=fisher_data_loader, model=model, criterion=criterion, 
                                          device=args.device, optimizer=optimizer, rehearsal_classes=soted_rehearsal_dict)
-    
+    # fisher model delete. because It doesn't need more.
+    del model
     ## Fisher Debugging
     # # 이미지 아이디는 문자열 'img'에 숫자를 더해 생성합니다.
     # img_ids = [f'img_{i}' for i in range(1200)]

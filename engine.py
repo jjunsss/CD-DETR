@@ -110,7 +110,7 @@ def create_prefetcher(dataset_name: str, data_loader: Iterable, device: torch.de
         return data_prefetcher(data_loader, device, prefetch=True, Mosaic=False)
 
 import random
-def train_one_epoch(args, last_task, epo, model: torch.nn.Module, teacher_model, criterion: torch.nn.Module,
+def train_one_epoch(args, last_task, epo, model: torch.nn.Module, teacher_model, criterion: torch.nn.Module, dataset_train,
                     data_loader: Iterable, optimizer: torch.optim.Optimizer, lr_scheduler: ContinualStepLR,
                     device: torch.device, dataset_name: str, current_classes: List = [], rehearsal_classes: Dict = {},
                     first_training = False):
@@ -150,6 +150,9 @@ def train_one_epoch(args, last_task, epo, model: torch.nn.Module, teacher_model,
 
         CER_Prob = random.random() # if I set this to 0 or 1, so then usually fixed CER mode.
         if args.AugReplay and args.Rehearsal and not first_training:
+            if idx % 50 == 0:
+                dataset_train.print_index_usage()
+                
             if CER_Prob < 0.5: # this term is for randomness training in "replay and original"
                 # this process only replay strategy, AugReplay is same to "Circular Training"
                 # samples, targets, _, _ = prefetcher.next() #* Different

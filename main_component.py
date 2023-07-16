@@ -154,13 +154,19 @@ class TrainingPipeline:
         self.update_class(task_idx)
 
         model, criterion, postprocessors = get_models(self.args.model_name, self.args, self.num_classes, self.current_class)
-
+        if self.args.fisher_model is not None:
+            print(colored(f"fisher model loading : {self.args.fisher_model}", "blue", "on_yellow"))
+            self.fisher_model, self.fisher_criterion, _ = get_models(self.args.model_name, self.args, len(self.previous_classes)+1, self.previous_classes)
+            self.fisher_model = load_model_params("eval", self.fisher_model, self.args.fisher_model)
+            self.load_ddp_state(self.fisher_model)
         if self.args.Distill:
             pre_model, _, _ = get_models(self.args.model_name, self.args, self.num_classes, self.current_class)
         #FIXME: If we use the pre_model option, we need to load the pre-trained model architecture.
         #FIXME: because previous version of the model does not match the current version(branch incremental option)
         if self.args.pretrained_model is not None and not self.args.eval:
             model = load_model_params("main", model, self.args.pretrained_model)
+        # if self.args.AugReplay :
+        #     self.fisher_model = load_model_params("eval", model, self.args.fisher_model)
         model_without_ddp = model
         
         teacher_model = None
@@ -210,17 +216,23 @@ class TrainingPipeline:
         return optimizer, lr_scheduler
 
 
-    def load_state(self):
+    def load_ddp_state(self, fisher_model=None):
         args = self.args
         # For extra epoch training, because It's not affected to DDP.
-        self.model = self.model.to(self.device)
-        if args.distributed:
-            self.model = torch.nn.parallel.DistributedDataParallel(self.model, device_ids=[args.gpu])
-            self.model_without_ddp = self.model.module
+        if fisher_model == None:
+            self.model = self.model.to(self.device)
+            if args.distributed:
+                self.model = torch.nn.parallel.DistributedDataParallel(self.model, device_ids=[args.gpu])
+                self.model_without_ddp = self.model.module
 
-        if args.frozen_weights is not None:
-            checkpoint = torch.load(args.frozen_weights, map_location='cpu')
-            self.model_without_ddp.detr.load_state_dict(checkpoint['model'])
+            if args.frozen_weights is not None:
+                checkpoint = torch.load(args.frozen_weights, map_location='cpu')
+                self.model_without_ddp.detr.load_state_dict(checkpoint['model'])
+            
+        if args.distributed and fisher_model != None:
+            self.fisher_model = self.fisher_model.to(self.device)
+            self.fisher_model = torch.nn.parallel.DistributedDataParallel(self.fisher_model, device_ids=[args.gpu])
+            self.fisher_model_without_ddp = self.fisher_model.module
 
 
     def _incremental_setting(self):
@@ -391,6 +403,7 @@ class TrainingPipeline:
         T_epochs = args.Task_Epochs[0] if isinstance(args.Task_Epochs, list) else args.Task_Epochs
         
         for epoch in range(self.start_epoch, T_epochs): #어차피 Task마다 훈련을 진행해야 하고, 중간점음 없을 것이므로 TASK마다 훈련이 되도록 만들어도 상관이 없음
+            dataset_train.print_index_usage_reset()
             if args.MixReplay and args.Rehearsal and task_idx >= 1:
                 dataset_index = epoch % 2 
                 self.dataset_name = ["AugReplay", "Original"]
@@ -406,7 +419,7 @@ class TrainingPipeline:
             print(colored(f"Task is Last : {last_task}", "blue", "on_white"))
             
             # Training process
-            train_one_epoch(args, last_task, epoch, self.model, self.teacher_model, self.criterion, 
+            train_one_epoch(args, last_task, epoch, self.model, self.teacher_model, self.criterion, dataset_train,
                             data_loader_train, self.optimizer, self.lr_scheduler,
                             self.device, self.dataset_name, list_CC, self.rehearsal_classes, first_training)
             
@@ -468,9 +481,12 @@ def generate_dataset(first_training, task_idx, args, pipeline):
         previous_classes = sum(pipeline.Divided_Classes[:task_idx], []) # Not now current classe
         if args.AugReplay:
             #TODO: need to Fisher condition
-            fisher_dict = calc_fisher_process(args, pipeline.rehearsal_classes, previous_classes, 
-                                            pipeline.criterion, pipeline.model, pipeline.optimizer)
-            
+            if args.fisher_model != None:
+                fisher_dict = calc_fisher_process(args, pipeline.rehearsal_classes, previous_classes, 
+                                                pipeline.fisher_criterion, pipeline.fisher_model, pipeline.optimizer)
+            else :    
+                fisher_dict = calc_fisher_process(args, pipeline.rehearsal_classes, previous_classes, 
+                                                pipeline.criterion, pipeline.model, pipeline.optimizer)
             AugRplay_dataset, AugRplay_loader, AugRplay_sampler = CombineDataset(
                 args, replay_dataset, dataset_train, args.num_workers, args.batch_size, 
                 old_classes=previous_classes, fisher_dict=fisher_dict, MixReplay="AugReplay")
