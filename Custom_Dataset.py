@@ -263,27 +263,35 @@ class CustomDataset(torch.utils.data.Dataset):
     #     scaled_tensor = (tensor - min_val) / (max_val - min_val)
 
     #     return scaled_tensor
-
+    
     def scaling(self, tensor):
-        # Quantile Scaling
-        qt = QuantileTransformer()
-        
-        # Transform tensor to numpy array for scaling
-        tensor_np = tensor.cpu().detach().numpy()
-        
-        # The fit_transform expects 2D data, so we need to add extra dim
-        tensor_np = np.expand_dims(tensor_np, axis=1)
-        
-        # Fit and transform data
-        scaled_array = qt.fit_transform(tensor_np)
-        
-        # Convert back to tensor
-        scaled_tensor = torch.from_numpy(scaled_array).float()
-        
-        # Remove the extra dimension
-        scaled_tensor = torch.squeeze(scaled_tensor)
+        # weight scaling (best performance in scalar !!)
+        # ablation study preserving
+        summation = torch.sum(tensor, dim=0)
+        scaled_tensor = tensor / summation
 
         return scaled_tensor
+
+    # def scaling(self, tensor):
+    #     # Quantile Scaling
+    #     qt = QuantileTransformer()
+        
+    #     # Transform tensor to numpy array for scaling
+    #     tensor_np = tensor.cpu().detach().numpy()
+        
+    #     # The fit_transform expects 2D data, so we need to add extra dim
+    #     tensor_np = np.expand_dims(tensor_np, axis=1)
+        
+    #     # Fit and transform data
+    #     scaled_array = qt.fit_transform(tensor_np)
+        
+    #     # Convert back to tensor
+    #     scaled_tensor = torch.from_numpy(scaled_array).float()
+        
+    #     # Remove the extra dimension
+    #     scaled_tensor = torch.squeeze(scaled_tensor)
+
+    #     return scaled_tensor
 import copy
 class ExtraDataset(torch.utils.data.Dataset):
     '''
@@ -404,7 +412,7 @@ def CombineDataset(args, RehearsalData, CurrentDataset,
     OldDataset_weights = OldDataset.weights
     old_fisher_weight = OldDataset.fisher_softmax_weights
     
-    if args.MixReplay and MixReplay == "original" :
+    if args.MixReplay and MixReplay == "Original" :
         CombinedDataset = ConcatDataset([OldDataset, CurrentDataset])
         NewTaskdataset = NewDatasetSet(args, CCB, CombinedDataset, OldDataset, OldDataset_weights, old_fisher_weight, AugReplay=False)
          
@@ -413,6 +421,7 @@ def CombineDataset(args, RehearsalData, CurrentDataset,
         
     if args.AugReplay and ~args.MixReplay :
         NewTaskdataset = NewDatasetSet(args, CCB, CurrentDataset, OldDataset, OldDataset_weights, old_fisher_weight, AugReplay=args.AugReplay)
+    
     elif ~args.AugReplay and ~args.MixReplay and args.Mosaic :
         # mosaic dataset configuration
         CombinedDataset = ConcatDataset([OldDataset, CurrentDataset])
