@@ -144,14 +144,13 @@ def train_one_epoch(args, last_task, epo, model: torch.nn.Module, teacher_model,
 
         #Stage 1 -> T1에 대한 모든 훈련
         #Stage 2 -> T2에 대한 모든 훈련, AugReplay 사용하지 않을 때에는 일반적인 Replay 전략과 동일한 형태로 훈련을 수행
-        if not dataset_name != "AugReplay" or first_training:
+        if dataset_name != "AugReplay" or first_training:
             sum_loss, count = Original_training(args, last_task, epo, idx, count, sum_loss, samples, targets,  
                                                 model, teacher_model, criterion, optimizer,
                                                 rehearsal_classes, train_check, current_classes)
 
         CER_Prob = random.random() # if I set this to 0 or 1, so then usually fixed CER mode.
         if dataset_name == "AugReplay" and args.Rehearsal and not first_training:
-
                 
             if CER_Prob < 0.5: # this term is for randomness training in "replay and original"
                 # this process only replay strategy, AugReplay is same to "Circular Training"
