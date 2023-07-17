@@ -264,7 +264,7 @@ class TrainingPipeline:
             
         #* Load for Replay
         if args.Rehearsal:
-            rehearsal_classes = load_rehearsal(args.Rehearsal_file, 0, args.limit_image)
+            rehearsal_classes = load_rehearsal(args.Rehearsal_file, args.start_task-1, args.limit_image)
             try:
                 if len(list(rehearsal_classes.keys())) == 0:
                     print(f"No rehearsal file. Initialization rehearsal dict")

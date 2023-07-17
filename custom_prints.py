@@ -37,6 +37,7 @@ def check_components(args, rehearsal_classes: Dict, print_stat: bool=False):
             class_counts = {cls: len(item[1]) for cls, item in rehearsal_classes.items()}
             print(f"--------------------------------------------------------\n")
             print("Current Time =", datetime.now())
+            print(f"{args.Sampling_mode}_{args.Sampling_strategy}_{args.limit_image}_{args.least_image}")
             print(f"The number of buffer: {len(rehearsal_classes.keys())}")
             for key in sorted(class_counts):
                 print(f"{key}: {class_counts[key]}")  
@@ -45,6 +46,7 @@ def check_components(args, rehearsal_classes: Dict, print_stat: bool=False):
             # To print the current time
             print(f"--------------------------------------------------------\n")
             print("Current Time =", datetime.now())
+            print(f"{args.Sampling_mode}_{args.Sampling_strategy}_{args.limit_image}_{args.least_image}")
             print(f"The number of buffer: {len(rehearsal_classes.keys())}")
             for key in sorted(class_counts):
                 print(f"{key}: {class_counts[key]}")         
