@@ -403,7 +403,6 @@ class TrainingPipeline:
         T_epochs = args.Task_Epochs[0] if isinstance(args.Task_Epochs, list) else args.Task_Epochs
         
         for epoch in range(self.start_epoch, T_epochs): #어차피 Task마다 훈련을 진행해야 하고, 중간점음 없을 것이므로 TASK마다 훈련이 되도록 만들어도 상관이 없음
-            dataset_train.print_index_usage_reset()
             if args.MixReplay and args.Rehearsal and task_idx >= 1:
                 dataset_index = epoch % 2 
                 self.dataset_name = ["AugReplay", "Original"]
