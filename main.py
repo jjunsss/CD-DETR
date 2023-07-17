@@ -39,6 +39,7 @@ def main(args):
 
     # Constructing only the replay buffer
     if args.Construct_Replay :
+        pipeline.load_ddp_state(fisher_model=args.fisher_model)
         pipeline.construct_replay_buffer()
         return
 
