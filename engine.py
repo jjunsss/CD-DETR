@@ -124,6 +124,7 @@ def train_one_epoch(args, last_task, epo, model: torch.nn.Module, teacher_model,
     sum_loss = 0.0
     count = 0
     for idx in tqdm(range(len(data_loader)), disable=not utils.is_main_process()): #targets
+        batch_count = args.batch_size * (idx + 1)
         if idx % 100 == 0:
             torch.cuda.empty_cache()
         samples, targets, _, _ = prefetcher.next()
@@ -150,8 +151,7 @@ def train_one_epoch(args, last_task, epo, model: torch.nn.Module, teacher_model,
 
         CER_Prob = random.random() # if I set this to 0 or 1, so then usually fixed CER mode.
         if dataset_name == "AugReplay" and args.Rehearsal and not first_training:
-            if idx % 50 == 0:
-                dataset_train.print_index_usage()
+
                 
             if CER_Prob < 0.5: # this term is for randomness training in "replay and original"
                 # this process only replay strategy, AugReplay is same to "Circular Training"
@@ -160,16 +160,19 @@ def train_one_epoch(args, last_task, epo, model: torch.nn.Module, teacher_model,
                 sum_loss, count = Original_training(args, last_task, epo, idx, count, sum_loss, samples, targets,  
                                                     model, teacher_model, criterion, optimizer,
                                                     rehearsal_classes, train_check, current_classes)
-                count, sum_loss = Circular_training(args, last_task, epo, idx, count, sum_loss, replay_samples, replay_targets,
-                                                    model, teacher_model, criterion, optimizer,
-                                                    current_classes)
+                if batch_count > dataset_train.old_length:
+                    count, sum_loss = Circular_training(args, last_task, epo, idx, count, sum_loss, replay_samples, replay_targets,
+                                                        model, teacher_model, criterion, optimizer,
+                                                        current_classes)
             else :
-                count, sum_loss = Circular_training(args, last_task, epo, idx, count, sum_loss, replay_samples, replay_targets,
-                                                    model, teacher_model, criterion, optimizer,
-                                                    current_classes)
+                if batch_count > dataset_train.old_length:
+                    count, sum_loss = Circular_training(args, last_task, epo, idx, count, sum_loss, replay_samples, replay_targets,
+                                                        model, teacher_model, criterion, optimizer,
+                                                        current_classes)
                 sum_loss, count = Original_training(args, last_task, epo, idx, count, sum_loss, samples, targets,  
                                                     model, teacher_model, criterion, optimizer,
                                                     rehearsal_classes, train_check, current_classes)
+            del replay_samples, replay_targets
         del samples, targets, train_check
 
         # 정완 디버그

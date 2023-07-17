@@ -316,8 +316,11 @@ class ExtraDataset(torch.utils.data.Dataset):
         samples, targets, new_samples, new_targets = self.datasets[idx]
 
         return samples, targets, new_samples, new_targets
-    
+
 import random
+import collections
+
+import torch.distributed as dist
 class NewDatasetSet(torch.utils.data.Dataset):
     def __init__(self, args, CCB_augmentation, datasets, OldDataset, OldDataset_weights, fisher_weight, AugReplay=False, Mosaic=False):
         self.args = args
@@ -328,22 +331,21 @@ class NewDatasetSet(torch.utils.data.Dataset):
         self.fisher_weights = fisher_weight
         self.Mosaic = Mosaic #for mosaic augmentation
         self.img_size = (480, 640) #for mosaic augmentation
+        if self.AugReplay == True:
+            self.old_length = len(self.Rehearsal_dataset) if dist.get_world_size() == 1 else int(len(self.Rehearsal_dataset) // dist.get_world_size()) # 4
         if self.Mosaic == True: 
             self.old_length = len(OldDataset)
             self._CCB = CCB_augmentation(self.img_size, self.args.Continual_Batch_size)
-        if self.AugReplay == True:
-            self.index_usage = dict()
 
+            
     def __len__(self):
-            return len(self.Datasets)
+        return len(self.Datasets)
 
     def __getitem__(self, index): 
         img, target, origin_img, origin_target = self.Datasets[index] #No normalize pixel, Normed Targets
-            
         if self.AugReplay == True :
             if self.args.CER == "fisher": # fisher CER
                 index = np.random.choice(np.arange(len(self.Rehearsal_dataset)), p=self.fisher_weights.numpy())
-                self.index_usage[index] = self.index_usage.get(index, 0) + 1
                 O_img, O_target, _, _ = self.Rehearsal_dataset[index] #No shuffle because weight sorting.
                 return img, target, origin_img, origin_target, O_img, O_target
             elif self.args.CER == "weight": # weight CER
@@ -377,14 +379,6 @@ class NewDatasetSet(torch.utils.data.Dataset):
             
         return img, target, origin_img, origin_target
     
-    # New method to print the usage of each index
-    def print_index_usage(self):
-        for index, count in self.index_usage.items():
-            print(colored(f'duplicate info. index {index} has been used {count} times', "blue", "on_yellow"))
-    
-    def print_index_usage_reset(self):
-        self.index_usage = dict()
-        
     def _Mosaic_index(self): #* Done
         '''
             Only Mosaic index printed 
@@ -420,7 +414,27 @@ def CombineDataset(args, RehearsalData, CurrentDataset,
         NewTaskdataset = NewDatasetSet(args, CCB, CurrentDataset, OldDataset, OldDataset_weights, old_fisher_weight, AugReplay=args.AugReplay)
         
     if args.AugReplay and ~args.MixReplay :
-        NewTaskdataset = NewDatasetSet(args, CCB, CurrentDataset, OldDataset, OldDataset_weights, old_fisher_weight, AugReplay=args.AugReplay)
+        '''
+            circular training process
+            new_dataset : 4 gpu devide 
+            buffer_datset : 4 gpu devide and random sampler processing
+        '''
+        CombinedDataset = ConcatDataset([OldDataset, CurrentDataset])
+        NewTaskdataset = NewDatasetSet(args, CCB, CombinedDataset, OldDataset, OldDataset_weights, old_fisher_weight, AugReplay=True, Mosaic=False) \
+    
+        if args.distributed:
+            if args.cache_mode:
+                sampler_train = samplers.NodeDistributedSampler(NewTaskdataset)
+            else:
+                sampler_train = samplers.CustomDistributedSampler(NewTaskdataset, OldDataset, old_fisher_weight, shuffle=True)
+        else:
+            sampler_train = torch.utils.data.RandomSampler(NewTaskdataset)
+            
+        batch_sampler_train = torch.utils.data.BatchSampler(sampler_train, Batch_size, drop_last=True)
+        CombinedLoader = DataLoader(NewTaskdataset, batch_sampler=batch_sampler_train,
+                        collate_fn=utils.collate_fn, num_workers=Worker,
+                        pin_memory=True, prefetch_factor=args.prefetch) #worker_init_fn=worker_init_fn, persistent_workers=args.AugReplay)
+        return NewTaskdataset, CombinedLoader, sampler_train
     
     elif ~args.AugReplay and ~args.MixReplay and args.Mosaic :
         # mosaic dataset configuration
@@ -444,15 +458,15 @@ def CombineDataset(args, RehearsalData, CurrentDataset,
         sampler_train = torch.utils.data.RandomSampler(NewTaskdataset)
         
     batch_sampler_train = torch.utils.data.BatchSampler(sampler_train, Batch_size, drop_last=True)
-    
     CombinedLoader = DataLoader(NewTaskdataset, batch_sampler=batch_sampler_train,
                     collate_fn=utils.collate_fn, num_workers=Worker,
                     pin_memory=True, prefetch_factor=args.prefetch) #worker_init_fn=worker_init_fn, persistent_workers=args.AugReplay)
 
-    # print(NewTaskdataset[0])
+    print(NewTaskdataset[0])
     return NewTaskdataset, CombinedLoader, sampler_train
 
 
+    
 def IcarlDataset(args, single_class:int):
     '''
         For initiating prototype-mean of the feature of corresponding, single class-, dataset composed to single class is needed.
@@ -463,7 +477,7 @@ def IcarlDataset(args, single_class:int):
         if args.cache_mode:
             sampler = samplers.NodeDistributedSampler(dataset)
         else:
-            sampler = samplers.DistributedSampler(dataset)
+            sampler = samplers.DistributedSampler(dataset)  
     else:
         sampler = torch.utils.data.RandomSampler(dataset)
         

@@ -403,16 +403,14 @@ class TrainingPipeline:
         T_epochs = args.Task_Epochs[0] if isinstance(args.Task_Epochs, list) else args.Task_Epochs
         
         for epoch in range(self.start_epoch, T_epochs): #어차피 Task마다 훈련을 진행해야 하고, 중간점음 없을 것이므로 TASK마다 훈련이 되도록 만들어도 상관이 없음
-            if args.AugReplay and args.MixReplay and args.Rehearsal and task_idx >= 1:
+            if args.MixReplay and args.Rehearsal and task_idx >= 1:
                 dataset_index = epoch % 2 
                 self.dataset_name = ["AugReplay", "Original"]
                 dataset_train = temp_dataset[dataset_index]
                 data_loader_train = temp_loader[dataset_index]
                 sampler_train = temp_sampler[dataset_index]
                 self.dataset_name = self.dataset_name[dataset_index]
-            if self.dataset_name == "AugReplay":
-                dataset_train.print_index_usage_reset()
-
+                
             if args.distributed:
                 sampler_train.set_epoch(epoch)#TODO: 추후에 epoch를 기준으로 batch sampler를 추출하는 행위 자체가 오류를 일으킬 가능성이 있음 Incremental Learning에서                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
             print(colored(f"task id : {task_idx} / {self.tasks-1}", "blue", "on_white"))
