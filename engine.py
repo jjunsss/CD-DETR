@@ -151,7 +151,6 @@ def train_one_epoch(args, last_task, epo, model: torch.nn.Module, teacher_model,
 
         CER_Prob = random.random() # if I set this to 0 or 1, so then usually fixed CER mode.
         if dataset_name == "AugReplay" and args.Rehearsal and not first_training:
-
                 
             if CER_Prob < 0.5: # this term is for randomness training in "replay and original"
                 # this process only replay strategy, AugReplay is same to "Circular Training"
