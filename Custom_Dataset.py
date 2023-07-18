@@ -413,35 +413,35 @@ def CombineDataset(args, RehearsalData, CurrentDataset,
     elif args.MixReplay and MixReplay == "AugReplay" : 
         NewTaskdataset = NewDatasetSet(args, CCB, CurrentDataset, OldDataset, OldDataset_weights, old_fisher_weight, AugReplay=args.AugReplay)
         
-    if args.AugReplay and ~args.MixReplay :
+    if args.AugReplay and not args.MixReplay :
         '''
             circular training process
             new_dataset : 4 gpu devide 
             buffer_datset : 4 gpu devide and random sampler processing
         '''
-        CombinedDataset = ConcatDataset([OldDataset, CurrentDataset])
-        NewTaskdataset = NewDatasetSet(args, CCB, CombinedDataset, OldDataset, OldDataset_weights, old_fisher_weight, AugReplay=True, Mosaic=False) \
+        NewTaskdataset = NewDatasetSet(args, CCB, CurrentDataset, OldDataset, OldDataset_weights, old_fisher_weight, AugReplay=True, Mosaic=False)
+        # CombinedDataset = ConcatDataset([OldDataset, CurrentDataset])
     
-        if args.distributed:
-            if args.cache_mode:
-                sampler_train = samplers.NodeDistributedSampler(NewTaskdataset)
-            else:
-                sampler_train = samplers.CustomDistributedSampler(NewTaskdataset, OldDataset, old_fisher_weight, shuffle=True)
-        else:
-            sampler_train = torch.utils.data.RandomSampler(NewTaskdataset)
+        # if args.distributed:
+        #     if args.cache_mode:
+        #         sampler_train = samplers.NodeDistributedSampler(NewTaskdataset)
+        #     else:
+        #         sampler_train = samplers.CustomDistributedSampler(NewTaskdataset, OldDataset, old_fisher_weight, shuffle=True)
+        # else:
+        #     sampler_train = torch.utils.data.RandomSampler(NewTaskdataset)
             
-        batch_sampler_train = torch.utils.data.BatchSampler(sampler_train, Batch_size, drop_last=True)
-        CombinedLoader = DataLoader(NewTaskdataset, batch_sampler=batch_sampler_train,
-                        collate_fn=utils.collate_fn, num_workers=Worker,
-                        pin_memory=True, prefetch_factor=args.prefetch) #worker_init_fn=worker_init_fn, persistent_workers=args.AugReplay)
-        return NewTaskdataset, CombinedLoader, sampler_train
+        # batch_sampler_train = torch.utils.data.BatchSampler(sampler_train, Batch_size, drop_last=True)
+        # CombinedLoader = DataLoader(NewTaskdataset, batch_sampler=batch_sampler_train,
+        #                 collate_fn=utils.collate_fn, num_workers=Worker,
+        #                 pin_memory=True, prefetch_factor=args.prefetch) #worker_init_fn=worker_init_fn, persistent_workers=args.AugReplay)
+        # return NewTaskdataset, CombinedLoader, sampler_train
     
-    elif ~args.AugReplay and ~args.MixReplay and args.Mosaic :
+    elif not args.AugReplay and not args.MixReplay and args.Mosaic :
         # mosaic dataset configuration
         CombinedDataset = ConcatDataset([OldDataset, CurrentDataset])
         NewTaskdataset = NewDatasetSet(args, CCB, CombinedDataset, OldDataset, OldDataset_weights, old_fisher_weight, AugReplay=False, Mosaic=True) \
             
-    elif ~args.AugReplay and ~args.MixReplay and ~args.Mosaic:
+    elif not args.AugReplay and not args.MixReplay and not args.Mosaic:
         CombinedDataset = ConcatDataset([OldDataset, CurrentDataset])
         NewTaskdataset = NewDatasetSet(args, CCB, CombinedDataset, OldDataset, OldDataset_weights, old_fisher_weight, AugReplay=False) 
         
@@ -462,7 +462,6 @@ def CombineDataset(args, RehearsalData, CurrentDataset,
                     collate_fn=utils.collate_fn, num_workers=Worker,
                     pin_memory=True, prefetch_factor=args.prefetch) #worker_init_fn=worker_init_fn, persistent_workers=args.AugReplay)
 
-    print(NewTaskdataset[0])
     return NewTaskdataset, CombinedLoader, sampler_train
 
 

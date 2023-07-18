@@ -286,7 +286,7 @@ from torch.optim.lr_scheduler import StepLR
 def dataset_configuration(args, original_dataset, original_loader, original_sampler,
                           AugRplay_dataset=None, AugRplay_loader=None, AugRplay_sampler=None):
     
-    if args.AugReplay and not args.MixReplay:
+    if args.AugReplay and ~args.MixReplay:
         return AugRplay_dataset, AugRplay_loader, AugRplay_sampler
     
     elif args.AugReplay and args.MixReplay:
