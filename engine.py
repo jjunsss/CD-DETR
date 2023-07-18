@@ -159,15 +159,17 @@ def train_one_epoch(args, last_task, epo, model: torch.nn.Module, teacher_model,
                 sum_loss, count = Original_training(args, last_task, epo, idx, count, sum_loss, samples, targets,  
                                                     model, teacher_model, criterion, optimizer,
                                                     rehearsal_classes, train_check, current_classes)
-                # if batch_count > dataset_train.old_length:
-                count, sum_loss = Circular_training(args, last_task, epo, idx, count, sum_loss, replay_samples, replay_targets,
-                                                    model, teacher_model, criterion, optimizer,
-                                                    current_classes)
+                #FIXME: Frontdeq process
+                if batch_count > dataset_train.old_length:
+                    count, sum_loss = Circular_training(args, last_task, epo, idx, count, sum_loss, replay_samples, replay_targets,
+                                                        model, teacher_model, criterion, optimizer,
+                                                        current_classes)
             else :
-                # if batch_count > dataset_train.old_length:
-                count, sum_loss = Circular_training(args, last_task, epo, idx, count, sum_loss, replay_samples, replay_targets,
-                                                    model, teacher_model, criterion, optimizer,
-                                                    current_classes)
+                #FIXME: Frontdeq process
+                if batch_count > dataset_train.old_length:
+                    count, sum_loss = Circular_training(args, last_task, epo, idx, count, sum_loss, replay_samples, replay_targets,
+                                                        model, teacher_model, criterion, optimizer,
+                                                        current_classes)
                 sum_loss, count = Original_training(args, last_task, epo, idx, count, sum_loss, samples, targets,  
                                                     model, teacher_model, criterion, optimizer,
                                                     rehearsal_classes, train_check, current_classes)
