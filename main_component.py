@@ -493,7 +493,7 @@ def generate_dataset(first_training, task_idx, args, pipeline):
             fisher_dict = None
             AugRplay_dataset, AugRplay_loader, AugRplay_sampler = None, None, None
             
-        assert (args.Mosaic and ~args.AugReplay) or (~args.Mosaic and args.AugReplay) or (~args.Mosaic and ~args.AugReplay)
+        assert (args.Mosaic and not args.AugReplay) or (not args.Mosaic and args.AugReplay) or (not args.Mosaic and not args.AugReplay)
             
         if args.Mosaic and not args.AugReplay:
             mosaic_dataset, mosaic_loader, mosaic_sampler = CombineDataset(
