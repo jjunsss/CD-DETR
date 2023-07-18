@@ -286,13 +286,15 @@ from torch.optim.lr_scheduler import StepLR
 def dataset_configuration(args, original_dataset, original_loader, original_sampler,
                           AugRplay_dataset=None, AugRplay_loader=None, AugRplay_sampler=None):
     
-    if args.AugReplay :
+    if args.AugReplay and not args.MixReplay:
         return AugRplay_dataset, AugRplay_loader, AugRplay_sampler
     
-    elif args.MixReplay:
+    elif args.AugReplay and args.MixReplay:
+        print(colored("MixReplay dataset generating", "blue", "on_yellow"))
         return [AugRplay_dataset, original_dataset], [AugRplay_loader, original_loader], [AugRplay_sampler, original_sampler] 
     
     else :
+        print(colored("Original dataset generating", "blue", "on_yellow"))
         return original_dataset, original_loader, original_sampler
 
 #* Just CL_StepLR(CLStepLR)

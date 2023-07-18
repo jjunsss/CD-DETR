@@ -391,7 +391,12 @@ def _handle_rehearsal(args, dir, limit_memory_size, gpu_counts, task, epoch, lea
 
     if args.Sampling_strategy != 'icarl':
         merge_dict = load_dicts_from_files(dir_list)
-
+        
+        if args.Sampling_strategy == "random" :
+            keys = random.sample(list(merge_dict.keys()), limit_memory_size-1)
+            new_buffer_dict = {key: merge_dict[key] for key in keys}
+            return new_buffer_dict
+        
         for img_idx in merge_dict.keys():
             loss_value = merge_dict[img_idx][0]
             unique_classes_list = merge_dict[img_idx][1]
@@ -509,7 +514,7 @@ def construct_replay_extra_epoch(args, Divided_Classes, model, criterion, device
     # 1. 현재 테스크에 맞는 적절한 데이터 셋 호출 (학습한 테스크, 0번 테스크에 해당하는 내용을 가져와야 함)
     #    하나의 GPU로 Buffer 구성하기 위해서(더 정확함) 모든 데이터 호출
     # list_CC : collectable class index
-    _, data_loader_train, _, list_CC = Incre_Dataset(task_num, args, Divided_Classes, extra_epoch) 
+    dataset_train, data_loader_train, _, list_CC = Incre_Dataset(task_num, args, Divided_Classes, extra_epoch) 
     
     # 2. Extra epoch, 모든 이미지들의 Loss를 측정
     rehearsal_classes = extra_epoch_for_replay(args, dataset_name="", data_loader=data_loader_train, model=model, criterion=criterion, 
@@ -539,7 +544,9 @@ def calc_fisher_process(args, rehearsal_dict, old_classes, criterion, model, opt
     fisher_dict = extra_epoch_for_fisher(args, dataset_name="", data_loader=fisher_data_loader, model=model, criterion=criterion, 
                                          device=args.device, optimizer=optimizer, rehearsal_classes=soted_rehearsal_dict)
     
-    ## Fisher Debugging
+    # fisher model delete. because It doesn't need more.
+    del model
+    # # Fisher Debugging
     # # 이미지 아이디는 문자열 'img'에 숫자를 더해 생성합니다.
     # img_ids = [f'img_{i}' for i in range(1200)]
 
@@ -549,7 +556,7 @@ def calc_fisher_process(args, rehearsal_dict, old_classes, criterion, model, opt
     # # 이미지 아이디와 랜덤값을 결합하여 딕셔너리를 생성합니다.
     # fisher_dict = dict(zip(img_ids, random_values.tolist()))
 
-    # DDP blocking process
+    # # DDP blocking process
     if utils.get_world_size() > 1:    
         dist.barrier()
     # check none fisher dictionary    

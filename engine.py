@@ -110,7 +110,7 @@ def create_prefetcher(dataset_name: str, data_loader: Iterable, device: torch.de
         return data_prefetcher(data_loader, device, prefetch=True, Mosaic=False)
 
 import random
-def train_one_epoch(args, last_task, epo, model: torch.nn.Module, teacher_model, criterion: torch.nn.Module,
+def train_one_epoch(args, last_task, epo, model: torch.nn.Module, teacher_model, criterion: torch.nn.Module, dataset_train,
                     data_loader: Iterable, optimizer: torch.optim.Optimizer, lr_scheduler: ContinualStepLR,
                     device: torch.device, dataset_name: str, current_classes: List = [], rehearsal_classes: Dict = {},
                     first_training = False):
@@ -124,6 +124,7 @@ def train_one_epoch(args, last_task, epo, model: torch.nn.Module, teacher_model,
     sum_loss = 0.0
     count = 0
     for idx in tqdm(range(len(data_loader)), disable=not utils.is_main_process()): #targets
+        batch_count = args.batch_size * (idx + 1)
         if idx % 100 == 0:
             torch.cuda.empty_cache()
         samples, targets, _, _ = prefetcher.next()
@@ -131,7 +132,7 @@ def train_one_epoch(args, last_task, epo, model: torch.nn.Module, teacher_model,
         targets = [{k: v.to(ex_device) for k, v in t.items()} for t in targets]
         train_check = True
         
-        if args.AugReplay and not first_training:
+        if dataset_name == "AugReplay" and not first_training:
             replay_samples, replay_targets, _, _ = prefetcher.next()
             replay_samples = replay_samples.to(ex_device)
             replay_targets = [{k: v.to(ex_device) for k, v in t.items()} for t in replay_targets]
@@ -143,13 +144,14 @@ def train_one_epoch(args, last_task, epo, model: torch.nn.Module, teacher_model,
 
         #Stage 1 -> T1에 대한 모든 훈련
         #Stage 2 -> T2에 대한 모든 훈련, AugReplay 사용하지 않을 때에는 일반적인 Replay 전략과 동일한 형태로 훈련을 수행
-        if not args.AugReplay or first_training:
+        if dataset_name != "AugReplay" or first_training:
             sum_loss, count = Original_training(args, last_task, epo, idx, count, sum_loss, samples, targets,  
                                                 model, teacher_model, criterion, optimizer,
                                                 rehearsal_classes, train_check, current_classes)
 
         CER_Prob = random.random() # if I set this to 0 or 1, so then usually fixed CER mode.
-        if args.AugReplay and args.Rehearsal and not first_training:
+        if dataset_name == "AugReplay" and args.Rehearsal and not first_training:
+                
             if CER_Prob < 0.5: # this term is for randomness training in "replay and original"
                 # this process only replay strategy, AugReplay is same to "Circular Training"
                 # samples, targets, _, _ = prefetcher.next() #* Different
@@ -157,16 +159,21 @@ def train_one_epoch(args, last_task, epo, model: torch.nn.Module, teacher_model,
                 sum_loss, count = Original_training(args, last_task, epo, idx, count, sum_loss, samples, targets,  
                                                     model, teacher_model, criterion, optimizer,
                                                     rehearsal_classes, train_check, current_classes)
-                count, sum_loss = Circular_training(args, last_task, epo, idx, count, sum_loss, replay_samples, replay_targets,
-                                                    model, teacher_model, criterion, optimizer,
-                                                    current_classes)
+                #FIXME: Frontdeq process
+                if batch_count > dataset_train.old_length:
+                    count, sum_loss = Circular_training(args, last_task, epo, idx, count, sum_loss, replay_samples, replay_targets,
+                                                        model, teacher_model, criterion, optimizer,
+                                                        current_classes)
             else :
-                count, sum_loss = Circular_training(args, last_task, epo, idx, count, sum_loss, replay_samples, replay_targets,
-                                                    model, teacher_model, criterion, optimizer,
-                                                    current_classes)
+                #FIXME: Frontdeq process
+                if batch_count > dataset_train.old_length:
+                    count, sum_loss = Circular_training(args, last_task, epo, idx, count, sum_loss, replay_samples, replay_targets,
+                                                        model, teacher_model, criterion, optimizer,
+                                                        current_classes)
                 sum_loss, count = Original_training(args, last_task, epo, idx, count, sum_loss, samples, targets,  
                                                     model, teacher_model, criterion, optimizer,
                                                     rehearsal_classes, train_check, current_classes)
+            del replay_samples, replay_targets
         del samples, targets, train_check
 
         # 정완 디버그

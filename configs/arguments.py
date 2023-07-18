@@ -65,6 +65,7 @@ def get_args_parser():
     parser.add_argument('--file_name', default='./saved_rehearsal', type=str)
     parser.add_argument('--verbose', default=False, action='store_true')
     parser.add_argument('--num_workers', default=16, type=int)
+    parser.add_argument('--prefetch', default=2, type=int)
     parser.add_argument('--cache_mode', default=False, action='store_true', help='whether to cache images on memory')
     parser.add_argument('--eval', action='store_true')
     # parser.add_argument('--pretrained_model', default=None, help='resume from checkpoint')
@@ -105,7 +106,7 @@ def get_args_parser():
     parser.add_argument('--Branch_Incremental', default=False, action='store_true', help="MLP or something incremental with class")
     parser.add_argument('--teacher_model', default=None, type=str)
     parser.add_argument('--Continual_Batch_size', default=2, type=int, help='continual batch traiing method')
-
+    parser.add_argument('--fisher_model', default=None, type=str, help='fisher model path')
     # 정완 디버그
     parser.add_argument('--debug', default=False, action='store_true')
     parser.add_argument('--num_debug_dataset', default=10, type=int) # 디버그 데이터셋 개수

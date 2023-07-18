@@ -145,3 +145,102 @@ class NodeDistributedSampler(Sampler):
 
     def set_epoch(self, epoch):
         self.epoch = epoch
+
+import random
+import collections
+import numpy as np
+class CustomDistributedSampler(DistributedSampler):
+    def __init__(self, dataset, old_dataset, fisher_weights, num_replicas=None, rank=None, shuffle=True):
+        super().__init__(dataset, num_replicas=num_replicas, rank=rank, shuffle=shuffle)
+        self.fisher_weights = fisher_weights
+        self.old_dataset = old_dataset
+
+        # Compute the total size and the number of samples considering the old and new datasets
+        dataset_size = len(self.dataset)
+        self.num_samples = int(math.ceil(dataset_size / self.num_replicas))
+        self.total_size = self.num_samples * self.num_replicas
+        
+    def __iter__(self):
+        if self.shuffle:
+            # 1. buffer length, dataset length
+            g = torch.Generator()
+            g.manual_seed(self.epoch)
+            
+            old_dataset_length = len(self.old_dataset)
+            old_indices = torch.arange(old_dataset_length)  # create an array of old_indices starting from 1200
+            old_indices = old_indices[torch.randperm(len(old_indices), generator=g)]  # shuffle the old_indices
+            old_indices = old_indices.tolist()
+            
+            old_dataset_length = len(self.old_dataset)
+            new_indices = torch.arange(old_dataset_length, len(self.dataset))  # create an array of new_indices starting from 1200
+            new_indices = new_indices[torch.randperm(len(new_indices), generator=g)]  # shuffle the new_indices
+            new_indices = new_indices.tolist()
+            
+            indices = old_indices + new_indices
+
+        indices += indices[: (self.total_size - len(indices))]
+        assert len(indices) == self.total_size
+        
+        # Here we distribute the indices among the replicas (just like DistributedSampler)
+        # Adjust the distribution to allocate old_indices and new_indices to each GPU
+        old_indices_per_rank = len(old_indices) // self.num_replicas
+        new_indices_per_rank = len(new_indices) // self.num_replicas
+        
+        offset_old = old_indices_per_rank * self.rank
+        offset_new = new_indices_per_rank * self.rank
+        
+        indices_old = old_indices[offset_old : offset_old + old_indices_per_rank]
+        indices_new = new_indices[offset_new : offset_new + new_indices_per_rank]
+        
+        indices = indices_old + indices_new
+        
+        # Shuffle the indices one more time
+        # random.shuffle(indices)
+
+        return iter(indices)
+
+
+    def set_epoch(self, epoch):
+        self.epoch = epoch
+
+class CustomSampler(torch.utils.data.Sampler):
+    def __init__(self, data_source, fisher_weights):
+        self.data_source = data_source
+        self.fisher_weights = fisher_weights
+        self.index_deque = collections.deque()
+
+    def __iter__(self):
+        if not self.index_deque:  # Initialize indices deque if it's empty
+            indices = list(range(len(self.data_source)))
+            random.shuffle(indices)
+            self.index_deque = collections.deque(indices)
+
+        while len(self.index_deque) > 0:
+            yield self.index_deque.popleft()
+
+        while True:  # When deque is empty, start sampling based on fisher weights
+            yield random.choice(np.arange(len(self.data_source)), p=self.fisher_weights.numpy())
+
+    def __len__(self):
+        return len(self.data_source)
+    
+class CombinedDistributedSampler(DistributedSampler):
+    def __init__(self, custom_sampler, distributed_sampler):
+        self.custom_sampler = custom_sampler
+        self.distributed_sampler = distributed_sampler
+
+    def __iter__(self):
+        # First, yield from the custom sampler until its deque is exhausted
+        for index in self.custom_sampler:
+            yield index
+
+        # Then, yield from the distributed sampler
+        for index in self.distributed_sampler:
+            yield index
+
+    def set_epoch(self, epoch):
+        self.custom_sampler.set_epoch(epoch)
+        self.distributed_sampler.set_epoch(epoch)
+
+    def __len__(self):
+        return len(self.distributed_sampler)
