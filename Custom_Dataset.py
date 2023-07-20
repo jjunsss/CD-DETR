@@ -250,48 +250,27 @@ class CustomDataset(torch.utils.data.Dataset):
 
         return samples, targets, new_samples, new_targets
     
-    # def scaling(self, tensor):
-    #     # 로그 스케일링
-    #     scaled_tensor = torch.log1p(tensor)
 
-    #     return scaled_tensor
-    
-    # def scaling(self, tensor):
-    #     # MinMax 스케일링
-    #     min_val = torch.min(tensor)
-    #     max_val = torch.max(tensor)
-    #     scaled_tensor = (tensor - min_val) / (max_val - min_val)
-
-    #     return scaled_tensor
-    
     def scaling(self, tensor):
-        # weight scaling (best performance in scalar !!)
-        # ablation study preserving
-        summation = torch.sum(tensor, dim=0)
-        scaled_tensor = tensor / summation
+        # Quantile Scaling
+        qt = QuantileTransformer()
+        
+        # Transform tensor to numpy array for scaling
+        tensor_np = tensor.cpu().detach().numpy()
+        
+        # The fit_transform expects 2D data, so we need to add extra dim
+        tensor_np = np.expand_dims(tensor_np, axis=1)
+        
+        # Fit and transform data
+        scaled_array = qt.fit_transform(tensor_np)
+        
+        # Convert back to tensor
+        scaled_tensor = torch.from_numpy(scaled_array).float()
+        
+        # Remove the extra dimension
+        scaled_tensor = torch.squeeze(scaled_tensor)
 
         return scaled_tensor
-
-    # def scaling(self, tensor):
-    #     # Quantile Scaling
-    #     qt = QuantileTransformer()
-        
-    #     # Transform tensor to numpy array for scaling
-    #     tensor_np = tensor.cpu().detach().numpy()
-        
-    #     # The fit_transform expects 2D data, so we need to add extra dim
-    #     tensor_np = np.expand_dims(tensor_np, axis=1)
-        
-    #     # Fit and transform data
-    #     scaled_array = qt.fit_transform(tensor_np)
-        
-    #     # Convert back to tensor
-    #     scaled_tensor = torch.from_numpy(scaled_array).float()
-        
-    #     # Remove the extra dimension
-    #     scaled_tensor = torch.squeeze(scaled_tensor)
-
-    #     return scaled_tensor
 import copy
 class ExtraDataset(torch.utils.data.Dataset):
     '''
@@ -435,21 +414,6 @@ def CombineDataset(args, RehearsalData, CurrentDataset,
             buffer_datset : 4 gpu devide and random sampler processing
         '''
         NewTaskdataset = NewDatasetSet(args, CCB, CurrentDataset, OldDataset, OldDataset_weights, old_fisher_weight, AugReplay=True, Mosaic=False)
-        # CombinedDataset = ConcatDataset([OldDataset, CurrentDataset])
-    
-        # if args.distributed:
-        #     if args.cache_mode:
-        #         sampler_train = samplers.NodeDistributedSampler(NewTaskdataset)
-        #     else:
-        #         sampler_train = samplers.CustomDistributedSampler(NewTaskdataset, OldDataset, old_fisher_weight, shuffle=True)
-        # else:
-        #     sampler_train = torch.utils.data.RandomSampler(NewTaskdataset)
-            
-        # batch_sampler_train = torch.utils.data.BatchSampler(sampler_train, Batch_size, drop_last=True)
-        # CombinedLoader = DataLoader(NewTaskdataset, batch_sampler=batch_sampler_train,
-        #                 collate_fn=utils.collate_fn, num_workers=Worker,
-        #                 pin_memory=True, prefetch_factor=args.prefetch) #worker_init_fn=worker_init_fn, persistent_workers=args.AugReplay)
-        # return NewTaskdataset, CombinedLoader, sampler_train
     
     elif not args.AugReplay and not args.MixReplay and args.Mosaic :
         # mosaic dataset configuration
