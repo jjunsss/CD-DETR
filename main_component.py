@@ -186,6 +186,8 @@ class TrainingPipeline:
             lr_ratio = total_batch_size / 32
             args.lr = args.lr * round(lr_ratio, 2)
             args.lr_backbone = args.lr_backbone * round(lr_ratio, 2)
+            print(colored(f"args LR : {args.lr}", "blue"))
+            print(colored(f"args LR backbone : {args.lr_backbone}", "blue"))
             
         def match_name_keywords(n, name_keywords):
             out = False
