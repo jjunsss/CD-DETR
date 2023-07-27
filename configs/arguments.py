@@ -82,6 +82,7 @@ def get_args_parser():
     parser.add_argument('--Total_Classes', default=59, type=int, help='number of classes in custom COCODataset. e.g. COCO : 80 / LG : 59')
     parser.add_argument('--Total_Classes_Names', default=False, action='store_true', help="division of classes through class names (DID, PZ, VE). This option is available for LG Dataset")
     parser.add_argument('--CL_Limited', default=0, type=int, help='Use Limited Training in CL. If you choose False, you may encounter data imbalance in training.')
+    parser.add_argument('--divide_ratio', default='4040', type=str, help='Adjusting ratio of task classes. 4040 = 40:40 class; 7010 = 70:10 class; 1070 = 10:70 class')
 
     #* Rehearsal method
     parser.add_argument('--Rehearsal', default=False, action='store_true', help="use Rehearsal strategy in diverse CL method")

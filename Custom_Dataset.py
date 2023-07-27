@@ -122,18 +122,33 @@ def DivideTask_for_incre(args, Task_Counts: int, Total_Classes: int, DivisionOfN
         return Divided_Classes
 
     # For auto division dataset(T2 training) (40-40 and), (70-10 or 10-70) to be used better performance setting
-    classes = [idx+1 for idx in range(Total_Classes)]
-    Task = int(Total_Classes / Task_Counts)
-    Rest_Classes_num = Total_Classes % Task_Counts
+    # classes = [idx+1 for idx in range(Total_Classes)] # for COCO
+    classes = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 27, 28, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, \
+                56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 67, 70, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 84, 85, 86, 87, 88, 89, 90] # for absence coco index
+    Total_Classes = len(classes)
+    print(colored(f"total classes :{Total_Classes}", "blue", "on_yellow"))
     
-    start = 0
-    end = Task
-    Divided_Classes = []
-
-    for _ in range(Task_Counts):
-        Divided_Classes.append(classes[start:end])
-        start += Task
-        end += Task
+    if args.divide_ratio != '4040':
+        t1_class_num = int(args.divide_ratio[:2])
+        Rest_Classes_num = 0
+        Divided_Classes = [classes[:t1_class_num], classes[t1_class_num:]]
+        
+    else:
+        # equal distribution
+        #TODO: Plz have to update
+        Task = int(Total_Classes / Task_Counts)
+        Rest_Classes_num = Total_Classes % Task_Counts
+        
+        start = 0
+        end = Task
+        Divided_Classes = []
+        
+        for _ in range(Task_Counts):
+            Divided_Classes.append(classes[start:end])
+            start += Task
+            end += Task
+        
+    # if remaindar exists.
     if Rest_Classes_num != 0:
         Rest_Classes = classes[-Rest_Classes_num:]
         Divided_Classes[-1].extend(Rest_Classes)
