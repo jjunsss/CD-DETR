@@ -71,7 +71,7 @@ def get_args_parser():
     # parser.add_argument('--pretrained_model', default=None, help='resume from checkpoint')
     parser.add_argument('--pretrained_model', default=None, type=str, nargs='+', help='resume from checkpoint')
     parser.add_argument('--pretrained_model_dir', default=None, type=str, help='test all parameters')
-
+    parser.add_argument('--orgcocopath', action='store_true', help='for original coco directory path')
 
     #* Continual Learning 
     parser.add_argument('--start_epoch', default=0, type=int, metavar='N', help='start epoch')
@@ -220,7 +220,4 @@ def dn_detr_parser(parser):
     parser.add_argument('--rank', default=0, type=int,help='number of distributed processes')
     parser.add_argument("--local_rank", type=int, help='local rank for DistributedDataParallel')
     parser.add_argument('--amp', action='store_true',help="Train with mixed precision")
-    
-    parser.add_argument('--orgcocopath', action='store_true', help='for original coco directory path')
-    
     return parser    
