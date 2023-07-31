@@ -187,6 +187,23 @@ class TrainingPipeline:
                     out = True
                     break
             return out
+        
+
+        if args.model_name == "deform_detr" :
+            total_batch_size = args.batch_size * utils.get_world_size()
+            lr_ratio = total_batch_size / 32
+            args.lr = args.lr * round(lr_ratio, 2)
+            args.lr_backbone = args.lr_backbone * round(lr_ratio, 2)
+            print(colored(f"args LR : {args.lr}", "blue"))
+            print(colored(f"args LR backbone : {args.lr_backbone}", "blue"))
+            
+        if args.model_name == "dn_detr" :
+            total_batch_size = args.batch_size * utils.get_world_size()
+            lr_ratio = total_batch_size / 16
+            args.lr = args.lr * round(lr_ratio, 2)
+            args.lr_backbone = args.lr_backbone * round(lr_ratio, 2)
+            print(colored(f"args LR : {args.lr}", "blue"))
+            print(colored(f"args LR backbone : {args.lr_backbone}", "blue"))
 
         param_dicts = [
             {
