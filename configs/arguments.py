@@ -65,12 +65,13 @@ def get_args_parser():
     parser.add_argument('--file_name', default='./saved_rehearsal', type=str)
     parser.add_argument('--verbose', default=False, action='store_true')
     parser.add_argument('--num_workers', default=16, type=int)
+    parser.add_argument('--prefetch', default=2, type=int)
     parser.add_argument('--cache_mode', default=False, action='store_true', help='whether to cache images on memory')
     parser.add_argument('--eval', action='store_true')
     # parser.add_argument('--pretrained_model', default=None, help='resume from checkpoint')
     parser.add_argument('--pretrained_model', default=None, type=str, nargs='+', help='resume from checkpoint')
     parser.add_argument('--pretrained_model_dir', default=None, type=str, help='test all parameters')
-
+    parser.add_argument('--orgcocopath', action='store_true', help='for original coco directory path')
 
     #* Continual Learning 
     parser.add_argument('--start_epoch', default=0, type=int, metavar='N', help='start epoch')
@@ -81,6 +82,7 @@ def get_args_parser():
     parser.add_argument('--Total_Classes', default=59, type=int, help='number of classes in custom COCODataset. e.g. COCO : 80 / LG : 59')
     parser.add_argument('--Total_Classes_Names', default=False, action='store_true', help="division of classes through class names (DID, PZ, VE). This option is available for LG Dataset")
     parser.add_argument('--CL_Limited', default=0, type=int, help='Use Limited Training in CL. If you choose False, you may encounter data imbalance in training.')
+    parser.add_argument('--divide_ratio', default='4040', type=str, help='Adjusting ratio of task classes. 4040 = 40:40 class; 7010 = 70:10 class; 1070 = 10:70 class')
 
     #* Rehearsal method
     parser.add_argument('--Rehearsal', default=False, action='store_true', help="use Rehearsal strategy in diverse CL method")
@@ -105,7 +107,7 @@ def get_args_parser():
     parser.add_argument('--Branch_Incremental', default=False, action='store_true', help="MLP or something incremental with class")
     parser.add_argument('--teacher_model', default=None, type=str)
     parser.add_argument('--Continual_Batch_size', default=2, type=int, help='continual batch traiing method')
-
+    parser.add_argument('--fisher_model', default=None, type=str, help='fisher model path')
     # 정완 디버그
     parser.add_argument('--debug', default=False, action='store_true')
     parser.add_argument('--num_debug_dataset', default=10, type=int) # 디버그 데이터셋 개수
@@ -218,7 +220,4 @@ def dn_detr_parser(parser):
     parser.add_argument('--rank', default=0, type=int,help='number of distributed processes')
     parser.add_argument("--local_rank", type=int, help='local rank for DistributedDataParallel')
     parser.add_argument('--amp', action='store_true',help="Train with mixed precision")
-    
-    parser.add_argument('--orgcocopath', action='store_true', help='for original coco directory path')
-    
     return parser    

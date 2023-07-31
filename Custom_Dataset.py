@@ -50,11 +50,11 @@ def Incre_Dataset(Task_Num, args, Incre_Classes, extra_dataset = False):
             sampler_train, args.batch_size, drop_last=True)
         data_loader_train = DataLoader(dataset_train, batch_sampler=batch_sampler_train,
                                     collate_fn=utils.collate_fn, num_workers=args.num_workers,
-                                    pin_memory=True, prefetch_factor=4)
+                                    pin_memory=True, prefetch_factor=args.prefetch)
     else:
         data_loader_val = DataLoader(dataset_val, args.batch_size, sampler=sampler_val,
                                      drop_last=False, collate_fn=utils.collate_fn, num_workers=args.num_workers,
-                                     pin_memory=True, prefetch_factor=4)
+                                     pin_memory=True, prefetch_factor=args.prefetch)
         return dataset_val, data_loader_val, sampler_val, all_classes
     
     return dataset_train, data_loader_train, sampler_train, current_classes
@@ -122,18 +122,33 @@ def DivideTask_for_incre(args, Task_Counts: int, Total_Classes: int, DivisionOfN
         return Divided_Classes
 
     # For auto division dataset(T2 training) (40-40 and), (70-10 or 10-70) to be used better performance setting
-    classes = [idx+1 for idx in range(Total_Classes)]
-    Task = int(Total_Classes / Task_Counts)
-    Rest_Classes_num = Total_Classes % Task_Counts
+    # classes = [idx+1 for idx in range(Total_Classes)] # for COCO
+    classes = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 27, 28, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, \
+                56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 67, 70, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 84, 85, 86, 87, 88, 89, 90] # for absence coco index
+    Total_Classes = len(classes)
+    print(colored(f"total classes :{Total_Classes}", "blue", "on_yellow"))
     
-    start = 0
-    end = Task
-    Divided_Classes = []
-
-    for _ in range(Task_Counts):
-        Divided_Classes.append(classes[start:end])
-        start += Task
-        end += Task
+    if args.divide_ratio != '4040':
+        t1_class_num = int(args.divide_ratio[:2])
+        Rest_Classes_num = 0
+        Divided_Classes = [classes[:t1_class_num], classes[t1_class_num:]]
+        
+    else:
+        # equal distribution
+        #TODO: Plz have to update
+        Task = int(Total_Classes / Task_Counts)
+        Rest_Classes_num = Total_Classes % Task_Counts
+        
+        start = 0
+        end = Task
+        Divided_Classes = []
+        
+        for _ in range(Task_Counts):
+            Divided_Classes.append(classes[start:end])
+            start += Task
+            end += Task
+        
+    # if remaindar exists.
     if Rest_Classes_num != 0:
         Rest_Classes = classes[-Rest_Classes_num:]
         Divided_Classes[-1].extend(Rest_Classes)
@@ -207,6 +222,8 @@ def img_id_config_no_circular_training(args, re_dict):
 
 
 import copy
+from sklearn.preprocessing import QuantileTransformer
+import numpy as np
 class CustomDataset(torch.utils.data.Dataset):
     '''
         replay buffer configuration
@@ -248,26 +265,27 @@ class CustomDataset(torch.utils.data.Dataset):
 
         return samples, targets, new_samples, new_targets
     
-    # def scaling(self, tensor):
-    #     # 로그 스케일링
-    #     scaled_tensor = torch.log1p(tensor)
 
-    #     return scaled_tensor
-    
-    # def scaling(self, tensor):
-    #     # MinMax 스케일링
-    #     min_val = torch.min(tensor)
-    #     max_val = torch.max(tensor)
-    #     scaled_tensor = (tensor - min_val) / (max_val - min_val)
-
-    #     return scaled_tensor
-    
     def scaling(self, tensor):
-        summation = torch.sum(tensor, dim=0)
-        scaled_tensor = tensor / summation
+        # Quantile Scaling
+        qt = QuantileTransformer()
+        
+        # Transform tensor to numpy array for scaling
+        tensor_np = tensor.cpu().detach().numpy()
+        
+        # The fit_transform expects 2D data, so we need to add extra dim
+        tensor_np = np.expand_dims(tensor_np, axis=1)
+        
+        # Fit and transform data
+        scaled_array = qt.fit_transform(tensor_np)
+        
+        # Convert back to tensor
+        scaled_tensor = torch.from_numpy(scaled_array).float()
+        
+        # Remove the extra dimension
+        scaled_tensor = torch.squeeze(scaled_tensor)
 
         return scaled_tensor
-    
 import copy
 class ExtraDataset(torch.utils.data.Dataset):
     '''
@@ -292,8 +310,11 @@ class ExtraDataset(torch.utils.data.Dataset):
         samples, targets, new_samples, new_targets = self.datasets[idx]
 
         return samples, targets, new_samples, new_targets
-    
+
 import random
+import collections
+
+import torch.distributed as dist
 class NewDatasetSet(torch.utils.data.Dataset):
     def __init__(self, args, CCB_augmentation, datasets, OldDataset, OldDataset_weights, fisher_weight, AugReplay=False, Mosaic=False):
         self.args = args
@@ -304,16 +325,18 @@ class NewDatasetSet(torch.utils.data.Dataset):
         self.fisher_weights = fisher_weight
         self.Mosaic = Mosaic #for mosaic augmentation
         self.img_size = (480, 640) #for mosaic augmentation
+        if self.AugReplay == True:
+            self.old_length = len(self.Rehearsal_dataset) if dist.get_world_size() == 1 else int(len(self.Rehearsal_dataset) // dist.get_world_size()) # 4
         if self.Mosaic == True: 
             self.old_length = len(OldDataset)
             self._CCB = CCB_augmentation(self.img_size, self.args.Continual_Batch_size)
 
+            
     def __len__(self):
-            return len(self.Datasets)
+        return len(self.Datasets)
 
     def __getitem__(self, index): 
         img, target, origin_img, origin_target = self.Datasets[index] #No normalize pixel, Normed Targets
-            
         if self.AugReplay == True :
             if self.args.CER == "fisher": # fisher CER
                 index = np.random.choice(np.arange(len(self.Rehearsal_dataset)), p=self.fisher_weights.numpy())
@@ -377,21 +400,42 @@ def CombineDataset(args, RehearsalData, CurrentDataset,
     OldDataset_weights = OldDataset.weights
     old_fisher_weight = OldDataset.fisher_softmax_weights
     
-    if args.MixReplay and MixReplay == "original" :
+    if args.MixReplay and MixReplay == "Original" :
         CombinedDataset = ConcatDataset([OldDataset, CurrentDataset])
         NewTaskdataset = NewDatasetSet(args, CCB, CombinedDataset, OldDataset, OldDataset_weights, old_fisher_weight, AugReplay=False)
          
     elif args.MixReplay and MixReplay == "AugReplay" : 
-        NewTaskdataset = NewDatasetSet(args, CCB, CurrentDataset, OldDataset, OldDataset_weights, old_fisher_weight, AugReplay=args.AugReplay)
+        CombinedDataset = ConcatDataset([OldDataset, CurrentDataset])
+        NewTaskdataset = NewDatasetSet(args, CCB, CombinedDataset, OldDataset, OldDataset_weights, old_fisher_weight, AugReplay=True, Mosaic=False) \
+    
+        if args.distributed:
+            if args.cache_mode:
+                sampler_train = samplers.NodeDistributedSampler(NewTaskdataset)
+            else:
+                sampler_train = samplers.CustomDistributedSampler(NewTaskdataset, OldDataset, old_fisher_weight, shuffle=True)
+        else:
+            sampler_train = torch.utils.data.RandomSampler(NewTaskdataset)
+            
+        batch_sampler_train = torch.utils.data.BatchSampler(sampler_train, Batch_size, drop_last=True)
+        CombinedLoader = DataLoader(NewTaskdataset, batch_sampler=batch_sampler_train,
+                        collate_fn=utils.collate_fn, num_workers=Worker,
+                        pin_memory=True, prefetch_factor=args.prefetch) #worker_init_fn=worker_init_fn, persistent_workers=args.AugReplay)
+        return NewTaskdataset, CombinedLoader, sampler_train
         
-    if args.AugReplay and ~args.MixReplay :
-        NewTaskdataset = NewDatasetSet(args, CCB, CurrentDataset, OldDataset, OldDataset_weights, old_fisher_weight, AugReplay=args.AugReplay)
-    elif ~args.AugReplay and ~args.MixReplay and args.Mosaic :
+    if args.AugReplay and not args.MixReplay :
+        '''
+            circular training process
+            new_dataset : 4 gpu devide 
+            buffer_datset : 4 gpu devide and random sampler processing
+        '''
+        NewTaskdataset = NewDatasetSet(args, CCB, CurrentDataset, OldDataset, OldDataset_weights, old_fisher_weight, AugReplay=True, Mosaic=False)
+    
+    elif not args.AugReplay and not args.MixReplay and args.Mosaic :
         # mosaic dataset configuration
         CombinedDataset = ConcatDataset([OldDataset, CurrentDataset])
         NewTaskdataset = NewDatasetSet(args, CCB, CombinedDataset, OldDataset, OldDataset_weights, old_fisher_weight, AugReplay=False, Mosaic=True) \
             
-    elif ~args.AugReplay and ~args.MixReplay and ~args.Mosaic:
+    elif not args.AugReplay and not args.MixReplay and not args.Mosaic:
         CombinedDataset = ConcatDataset([OldDataset, CurrentDataset])
         NewTaskdataset = NewDatasetSet(args, CCB, CombinedDataset, OldDataset, OldDataset_weights, old_fisher_weight, AugReplay=False) 
         
@@ -408,15 +452,14 @@ def CombineDataset(args, RehearsalData, CurrentDataset,
         sampler_train = torch.utils.data.RandomSampler(NewTaskdataset)
         
     batch_sampler_train = torch.utils.data.BatchSampler(sampler_train, Batch_size, drop_last=True)
-    
     CombinedLoader = DataLoader(NewTaskdataset, batch_sampler=batch_sampler_train,
                     collate_fn=utils.collate_fn, num_workers=Worker,
-                    pin_memory=True, prefetch_factor=4) #worker_init_fn=worker_init_fn, persistent_workers=args.AugReplay)
+                    pin_memory=True, prefetch_factor=args.prefetch) #worker_init_fn=worker_init_fn, persistent_workers=args.AugReplay)
 
-    # print(NewTaskdataset[0])
     return NewTaskdataset, CombinedLoader, sampler_train
 
 
+    
 def IcarlDataset(args, single_class:int):
     '''
         For initiating prototype-mean of the feature of corresponding, single class-, dataset composed to single class is needed.
@@ -427,7 +470,7 @@ def IcarlDataset(args, single_class:int):
         if args.cache_mode:
             sampler = samplers.NodeDistributedSampler(dataset)
         else:
-            sampler = samplers.DistributedSampler(dataset)
+            sampler = samplers.DistributedSampler(dataset)  
     else:
         sampler = torch.utils.data.RandomSampler(dataset)
         
@@ -442,13 +485,12 @@ def IcarlDataset(args, single_class:int):
 def fisher_dataset_loader(args, RehearsalData, old_classes):
     buffer_dataset = ExtraDataset(args, RehearsalData, old_classes)
     
-
     sampler_train = torch.utils.data.SequentialSampler(buffer_dataset)
         
     batch_sampler_train = torch.utils.data.BatchSampler(sampler_train, batch_size=1, drop_last=False)
     
     data_loader = DataLoader(buffer_dataset, batch_sampler=batch_sampler_train,
                                 collate_fn=utils.collate_fn, num_workers=args.num_workers,
-                                pin_memory=True, prefetch_factor=4)
+                                pin_memory=True, prefetch_factor=args.prefetch)
     
     return data_loader

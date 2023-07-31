@@ -60,7 +60,7 @@ class CCB(object):
                     Cur_img, Cur_lab, _, _ = result
                     break
             Cur_img, Cur_lab = self.transformed(Cur_img, Cur_lab)
-            visualize_bboxes(Cur_img.permute(1, 2, 0).numpy().copy(), Cur_lab['boxes'], Cur_img.shape[:-1], True)
+            # visualize_bboxes(Cur_img.permute(1, 2, 0).numpy().copy(), Cur_lab['boxes'], Cur_img.shape[:-1], True)
             return Cur_img, Cur_lab
     
    

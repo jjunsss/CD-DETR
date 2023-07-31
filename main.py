@@ -39,6 +39,7 @@ def main(args):
 
     # Constructing only the replay buffer
     if args.Construct_Replay :
+        pipeline.load_ddp_state(fisher_model=args.fisher_model)
         pipeline.construct_replay_buffer()
         return
 
@@ -65,7 +66,7 @@ def main(args):
             pipeline.make_branch(task_idx, args, is_init=False)
             is_task_changed = False
         
-        pipeline.load_state()
+        pipeline.load_ddp_state()
         dataset_train, data_loader_train, sampler_train, list_CC = generate_dataset(first_training, task_idx, args, pipeline)
         
         # Call your new function here
