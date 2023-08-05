@@ -58,11 +58,11 @@ class TrainingPipeline:
             pretrained_model and rehearsal file should be contrained "checkpoints" and "replay", respectively.
         '''        
         if args.pretrained_model_dir is not None:
-            if 'checkpoints' not in args.pretrained_model_dir:
+            if 'checkpoints' not in args.pretrained_model_dir and not args.eval :
                 args.pretrained_model_dir = os.path.join(args.pretrained_model_dir, 'checkpoints')
                 print(colored(f"args.pretrained_model_dir : {args.pretrained_model_dir}", "red", "on_yellow"))
         if args.Rehearsal_file is not None:
-            if 'replay' not in args.Rehearsal_file:
+            if 'replay' not in args.Rehearsal_file and not args.eval :
                 args.Rehearsal_file = os.path.join(args.Rehearsal_file, 'replay')
                 print(colored(f"args.Rehearsal_file : {args.Rehearsal_file}", "red", "on_yellow"))
     
