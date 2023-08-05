@@ -78,7 +78,7 @@ def main(args):
                                         list_CC=list_CC, first_training=first_training)
         
         is_task_changed = True
-
+        
     # Calculate and print the total time taken for training
     import datetime
     total_time = time.time() - start_time

@@ -506,6 +506,7 @@ def construct_replay_extra_epoch(args, Divided_Classes, model, criterion, device
     
     # 0. Initialization
     extra_epoch = True
+    print(f"already buffer state number : {len(rehearsal_classes)}")
     
     # 0.1. If you are not use the construct replay method, so then you use the real task number of training step.
     if args.Construct_Replay :

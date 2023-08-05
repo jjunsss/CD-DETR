@@ -455,6 +455,9 @@ class TrainingPipeline:
             save_model_params(self.model_without_ddp, self.optimizer, self.lr_scheduler, args, args.output_dir, 
                             task_idx, int(self.tasks), epoch)
         
+        # If task change, training epoch should be zero.
+        self.start_epoch = 0
+        
         # For generating buffer with extra epoch
         if last_task == False and args.Rehearsal:
             print(f"model update for generating buffer list")

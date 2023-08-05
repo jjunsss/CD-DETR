@@ -14,14 +14,16 @@ def Incre_Dataset(Task_Num, args, Incre_Classes, extra_dataset = False):
     all_classes = sum(Incre_Classes[:Task_Num+1], []) # ALL : old task clsses + new task clsses(after training, soon to be changed)\
           
     if not extra_dataset and not args.eval:
-            # For real model traning
-            dataset_train = build_dataset(image_set='train', args=args, class_ids=current_classes)
+        # For real model traning
+        dataset_train = build_dataset(image_set='train', args=args, class_ids=current_classes)
             
-    elif  extra_dataset and not args.eval:
+    elif extra_dataset and not args.eval:
         # For generating buffer with whole dataset
         # previous classes are used to generate buffer of all classe before New task dataset
+        print(colored(f"extra dataset config..", "blue", "on_yellow"))
         print(colored(f"collecte class categories in extre epoch: {all_classes}", "blue", "on_yellow"))
-        dataset_train = build_dataset(image_set='extra', args=args, class_ids=all_classes)
+        # necessary for calling current task dataset, buffer is already collected from previous process
+        dataset_train = build_dataset(image_set='extra', args=args, class_ids=current_classes) 
     
     if args.eval :
         tgt = current_classes if args.LG else all_classes
@@ -57,6 +59,9 @@ def Incre_Dataset(Task_Num, args, Incre_Classes, extra_dataset = False):
                                      pin_memory=True, prefetch_factor=args.prefetch)
         return dataset_val, data_loader_val, sampler_val, all_classes
     
+    if extra_dataset :
+        current_classes = all_classes
+        
     return dataset_train, data_loader_train, sampler_train, current_classes
 
 def make_class(test_file):
@@ -128,11 +133,11 @@ def DivideTask_for_incre(args, Task_Counts: int, Total_Classes: int, DivisionOfN
     Total_Classes = len(classes)
     print(colored(f"total classes :{Total_Classes}", "blue", "on_yellow"))
     
-    if args.divide_ratio != '4040':
+    if args.divide_ratio != '40':
         t1_class_num = int(args.divide_ratio[:2])
         Rest_Classes_num = 0
         Divided_Classes = [classes[:t1_class_num], classes[t1_class_num:]]
-        
+        print(colored(f"Divided_Classes :{Divided_Classes}", "blue", "on_yellow"))
     else:
         # equal distribution
         #TODO: Plz have to update
