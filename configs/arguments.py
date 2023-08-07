@@ -142,8 +142,8 @@ def deform_detr_parser(parser):
     parser.add_argument('--dropout', default=0.1, type=float, help="Dropout applied in the transformer")    
 
     # * Matcher
-    parser.add_argument('--set_cost_class', default=3, type=float, help="Class coefficient in the matching cost")
-    parser.add_argument('--set_cost_giou', default=3, type=float, help="giou box coefficient in the matching cost")    
+    parser.add_argument('--set_cost_class', default=2, type=float, help="Class coefficient in the matching cost")
+    parser.add_argument('--set_cost_giou', default=2, type=float, help="giou box coefficient in the matching cost")    
 
     # * Loss coefficients
     parser.add_argument('--cls_loss_coef', default=2, type=float)
