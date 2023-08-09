@@ -143,7 +143,7 @@ def DivideTask_for_incre(args, Task_Counts: int, Total_Classes: int, DivisionOfN
                 
         msg = f"{'='*35} Entire Divided Classes {'='*35}\n{Divided_Classes}"
         print(colored(msg, 'red'))
-        return Divided_Classes
+        return Divided_Classes_detail
 
     # For auto division dataset(T2 training) (40-40 and), (70-10 or 10-70) to be used better performance setting
     # classes = [idx+1 for idx in range(Total_Classes)] # for COCO
