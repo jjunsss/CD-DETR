@@ -486,6 +486,10 @@ def merge_rehearsal_process(args, task:int ,dir:str ,rehearsal:dict ,epoch:int
             rehearsal_classes = _multigpu_rehearsal(args, dir, limit_memory_size, gpu_counts, task, epoch, least_image, list_CC)
         # save combined replay buffer data for next training
         # _save_rehearsal output : save total buffer dataset to dir
+            # construct rehearsal (3) - reduce exemplar set
+        for label, data in tqdm(rehearsal_classes.items(), desc='Reduce_exemplar:', disable=not utils.is_main_process()):
+            rehearsal_classes[label][1] = data[1][:args.limit_image]
+            
         _save_rehearsal(rehearsal_classes, dir, task, limit_memory_size) 
         buffer_checker(args, rehearsal=rehearsal_classes)
     

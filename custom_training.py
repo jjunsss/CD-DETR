@@ -159,6 +159,9 @@ def icarl_prototype_setup(args, feature_extractor, device, current_classes):
 
     for cls in current_classes:
         _dataset, _data_loader, _sampler = IcarlDataset(args=args, single_class=cls)
+        if _dataset == None:
+            continue
+        
         _cnt = 0
         for samples, targets, _, _ in tqdm(_data_loader, desc=f'Prototype:class_{cls}', disable=not utils.is_main_process()):
             samples = samples.to(device)
