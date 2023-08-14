@@ -487,8 +487,10 @@ def merge_rehearsal_process(args, task:int ,dir:str ,rehearsal:dict ,epoch:int
         # save combined replay buffer data for next training
         # _save_rehearsal output : save total buffer dataset to dir
             # construct rehearsal (3) - reduce exemplar set
-        for label, data in tqdm(rehearsal_classes.items(), desc='Reduce_exemplar:', disable=not utils.is_main_process()):
-            rehearsal_classes[label][1] = data[1][:args.limit_image]
+        if args.Sampling_strategy == 'icarl' :
+            for label, data in rehearsal_classes.items():
+                rehearsal_classes[label][1] = data[1][:args.limit_image]
+                print(f"lenght icarl: {len(rehearsal_classes[label[1]])}")
             
         _save_rehearsal(rehearsal_classes, dir, task, limit_memory_size) 
         buffer_checker(args, rehearsal=rehearsal_classes)
