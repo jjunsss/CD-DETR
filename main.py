@@ -39,7 +39,9 @@ def main(args):
 
     # Constructing only the replay buffer
     if args.Construct_Replay :
-        pipeline.load_ddp_state(fisher_model=args.fisher_model)
+        pipeline.load_ddp_state()
+        if args.fisher_model is not None:
+            pipeline.fisher_ddp_state(fisher_model=args.fisher_model)
         pipeline.construct_replay_buffer()
         return
 
@@ -59,6 +61,7 @@ def main(args):
     # Training loop over tasks ( for incremental learning )
     is_task_changed = False
     
+    pipeline.load_ddp_state()
     for idx, task_idx in enumerate(range(pipeline.start_task, pipeline.tasks)):
         last_task = (task_idx+1 == pipeline.tasks)
         first_training = (task_idx == 0)
@@ -66,7 +69,6 @@ def main(args):
             pipeline.make_branch(task_idx, args, is_init=False)
             is_task_changed = False
         
-        pipeline.load_ddp_state()
         dataset_train, data_loader_train, sampler_train, list_CC = generate_dataset(first_training, task_idx, args, pipeline)
         
         # Call your new function here

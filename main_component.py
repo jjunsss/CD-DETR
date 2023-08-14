@@ -158,7 +158,7 @@ class TrainingPipeline:
             print(colored(f"fisher model loading : {self.args.fisher_model}", "blue", "on_yellow"))
             self.fisher_model, self.fisher_criterion, _ = get_models(self.args.model_name, self.args, len(self.previous_classes)+1, self.previous_classes)
             self.fisher_model = load_model_params("eval", self.fisher_model, self.args.fisher_model)
-            self.load_ddp_state(self.fisher_model)
+            self.fisher_ddp_state(self.fisher_model)
         if self.args.Distill:
             pre_model, _, _ = get_models(self.args.model_name, self.args, self.num_classes, self.current_class)
         #FIXME: If we use the pre_model option, we need to load the pre-trained model architecture.
@@ -234,25 +234,26 @@ class TrainingPipeline:
         return optimizer, lr_scheduler
 
 
-    def load_ddp_state(self, fisher_model=None):
+    def load_ddp_state(self):
         args = self.args
         # For extra epoch training, because It's not affected to DDP.
-        if fisher_model == None:
-            self.model = self.model.to(self.device)
-            if args.distributed:
-                self.model = torch.nn.parallel.DistributedDataParallel(self.model, device_ids=[args.gpu])
-                self.model_without_ddp = self.model.module
+        self.model = self.model.to(self.device)
+        if args.distributed:
+            self.model = torch.nn.parallel.DistributedDataParallel(self.model, device_ids=[args.gpu])
+            self.model_without_ddp = self.model.module
 
-            if args.frozen_weights is not None:
-                checkpoint = torch.load(args.frozen_weights, map_location='cpu')
-                self.model_without_ddp.detr.load_state_dict(checkpoint['model'])
+        if args.frozen_weights is not None:
+            checkpoint = torch.load(args.frozen_weights, map_location='cpu')
+            self.model_without_ddp.detr.load_state_dict(checkpoint['model'])
             
+
+    def fisher_ddp_state(self, fisher_model):
+        args = self.args
         if args.distributed and fisher_model != None:
             self.fisher_model = self.fisher_model.to(self.device)
             self.fisher_model = torch.nn.parallel.DistributedDataParallel(self.fisher_model, device_ids=[args.gpu])
-            self.fisher_model_without_ddp = self.fisher_model.module
-
-
+            
+            
     def _incremental_setting(self):
         args = self.args
         Divided_Classes = []
