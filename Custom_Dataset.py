@@ -127,6 +127,22 @@ def DivideTask_for_incre(args, Task_Counts: int, Total_Classes: int, DivisionOfN
                 T2 = [item for sublist in Divided_Classes[1:] for item in sublist]
                 Divided_Classes_detail = [T1, T2]
                 print(colored(f"Divided_Classes :{Divided_Classes_detail}", "blue", "on_yellow"))
+                
+            if args.divide_ratio == '402020':
+                T1 = Divided_Classes[0]
+                T2 = [item for sublist in Divided_Classes[1:3] for item in sublist]
+                T3 = [item for sublist in Divided_Classes[3:] for item in sublist]
+                Divided_Classes_detail = [T1, T2, T3]
+                print(colored(f"Divided_Classes :{Divided_Classes_detail}", "blue", "on_yellow"))
+                
+            if args.divide_ratio == '4010101010':
+                T1 = Divided_Classes[0]
+                T2 = [item for sublist in Divided_Classes[1] for item in sublist]
+                T3 = [item for sublist in Divided_Classes[2] for item in sublist]
+                T4 = [item for sublist in Divided_Classes[3] for item in sublist]
+                T5 = [item for sublist in Divided_Classes[4] for item in sublist]
+                Divided_Classes_detail = [T1, T2, T3, T4, T5]
+                print(colored(f"Divided_Classes :{Divided_Classes_detail}", "blue", "on_yellow"))
 
             elif args.divide_ratio == "7010":
                 T1 = [item for sublist in Divided_Classes[:-1] for item in sublist]

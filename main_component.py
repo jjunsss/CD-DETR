@@ -291,10 +291,12 @@ class TrainingPipeline:
         args = self.args
         for idx in range(self.start_task):
             load_replay.extend(self.Divided_Classes[idx])
-            
+        
+        load_task = 0 if args.start_task == 0 else args.start_task - 1
+        
         #* Load for Replay
         if args.Rehearsal:
-            rehearsal_classes = load_rehearsal(args.Rehearsal_file, 0, args.limit_image)
+            rehearsal_classes = load_rehearsal(args.Rehearsal_file, load_task, args.limit_image)
             try:
                 if len(list(rehearsal_classes.keys())) == 0:
                     print(f"No rehearsal file. Initialization rehearsal dict")
@@ -305,8 +307,6 @@ class TrainingPipeline:
                 print(f"Rehearsal File Error. Generate new empty rehearsal dict.")
                 rehearsal_classes = {}
 
-        
-        print(f"old class list : {load_replay}")
         return load_replay, rehearsal_classes
 
 
