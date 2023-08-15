@@ -486,6 +486,16 @@ def merge_rehearsal_process(args, task:int ,dir:str ,rehearsal:dict ,epoch:int
             rehearsal_classes = _multigpu_rehearsal(args, dir, limit_memory_size, gpu_counts, task, epoch, least_image, list_CC)
         # save combined replay buffer data for next training
         # _save_rehearsal output : save total buffer dataset to dir
+        if args.Sampling_strategy == "icarl":
+            collected_amount = len(list_CC) * int(args.limit_image)
+            need_amount = int(args.icarl_limit_image) - collected_amount
+            for label, data in rehearsal_classes.items():
+                if need_amount > 0 :
+                    rehearsal_classes[label][1] = data[1][:args.limit_image + 1]
+                else :
+                    rehearsal_classes[label][1] = data[1][:args.limit_image]
+                need_amount -= 1
+                    
         _save_rehearsal(rehearsal_classes, dir, task, limit_memory_size) 
         buffer_checker(args, rehearsal=rehearsal_classes)
     

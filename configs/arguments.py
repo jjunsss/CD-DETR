@@ -98,6 +98,7 @@ def get_args_parser():
     parser.add_argument('--Sampling_mode', default='GM', type=str, help="normal, GM(GuaranteeMinimum, ours), ")
     parser.add_argument('--least_image', default=0, type=int, help='least image of each class, must need to exure_min mode')
     parser.add_argument('--limit_image', default=100, type=int, help='maximum image of all classes, must need to exure_min mode')
+    parser.add_argument('--icarl_limit_image', default=1200, type=int, help='maximum image of icarl')
     
     parser.add_argument('--CER', default='fisher', type=str, help="fisher(ours), original, weight. This processes are used with \
                                                                    Augreplay ER")
