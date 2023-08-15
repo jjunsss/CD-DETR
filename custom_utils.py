@@ -195,7 +195,7 @@ def load_model_params(mode, model: model, dir: str = None):
     n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print('number of params:', n_parameters)
 
-    #No parameter update
+    #No parameter update    
     for name, params in model.named_parameters():
         if name in pretraind_model_dict.keys():
             if mode == "teacher":
