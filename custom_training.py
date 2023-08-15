@@ -159,6 +159,9 @@ def icarl_prototype_setup(args, feature_extractor, device, current_classes):
 
     for cls in current_classes:
         _dataset, _data_loader, _sampler = IcarlDataset(args=args, single_class=cls)
+        if _dataset == None:
+            continue
+        
         _cnt = 0
         for samples, targets, _, _ in tqdm(_data_loader, desc=f'Prototype:class_{cls}', disable=not utils.is_main_process()):
             samples = samples.to(device)
@@ -226,13 +229,13 @@ def icarl_rehearsal_training(args, samples, targets, fe: torch.nn.Module, proto:
             rehearsal_classes[label][1].sort(key=lambda x: x[1]) # sort with difference
 
     # construct rehearsal (3) - reduce exemplar set
-    for label, data in tqdm(rehearsal_classes.items(), desc='Reduce_exemplar:', disable=not utils.is_main_process()):
-        try:
-            data[1] = data[1][:args.limit_image]
-        except:
-            continue
+    # for label, data in tqdm(rehearsal_classes.items(), desc='Reduce_exemplar:', disable=not utils.is_main_process()):
+    #     try:
+    #         data[1] = data[1][:args.limit_image]
+    #     except:
+    #         continue
 
-        return rehearsal_classes
+    #     return rehearsal_classes
 
 
 def rehearsal_training(args, samples, targets, model: torch.nn.Module, criterion: torch.nn.Module, 

@@ -344,7 +344,7 @@ def load_rehearsal(dir, task=None, memory=None):
     if os.path.exists(all_dir) :
         with open(all_dir, 'rb') as f :
             temp = pickle.load(f)
-            print(colored(f"********** Loading replay data ***********", "blue", "on_yellow"))
+            print(colored(f"********** Loading {task} tasks' buffer ***********", "blue", "on_yellow"))
             return temp
     else:
         print(colored(f"not exist file. plz check your replay file path or existence", "blue", "on_yellow"))
@@ -375,10 +375,6 @@ def _handle_rehearsal(args, dir, limit_memory_size, gpu_counts, task, epoch, lea
             str(num) +"_gpu_rehearsal_task_" + str(task) + "_ep_" + str(epoch)
         ) for num in range(gpu_counts)
     ]
-    
-    if include_all:
-        all_dir = os.path.join(dir, "Buffer_T_" + str(task) + "_" + str(limit_memory_size))
-        dir_list.append(all_dir)
 
     for each_dir in dir_list:
         if not os.path.exists(each_dir):
@@ -478,12 +474,8 @@ def merge_rehearsal_process(args, task:int ,dir:str ,rehearsal:dict ,epoch:int
         dist.barrier()
         
     if utils.is_main_process() : 
-        if os.path.isfile(all_dir):
-            # Constructing all gpu (기존에 존재하는 replay 데이터와 합치기 위해), Because Multi Task Incrmental Learning
-            rehearsal_classes = _merge_replay_for_multigpu(args, dir, limit_memory_size, gpu_counts, task, epoch, least_image, list_CC)
-        else :    
-            # 기존에 만들어진 합성 replay 데이터가 없을 때, 새롭게 만들어야 하는 상황을 가정, Becaus Binary Task Incremental Learning
-            rehearsal_classes = _multigpu_rehearsal(args, dir, limit_memory_size, gpu_counts, task, epoch, least_image, list_CC)
+        # 기존에 만들어진 합성 replay 데이터가 없을 때, 새롭게 만들어야 하는 상황을 가정, Becaus Binary Task Incremental Learning
+        rehearsal_classes = _multigpu_rehearsal(args, dir, limit_memory_size, gpu_counts, task, epoch, least_image, list_CC)
         # save combined replay buffer data for next training
         # _save_rehearsal output : save total buffer dataset to dir
         if args.Sampling_strategy == "icarl":
@@ -497,7 +489,7 @@ def merge_rehearsal_process(args, task:int ,dir:str ,rehearsal:dict ,epoch:int
                 need_amount -= 1
                     
         _save_rehearsal(rehearsal_classes, dir, task, limit_memory_size) 
-        buffer_checker(args, rehearsal=rehearsal_classes)
+        buffer_checker(args, task, rehearsal=rehearsal_classes)
     
     # wait main process to synchronization
     if utils.get_world_size() > 1:    

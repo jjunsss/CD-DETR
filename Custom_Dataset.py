@@ -127,6 +127,22 @@ def DivideTask_for_incre(args, Task_Counts: int, Total_Classes: int, DivisionOfN
                 T2 = [item for sublist in Divided_Classes[1:] for item in sublist]
                 Divided_Classes_detail = [T1, T2]
                 print(colored(f"Divided_Classes :{Divided_Classes_detail}", "blue", "on_yellow"))
+                
+            if args.divide_ratio == '402020':
+                T1 = Divided_Classes[0]
+                T2 = [item for sublist in Divided_Classes[1:3] for item in sublist]
+                T3 = [item for sublist in Divided_Classes[3:] for item in sublist]
+                Divided_Classes_detail = [T1, T2, T3]
+                print(colored(f"Divided_Classes :{Divided_Classes_detail}", "blue", "on_yellow"))
+                
+            if args.divide_ratio == '4010101010':
+                T1 = Divided_Classes[0]
+                T2 = Divided_Classes[1]
+                T3 = Divided_Classes[2]
+                T4 = Divided_Classes[3]
+                T5 = Divided_Classes[4]
+                Divided_Classes_detail = [T1, T2, T3, T4, T5]
+                print(colored(f"Divided_Classes :{Divided_Classes_detail}", "blue", "on_yellow"))
 
             elif args.divide_ratio == "7010":
                 T1 = [item for sublist in Divided_Classes[:-1] for item in sublist]
@@ -489,7 +505,9 @@ def IcarlDataset(args, single_class:int):
         For initiating prototype-mean of the feature of corresponding, single class-, dataset composed to single class is needed.
     '''
     dataset = build_dataset(image_set='train', args=args, class_ids=[single_class])
-        
+    if len(dataset) == 0:
+        return None, None, None
+    
     if args.distributed:
         if args.cache_mode:
             sampler = samplers.NodeDistributedSampler(dataset)
