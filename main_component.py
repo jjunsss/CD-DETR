@@ -437,7 +437,7 @@ class TrainingPipeline:
             print(colored(f"Task is Last : {last_task}", "blue", "on_white"))
             
             # Training process
-            train_one_epoch(args, last_task, epoch, self.model, self.teacher_model, self.criterion, dataset_train,
+            train_one_epoch(args, task_idx, last_task, epoch, self.model, self.teacher_model, self.criterion, dataset_train,
                             data_loader_train, self.optimizer, self.lr_scheduler,
                             self.device, self.dataset_name, list_CC, self.rehearsal_classes, first_training)
             

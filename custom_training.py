@@ -32,13 +32,13 @@ def decompose_dataset(no_use_count: int, samples: utils.NestedTensor, targets: D
     batch_size = len(targets)
     return (batch_size, no_use_count, samples, targets, origin_samples, origin_targets, used_number)
 
-def Original_training(args, last_task, epo, idx, count, sum_loss, samples, targets, 
+def Original_training(args, task_idx, last_task, epo, idx, count, sum_loss, samples, targets, 
                       model: torch.nn.Module, teacher_model, criterion: torch.nn.Module, optimizer: torch.optim.Optimizer,  
                       rehearsal_classes, train_check, current_classes): 
 
     device = torch.device("cuda")
     ex_device = torch.device("cpu")
-    count, sum_loss = _common_training(args, epo, idx, last_task, count, sum_loss, 
+    count, sum_loss = _common_training(args, epo, idx, task_idx, last_task, count, sum_loss, 
                                         samples, targets, model, optimizer,
                                         teacher_model, criterion, device, ex_device, current_classes, "original")
 
@@ -46,13 +46,13 @@ def Original_training(args, last_task, epo, idx, count, sum_loss, samples, targe
 
     return sum_loss, count
 
-def Circular_training(args, last_task, epo, idx, count, sum_loss, samples, targets, 
+def Circular_training(args, task_idx, last_task, epo, idx, count, sum_loss, samples, targets, 
                     model: torch.nn.Module, teacher_model, criterion: torch.nn.Module, optimizer: torch.optim.Optimizer, 
                     current_classes): 
     
     device = torch.device("cuda")
     ex_device = torch.device("cpu")
-    count, sum_loss = _common_training(args, epo, idx, last_task, count, sum_loss, 
+    count, sum_loss = _common_training(args, epo, idx, task_idx, last_task, count, sum_loss, 
                                         samples, targets, model, optimizer,
                                         teacher_model, criterion, device, ex_device, current_classes, "circular")
 
@@ -61,7 +61,7 @@ def Circular_training(args, last_task, epo, idx, count, sum_loss, samples, targe
 
 
 
-def _common_training(args, epo, idx, last_task, count, sum_loss, 
+def _common_training(args, epo, idx, task_idx, last_task, count, sum_loss, 
                      samples, targets, model: torch.nn.Module, optimizer:torch.optim.Optimizer,
                      teacher_model, criterion: torch.nn.Module, device, ex_device, current_classes, t_type=None):
     model.train()
@@ -119,7 +119,7 @@ def _common_training(args, epo, idx, last_task, count, sum_loss,
         sum_loss += losses_reduced_scaled
         if utils.is_main_process(): #sum_loss가 GPU의 개수에 맞춰서 더해주고 있으니,
             check_losses(epo, idx, losses_reduced_scaled, sum_loss, count, current_classes, None)
-            print(f" {t_type} \t {{ epoch : {epo} \t Loss : {losses_value:.4f} \t Total Loss : {sum_loss/count:.4f} }}")
+            print(f" {t_type} \t {{ task: {task_idx}, epoch : {epo} \t Loss : {losses_value:.4f} \t Total Loss : {sum_loss/count:.4f} }}")
     
     optimizer.zero_grad()
     losses.backward()

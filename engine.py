@@ -110,7 +110,7 @@ def create_prefetcher(dataset_name: str, data_loader: Iterable, device: torch.de
         return data_prefetcher(data_loader, device, prefetch=True, Mosaic=False)
 
 import random
-def train_one_epoch(args, last_task, epo, model: torch.nn.Module, teacher_model, criterion: torch.nn.Module, dataset_train,
+def train_one_epoch(args, task_idx, last_task, epo, model: torch.nn.Module, teacher_model, criterion: torch.nn.Module, dataset_train,
                     data_loader: Iterable, optimizer: torch.optim.Optimizer, lr_scheduler: ContinualStepLR,
                     device: torch.device, dataset_name: str, current_classes: List = [], rehearsal_classes: Dict = {},
                     first_training = False):
@@ -156,19 +156,19 @@ def train_one_epoch(args, last_task, epo, model: torch.nn.Module, teacher_model,
                 # this process only replay strategy, AugReplay is same to "Circular Training"
                 # samples, targets, _, _ = prefetcher.next() #* Different
                 # lr_scheduler.replay_step(idx)
-                sum_loss, count = Original_training(args, last_task, epo, idx, count, sum_loss, samples, targets,  
+                sum_loss, count = Original_training(args, task_idx, last_task, epo, idx, count, sum_loss, samples, targets,  
                                                     model, teacher_model, criterion, optimizer,
                                                     rehearsal_classes, train_check, current_classes)
                 #FIXME: Frontdeq process
-                count, sum_loss = Circular_training(args, last_task, epo, idx, count, sum_loss, replay_samples, replay_targets,
+                count, sum_loss = Circular_training(args, task_idx, last_task, epo, idx, count, sum_loss, replay_samples, replay_targets,
                                                     model, teacher_model, criterion, optimizer,
                                                     current_classes)
             else :
                 #FIXME: Frontdeq process
-                count, sum_loss = Circular_training(args, last_task, epo, idx, count, sum_loss, replay_samples, replay_targets,
+                count, sum_loss = Circular_training(args, task_idx, last_task, epo, idx, count, sum_loss, replay_samples, replay_targets,
                                                     model, teacher_model, criterion, optimizer,
                                                     current_classes)
-                sum_loss, count = Original_training(args, last_task, epo, idx, count, sum_loss, samples, targets,  
+                sum_loss, count = Original_training(args, task_idx, last_task, epo, idx, count, sum_loss, samples, targets,  
                                                     model, teacher_model, criterion, optimizer,
                                                     rehearsal_classes, train_check, current_classes)
             del replay_samples, replay_targets
