@@ -474,12 +474,11 @@ def merge_rehearsal_process(args, task:int ,dir:str ,rehearsal:dict ,epoch:int
         dist.barrier()
         
     if utils.is_main_process() : 
-        # 기존에 만들어진 합성 replay 데이터가 없을 때, 새롭게 만들어야 하는 상황을 가정, Becaus Binary Task Incremental Learning
         rehearsal_classes = _multigpu_rehearsal(args, dir, limit_memory_size, gpu_counts, task, epoch, least_image, list_CC)
         # save combined replay buffer data for next training
         # _save_rehearsal output : save total buffer dataset to dir
         if args.Sampling_strategy == "icarl":
-            collected_amount = len(list_CC) * int(args.limit_image)
+            collected_amount = len(rehearsal_classes.keys()) * int(args.limit_image)
             need_amount = int(args.icarl_limit_image) - collected_amount
             for label, data in rehearsal_classes.items():
                 if need_amount > 0 :

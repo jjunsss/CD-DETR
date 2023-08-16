@@ -211,18 +211,23 @@ def icarl_rehearsal_training(args, samples, targets, fe: torch.nn.Module, proto:
             except KeyError:
                 print(f'label: {label} don\'t in prototype: {proto.keys()}')
                 continue
+            try :
+                if label in rehearsal_classes: # rehearsal_classes[label] exist
+                    rehearsal_classes[label][0] = rehearsal_classes[label][0].to(device)
 
-            try: # rehearsal_classes[label] exist
-                rehearsal_classes[label][0] = rehearsal_classes[label][0].to(device)
+                    exemplar_mean = (rehearsal_classes[label][0] + feat_0) / (len(rehearsal_classes[label]) + 1)
+                    difference = torch.mean(torch.sqrt(torch.sum((class_mean - exemplar_mean)**2, axis=1))).item()
 
-                exemplar_mean = (rehearsal_classes[label][0] + feat_0) / (len(rehearsal_classes[label]) + 1)
-                difference = torch.mean(torch.sqrt(torch.sum((class_mean - exemplar_mean)**2, axis=1))).item()
+                    rehearsal_classes[label][0] = rehearsal_classes[label][0]                   
+                    rehearsal_classes[label][0]+= feat_0
+                    rehearsal_classes[label][1].append([target['image_id'].item(), difference])
 
-                rehearsal_classes[label][0] = rehearsal_classes[label][0]                   
-                rehearsal_classes[label][0]+= feat_0
-                rehearsal_classes[label][1].append([target['image_id'].item(), difference])
-
-            except KeyError:
+                else :
+                    #"initioalization"
+                    difference = torch.argmin(torch.sqrt(torch.sum((class_mean - feat_0)**2, axis=0))).item() # argmin is true????
+                    rehearsal_classes[label] = [feat_0, [[target['image_id'].item(), difference], ]]
+            except Exception as e:
+                print(f"Error opening image: {e}")
                 difference = torch.argmin(torch.sqrt(torch.sum((class_mean - feat_0)**2, axis=0))).item() # argmin is true????
                 rehearsal_classes[label] = [feat_0, [[target['image_id'].item(), difference], ]]
             
@@ -235,7 +240,7 @@ def icarl_rehearsal_training(args, samples, targets, fe: torch.nn.Module, proto:
     #     except:
     #         continue
 
-    #     return rehearsal_classes
+    return rehearsal_classes
 
 
 def rehearsal_training(args, samples, targets, model: torch.nn.Module, criterion: torch.nn.Module, 

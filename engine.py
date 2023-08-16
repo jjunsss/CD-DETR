@@ -46,7 +46,7 @@ def extra_epoch_for_replay(args, dataset_name: str, data_loader: Iterable, model
         2. run rehearsal training.
         3. (icarl) detach values in rehearsal_classes.
     '''
-
+    # current_classes = [2, 3, 4]
     prefetcher = create_prefetcher(dataset_name, data_loader, device, args)
     if args.Sampling_strategy == "icarl":
         fe = icarl_feature_extractor_setup(args, model)

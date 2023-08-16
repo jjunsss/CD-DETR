@@ -345,7 +345,7 @@ def multi_head_attention_forward(query: Tensor,
 
     src_len = k.size(1)
 
-    if key_padding_mask is not None:
+    if key_padding_mask is not None:    
         assert key_padding_mask.size(0) == bsz
         assert key_padding_mask.size(1) == src_len
 
