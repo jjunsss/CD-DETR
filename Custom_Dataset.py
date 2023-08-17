@@ -21,7 +21,7 @@ def Incre_Dataset(Task_Num, args, Incre_Classes, extra_dataset = False):
         # For generating buffer with whole dataset
         # previous classes are used to generate buffer of all classe before New task dataset
         print(colored(f"extra dataset config..", "blue", "on_yellow"))
-        print(colored(f"collecte class categories in extre epoch: {current_classes}", "blue", "on_yellow"))
+        print(colored(f"collecte class categories in extre epoch: {all_classes}", "blue", "on_yellow"))
         # necessary for calling current task dataset, buffer is already collected from previous process
         dataset_train = build_dataset(image_set='extra', args=args, class_ids=current_classes) 
     
@@ -255,7 +255,10 @@ def img_id_config_no_circular_training(args, re_dict):
         for cls, val in re_dict.items():
             img_ids = np.array(val[1])
             keys.extend(list(img_ids[:, 0].astype(int)))
-        return keys
+            
+        no_duple_keys = list(set(keys))
+        print(f"not duple keys :{len(no_duple_keys)}")
+        return no_duple_keys
     else:
         return list(re_dict.keys())
 
