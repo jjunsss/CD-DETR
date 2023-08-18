@@ -183,12 +183,6 @@ def make_coco_transforms(image_set, fix_size=False):
     scales = [480, 512, 544, 576, 608, 640, 672, 704, 736, 768, 800]
 
     if image_set == 'train':
-        if fix_size:
-            return T.Compose([
-                T.RandomHorizontalFlip(),
-                T.RandomResize(sizes=[(600, 600)], max_size=None),
-                normalize,
-            ])
         
         return T.Compose([
             T.RandomHorizontalFlip(),
