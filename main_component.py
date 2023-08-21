@@ -156,7 +156,11 @@ class TrainingPipeline:
         model, criterion, postprocessors = get_models(self.args.model_name, self.args, self.num_classes, self.current_class)
         if self.args.fisher_model is not None:
             print(colored(f"fisher model loading : {self.args.fisher_model}", "blue", "on_yellow"))
-            self.fisher_model, self.fisher_criterion, _ = get_models(self.args.model_name, self.args, len(self.previous_classes)+1, self.previous_classes)
+            if self.args.Branch_Incremental is False:
+                self.fisher_model, self.fisher_criterion, _ = get_models(self.args.model_name, self.args, self.num_classes, self.current_class)
+            else:
+                self.fisher_model, self.fisher_criterion, _ = get_models(self.args.model_name, self.args, len(self.previous_classes)+1, self.previous_classes)
+                
             self.fisher_model = load_model_params("eval", self.fisher_model, self.args.fisher_model)
             self.fisher_ddp_state(self.fisher_model)
         if self.args.Distill:
@@ -503,11 +507,18 @@ def generate_dataset(first_training, task_idx, args, pipeline):
         if args.AugReplay:
             #TODO: need to Fisher condition
             if args.fisher_model != None:
-                fisher_dict = calc_fisher_process(args, pipeline.rehearsal_classes, previous_classes, 
-                                                pipeline.fisher_criterion, pipeline.fisher_model, pipeline.optimizer)
-            else :    
-                fisher_dict = calc_fisher_process(args, pipeline.rehearsal_classes, previous_classes, 
-                                                pipeline.criterion, pipeline.model, pipeline.optimizer)
+                if args.CER == "fisher" :
+                    fisher_dict = calc_fisher_process(args, pipeline.rehearsal_classes, previous_classes, 
+                                                    pipeline.fisher_criterion, pipeline.fisher_model, pipeline.optimizer)
+                elif args.CER == "uniform":
+                    fisher_dict = None
+            else :
+                if args.CER == "fisher" :    
+                    fisher_dict = calc_fisher_process(args, pipeline.rehearsal_classes, previous_classes, 
+                                                    pipeline.criterion, pipeline.model, pipeline.optimizer)
+                elif args.CER == "uniform":
+                    fisher_dict = None
+                    
             AugRplay_dataset, AugRplay_loader, AugRplay_sampler = CombineDataset(
                 args, replay_dataset, dataset_train, args.num_workers, args.batch_size, 
                 old_classes=previous_classes, fisher_dict=fisher_dict, MixReplay="AugReplay")
