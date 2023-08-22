@@ -23,8 +23,12 @@ def Incre_Dataset(Task_Num, args, Incre_Classes, extra_dataset = False):
         print(colored(f"extra dataset config..", "blue", "on_yellow"))
         print(colored(f"collecte class categories in extre epoch: {all_classes}", "blue", "on_yellow"))
         # necessary for calling current task dataset, buffer is already collected from previous process
-        dataset_train = build_dataset(image_set='extra', args=args, class_ids=current_classes) 
-    
+        
+        if args.Sampling_strategy == "icarl" :
+            dataset_train = build_dataset(image_set='extra', args=args, class_ids=all_classes) 
+        else :
+            dataset_train = build_dataset(image_set='extra', args=args, class_ids=current_classes) 
+            
     if args.eval :
         tgt = current_classes if args.LG else all_classes
         print(colored(f"evaluation check : {tgt}", "blue", "on_yellow"))
