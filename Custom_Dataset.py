@@ -294,6 +294,12 @@ class CustomDataset(torch.utils.data.Dataset):
             
             # Calculate softmax weights
             self.fisher_softmax_weights = torch.softmax(scaled_fisher_values, dim=0)
+        elif args.CER == "uniform" :
+            self.weights = None
+            self.keys = list(self.re_dict.keys())
+            self.datasets = build_dataset(image_set='train', args=args, class_ids=self.old_classes, img_ids=self.keys)
+            self.fisher_softmax_weights = None
+            
         else :
             self.weights = None
             self.fisher_softmax_weights = None
@@ -391,6 +397,10 @@ class NewDatasetSet(torch.utils.data.Dataset):
                 return img, target, origin_img, origin_target, O_img, O_target
             elif self.args.CER == "weight": # weight CER
                 index = np.random.choice(np.arange(len(self.Rehearsal_dataset)), p=self.OldDataset_weights)
+                O_img, O_target, _, _ = self.Rehearsal_dataset[index] #No shuffle because weight sorting.
+                return img, target, origin_img, origin_target, O_img, O_target
+            elif self.args.CER == "uniform": # weight CER
+                index = np.random.choice(np.arange(len(self.Rehearsal_dataset)))
                 O_img, O_target, _, _ = self.Rehearsal_dataset[index] #No shuffle because weight sorting.
                 return img, target, origin_img, origin_target, O_img, O_target
             elif self.args.CER == "original": # original CER
@@ -532,6 +542,7 @@ def IcarlDataset(args, single_class:int):
 
 
 def fisher_dataset_loader(args, RehearsalData, old_classes):
+    print(colored(f"fisher loading classes : {old_classes}", "blue", "on_yellow"))
     buffer_dataset = ExtraDataset(args, RehearsalData, old_classes)
     
     sampler_train = torch.utils.data.SequentialSampler(buffer_dataset)
