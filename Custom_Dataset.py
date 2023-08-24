@@ -521,7 +521,7 @@ def IcarlDataset(args, single_class:int):
     '''
         For initiating prototype-mean of the feature of corresponding, single class-, dataset composed to single class is needed.
     '''
-    dataset = build_dataset(image_set='train', args=args, class_ids=[single_class])
+    dataset = build_dataset(image_set='extra', args=args, class_ids=[single_class])
     if len(dataset) == 0:
         return None, None, None
     
