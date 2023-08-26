@@ -14,8 +14,7 @@ from termcolor import colored
 
 
 #TODO : Change calc each iamage loss and tracking each object loss avg.
-def _replacment_strategy(args, loss_value, targeted, rehearsal_classes,
-                       label_tensor_unique_list, image_id, num_bounding_boxes):
+def _replacment_strategy(args, loss_value, targeted, rehearsal_classes, label_tensor_unique_list, image_id, num_bounding_boxes):
     if args.Sampling_strategy == "hierarchical" or args.Sampling_strategy == "hier_highlabels": 
         if ( targeted[1][0] > loss_value ): #Low buffer construct
             print(colored(f"hierarchical based buffer change strategy", "blue"))
@@ -23,7 +22,7 @@ def _replacment_strategy(args, loss_value, targeted, rehearsal_classes,
             rehearsal_classes[image_id] = [loss_value, label_tensor_unique_list, num_bounding_boxes]
             return rehearsal_classes
         
-    if args.Sampling_strategy == "hier_highloss" or args.Sampling_strategy == "highlabels_highloss": 
+    if args.Sampling_strategy == "hier_highloss" or args.Sampling_strategy == "highlabels_highloss" or args.Sampling_strategy == "hier_highunique_highloss" :
         if ( targeted[1][0] < loss_value ): # high loss buffer construct
             print(colored(f"hier_highloss based buffer change strategy", "blue"))
             del rehearsal_classes[targeted[0]]
@@ -231,7 +230,7 @@ def _calc_target(rehearsal_classes, replace_strategy="hierarchical", ):
         # second change condition: low loss based change
         sorted_result = max(changed_list, key=lambda x: x[1][0])
         
-    elif replace_strategy == "hier_highloss":
+    elif replace_strategy == "hier_highunique_highloss":
         # ours for effective, mode is "GuaranteeMinimum"
         min_class_length = min(len(x[1]) for x in rehearsal_classes.values())
         
