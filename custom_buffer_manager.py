@@ -23,7 +23,7 @@ def _replacment_strategy(args, loss_value, targeted, rehearsal_classes,
             rehearsal_classes[image_id] = [loss_value, label_tensor_unique_list, num_bounding_boxes]
             return rehearsal_classes
         
-    if args.Sampling_strategy == "hier_highloss" or args.Sampling_strategy == "hier_highlabels_highloss": 
+    if args.Sampling_strategy == "hier_highloss" or args.Sampling_strategy == "highlabels_highloss": 
         if ( targeted[1][0] < loss_value ): # high loss buffer construct
             print(colored(f"hier_highloss based buffer change strategy", "blue"))
             del rehearsal_classes[targeted[0]]
@@ -252,15 +252,15 @@ def _calc_target(rehearsal_classes, replace_strategy="hierarchical", ):
         # second change condition: high loss based change
         sorted_result = max(changed_list, key=lambda x: x[1][0])
         
-    elif replace_strategy == "hier_highlabels_highloss":
+    elif replace_strategy == "highlabels_highloss":
         # ours for effective, mode is "GuaranteeMinimum"
         # x[2] = the number of bbox labels[int]
         min_class_length = min(x[2] for x in rehearsal_classes.values())
         
-        # first change condition: low unique based change
+        # first change condition: target low labels
         changed_list = [(index, values) for index, values in rehearsal_classes.items() if len(values[1]) == min_class_length]
     
-        # second change condition: high loss based change
+        # second change condition: target low loss sample
         sorted_result = min(changed_list, key=lambda x: x[1][0])
         
     elif replace_strategy == "RODEO": # RODEO == delete high unqiue classes
