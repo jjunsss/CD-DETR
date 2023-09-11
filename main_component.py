@@ -233,7 +233,8 @@ class TrainingPipeline:
         else:
             optimizer = torch.optim.AdamW(param_dicts, lr=args.lr,
                                         weight_decay=args.weight_decay)
-        lr_scheduler = ContinualStepLR(optimizer, args.lr_drop, gamma = 0.5)
+        # lr_scheduler = ContinualStepLR(optimizer, args.lr_drop, gamma = 0.5)
+        lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, args.lr_drop)
 
         return optimizer, lr_scheduler
 
@@ -546,6 +547,6 @@ def generate_dataset(first_training, task_idx, args, pipeline):
 
         # Task change for learning rate scheduler
         # this lr changed value
-        pipeline.lr_scheduler.task_change()
+        # pipeline.lr_scheduler.task_change()
 
     return dataset_train, data_loader_train, sampler_train, list_CC
