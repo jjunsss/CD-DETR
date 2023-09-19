@@ -153,9 +153,6 @@ def train_one_epoch(args, task_idx, last_task, epo, model: torch.nn.Module, teac
         if dataset_name == "AugReplay" and args.Rehearsal and not first_training:
                 
             if CER_Prob < 0.5: # this term is for randomness training in "replay and original"
-                # this process only replay strategy, AugReplay is same to "Circular Training"
-                # samples, targets, _, _ = prefetcher.next() #* Different
-                # lr_scheduler.replay_step(idx)
                 sum_loss, count = Original_training(args, task_idx, last_task, epo, idx, count, sum_loss, samples, targets,  
                                                     model, teacher_model, criterion, optimizer,
                                                     rehearsal_classes, train_check, current_classes)

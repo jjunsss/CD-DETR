@@ -166,6 +166,11 @@ def DivideTask_for_incre(args, Task_Counts: int, Total_Classes: int, DivisionOfN
                 Divided_Classes_detail = [T1, T2]
                 print(colored(f"Divided_Classes :{Divided_Classes_detail}", "blue", "on_yellow"))
                 
+            elif args.divide_ratio == "20":
+                T1 = list(range(1, 22))
+                Divided_Classes_detail = [T1]
+                print(colored(f"Divided_Classes :{Divided_Classes_detail}", "blue", "on_yellow"))
+                
                 
         msg = f"{'='*35} Entire Divided Classes {'='*35}\n{Divided_Classes}"
         print(colored(msg, 'red'))
